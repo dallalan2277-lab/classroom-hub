@@ -184,7 +184,12 @@
   document.addEventListener('visibilitychange', function () { if (document.hidden && !leaving) markAway('hidden'); });
   window.addEventListener('blur', function () {
     clearTimeout(blurTimer);
-    blurTimer = setTimeout(function () { if (!document.hasFocus() && !document.hidden) markAway('blur'); }, 3000);
+    blurTimer = setTimeout(function () {
+      // 학습지 안의 영상(유튜브 등)을 누른 것은 이탈이 아니에요.
+      var a = document.activeElement;
+      if (a && a.tagName === 'IFRAME') return;
+      if (!document.hasFocus() && !document.hidden) markAway('blur');
+    }, 3000);
   });
   window.addEventListener('focus', function () { clearTimeout(blurTimer); });
 
