@@ -386,45 +386,176 @@ function dashboardData(key) {
   return {
     today: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'),
     now: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'HH:mm:ss'),
-    rows: rows.map(function (r) {
+    rows: rows.filter(function (r) { return r[0] !== ''; }).map(function (r) {
       return {ws: r[0], title: r[1], num: r[2], name: r[3], state: r[4], away: r[5], last: r[6], score: r[7]};
     })
   };
 }
 
+// 현황판의 '지우기'. people = [{num, name}] (학습지 ws 안에서).
+// hard가 true면 기록·제출 탭의 해당 줄도 지워요(되돌릴 수 없어요).
+// 지운 현황 줄을 돌려줘서 '되돌리기'에 써요.
+function dashboardDelete(key, ws, people, hard) {
+  if (!checkKey_(key)) throw new Error('현황판 주소가 올바르지 않아요.');
+  if (typeof ws !== 'string' || !/^[a-z0-9-]{1,40}$/.test(ws)) throw new Error('학습지 이름이 올바르지 않아요.');
+  if (!Array.isArray(people) || !people.length || people.length > 500) throw new Error('지울 학생을 골라 주세요.');
+  const wanted = {};
+  people.forEach(function (p) {
+    if (!isObject_(p) || typeof p.num !== 'string' || typeof p.name !== 'string') throw new Error('지울 학생 정보가 올바르지 않아요.');
+    wanted[p.num + '\u0000' + p.name] = true;
+  });
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) throw new Error('학생 기록을 저장하는 중이에요. 잠시 후 다시 눌러 주세요.');
+  try {
+    const book = openBook_();
+    if (!book) throw new Error('먼저 setup을 실행하세요.');
+    // 열 위치: 현황(학습지 A, 학번 C, 이름 D), 기록·제출(학습지 B, 학번 C, 이름 D)
+    const removed = deleteMatching_(book.getSheetByName(SHEET_STATUS), 1, ws, wanted);
+    let removedLog = 0;
+    let removedSubmit = 0;
+    if (hard === true) {
+      removedLog = deleteMatching_(book.getSheetByName(SHEET_LOG), 2, ws, wanted).length;
+      removedSubmit = deleteMatching_(book.getSheetByName(SHEET_SUBMIT), 2, ws, wanted).length;
+    }
+    SpreadsheetApp.flush();
+    return {removed: removed, removedLog: removedLog, removedSubmit: removedSubmit};
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// '되돌리기': 방금 지운 현황 줄을 다시 넣어요(그사이 학생이 다시 들어와 줄이 생겼으면 그대로 둬요).
+function dashboardRestore(key, rows) {
+  if (!checkKey_(key)) throw new Error('현황판 주소가 올바르지 않아요.');
+  if (!Array.isArray(rows) || rows.length > 500) throw new Error('되돌릴 내용이 올바르지 않아요.');
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) throw new Error('학생 기록을 저장하는 중이에요. 잠시 후 다시 눌러 주세요.');
+  try {
+    const book = openBook_();
+    const sheet = book && book.getSheetByName(SHEET_STATUS);
+    if (!sheet) throw new Error('현황 시트가 없어요.');
+    const count = sheet.getLastRow() - 1;
+    const existing = {};
+    (count > 0 ? sheet.getRange(2, 1, count, 4).getDisplayValues() : []).forEach(function (r) {
+      existing[r[0] + '\u0000' + r[2] + '\u0000' + r[3]] = true;
+    });
+    let restored = 0;
+    rows.forEach(function (r) {
+      if (!Array.isArray(r) || r.length !== HEADERS_STATUS_.length) return;
+      const v = r.map(function (x) { return String(x == null ? '' : x).slice(0, 200); });
+      if (!/^[a-z0-9-]{1,40}$/.test(v[0]) || existing[v[0] + '\u0000' + v[2] + '\u0000' + v[3]]) return;
+      writeRow_(sheet, sheet.getLastRow() + 1, [v[0], v[1], v[2], v[3], v[4],
+        /^\d+$/.test(v[5]) ? Number(v[5]) : v[5], v[6], /^\d+$/.test(v[7]) ? Number(v[7]) : v[7]]);
+      restored++;
+    });
+    SpreadsheetApp.flush();
+    return {restored: restored};
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// wsCol 열이 ws이고 (학번, 이름)이 wanted에 있는 줄을 지우고, 지운 줄(현황 형식 문자열)을 돌려줘요.
+// 이웃한 줄은 한 번에 지워서 빠르게 처리해요.
+function deleteMatching_(sheet, wsCol, ws, wanted) {
+  if (!sheet) return [];
+  const count = sheet.getLastRow() - 1;
+  if (count < 1) return [];
+  const width = sheet.getLastColumn ? Math.max(sheet.getLastColumn(), 4) : 8;
+  const values = sheet.getRange(2, 1, count, width).getDisplayValues();
+  const hits = [];
+  values.forEach(function (row, i) {
+    if (row[wsCol - 1] === ws && wanted[row[2] + '\u0000' + row[3]]) hits.push(i);
+  });
+  for (let k = hits.length - 1; k >= 0;) {
+    let start = hits[k];
+    let n = 1;
+    while (k - n >= 0 && hits[k - n] === start - 1) { start--; n++; }
+    sheet.deleteRows(start + 2, n);
+    k -= n;
+  }
+  return hits.map(function (i) { return values[i].slice(0, HEADERS_STATUS_.length); });
+}
+
 function dashboardHtml_(key) {
   return '<!doctype html><html lang="ko"><head><meta charset="utf-8"><style>' +
-    'body{font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;margin:0;padding:16px;background:#f5f6f3;color:#1f2a24}' +
-    'h1{font-size:20px;margin:0 0 12px}.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}' +
+    ':root{--bg:#f5f6f3;--card:#fff;--ink:#1f2a24;--muted:#66726b;--line:#e2e7e3;--accent:#244b3a;--sel:#e8f0fb;--red:#b3261e;--redbg:#fde8e6;--green:#2e7d4a}' +
+    'body{font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;margin:0;padding:16px;background:var(--bg);color:var(--ink)}' +
+    'h1{font-size:20px;margin:0 0 12px}button{font:inherit;font-size:14px;padding:6px 12px;border:1px solid #c9d1cb;border-radius:8px;background:#fff;color:var(--ink);cursor:pointer}' +
+    'button:hover{background:#f0f2ef}button.danger{color:var(--red);border-color:#e9b7b2}button.icon{border:0;background:transparent;padding:4px 6px;color:var(--muted)}button.icon:hover{color:var(--red);background:var(--redbg)}' +
+    '.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px;position:relative}.grow{flex:1}' +
     'select{font-size:15px;padding:6px 8px;border-radius:8px;border:1px solid #c9d1cb;max-width:100%}' +
-    '.sum{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.sum div{background:#fff;border:1px solid #dde3de;border-radius:10px;padding:8px 14px;font-size:13px}' +
-    '.sum b{display:block;font-size:22px}.sum .red b{color:#b3261e}.sum .green b{color:#2e7d4a}' +
+    '.menu{position:absolute;right:0;top:40px;background:#fff;border:1px solid #c9d1cb;border-radius:8px;padding:4px;min-width:240px;z-index:5;box-shadow:0 6px 20px rgba(0,0,0,.08)}' +
+    '.menu button{display:block;width:100%;text-align:left;border:0;padding:9px 10px}' +
+    '.sum{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.sum div{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:13px}' +
+    '.sum b{display:block;font-size:22px}.sum .red b{color:var(--red)}.sum .green b{color:var(--green)}' +
+    '.selbar{display:flex;align-items:center;gap:10px;padding:8px 12px;margin-bottom:8px;background:var(--sel);border-radius:8px;font-size:14px}' +
     'table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;font-size:14px}' +
-    'th,td{padding:8px 10px;border-bottom:1px solid #eef1ee;text-align:left;white-space:nowrap}th{background:#244b3a;color:#fff;font-weight:600}' +
-    'tr.away td{background:#fde8e6}tr.away td.st{color:#b3261e;font-weight:700}tr.done td.st{color:#2e7d4a;font-weight:700}' +
-    '.wrap{overflow-x:auto}.muted{color:#6b7770;font-size:12px}' +
+    'th,td{padding:8px 10px;border-bottom:1px solid #eef1ee;text-align:left;white-space:nowrap}th{background:var(--accent);color:#fff;font-weight:600}' +
+    'tr.away td{background:var(--redbg)}tr.away td.st{color:var(--red);font-weight:700}tr.done td.st{color:var(--green);font-weight:700}tr.sel td{background:var(--sel)}' +
+    '.wrap{overflow-x:auto}.muted{color:var(--muted);font-size:12px}[hidden]{display:none!important}' +
+    '.veil{position:fixed;inset:0;background:rgba(20,28,24,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}' +
+    '.box{background:#fff;border-radius:14px;max-width:420px;width:100%;padding:20px}.box h2{font-size:17px;margin:0 0 8px}.box p{font-size:14px;color:var(--muted);margin:0 0 12px}' +
+    '.box label{display:block;font-size:14px;margin-bottom:16px}.box .row{display:flex;gap:8px;justify-content:flex-end}' +
+    '.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#1f2a24;color:#fff;border-radius:10px;padding:10px 14px;display:flex;gap:14px;align-items:center;font-size:14px;z-index:9}' +
+    '.toast button{background:transparent;color:#cfe8d8;border-color:#55705f}' +
     '</style></head><body><h1>학습지 현황판</h1>' +
-    '<div class="bar"><select id="ws"></select><label><input type="checkbox" id="today" checked> 오늘만 보기</label>' +
-    '<span class="muted" id="stamp">불러오는 중…</span></div>' +
+    '<div class="bar"><select id="ws" aria-label="학습지"></select><label><input type="checkbox" id="today" checked> 오늘만 보기</label>' +
+    '<span class="muted" id="stamp">불러오는 중…</span><span class="grow"></span>' +
+    '<button id="moreBtn" aria-haspopup="true" aria-expanded="false">정리 ▾</button>' +
+    '<div class="menu" id="menu" hidden role="menu">' +
+    '<button data-bulk="old" role="menuitem">오늘 이전 줄 지우기</button>' +
+    '<button data-bulk="test" role="menuitem">시험용 학생(00000) 지우기</button>' +
+    '<button data-bulk="all" class="danger" role="menuitem">이 학습지 현황 모두 지우기</button></div></div>' +
     '<div class="sum"><div>접속<b id="nAll">0</b></div><div class="red">자리 비움<b id="nAway">0</b></div><div class="green">제출<b id="nDone">0</b></div></div>' +
-    '<div class="wrap"><table><thead><tr><th>학번</th><th>이름</th><th>상태</th><th>이탈</th><th>마지막 소식</th><th>점수</th></tr></thead><tbody id="tb"></tbody></table></div>' +
+    '<div class="selbar" id="selbar" hidden><span id="selTxt"></span><span class="grow"></span><button id="selClear">선택 해제</button><button id="selDel" class="danger">현황에서 지우기</button></div>' +
+    '<div class="wrap"><table><thead><tr><th><input type="checkbox" id="all" aria-label="모두 선택"></th><th>학번</th><th>이름</th><th>상태</th><th>이탈</th><th>마지막 소식</th><th>점수</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>' +
+    '<div class="veil" id="confirm" hidden role="dialog" aria-modal="true" aria-labelledby="cTitle"><div class="box"><h2 id="cTitle"></h2>' +
+    '<p>현황판에서만 사라져요. 시트의 기록·제출 탭에는 그대로 남아요. 지금 접속 중인 학생은 다음 신호를 보내면 다시 나타나요.</p>' +
+    '<label><input type="checkbox" id="hard"> 기록·제출 탭에서도 완전히 지우기 <span style="color:var(--red)">(되돌릴 수 없어요)</span></label>' +
+    '<div class="row"><button id="cNo">취소</button><button id="cYes" class="danger">지우기</button></div></div></div>' +
+    '<div class="toast" id="toast" hidden role="status"><span id="tTxt"></span><button id="undo">되돌리기</button></div>' +
     '<script>' +
-    'var KEY=' + JSON.stringify(key) + ',data=null,picked="";' +
+    'var KEY=' + JSON.stringify(key) + ',data=null,picked="",sel={},pending=null,undoRows=null,busy=false,toastTimer=null;' +
     'function $(i){return document.getElementById(i)}' +
+    'function pk(r){return r.num+"\\u0000"+r.name}' +
     'function td(t,c){var e=document.createElement("td");e.textContent=t;if(c)e.className=c;return e}' +
-    'function draw(){if(!data)return;var today=$("today").checked;' +
-    'var rows=data.rows.filter(function(r){return !today||r.last.slice(0,10)===data.today});' +
-    'var seen={},opts=[];rows.forEach(function(r){if(!seen[r.ws]){seen[r.ws]=1;opts.push(r)}});' +
-    'var sel=$("ws");if(!picked&&opts.length)picked=opts[opts.length-1].ws;sel.textContent="";' +
-    'opts.forEach(function(r){var o=document.createElement("option");o.value=r.ws;o.textContent=(r.title||r.ws);if(r.ws===picked)o.selected=true;sel.appendChild(o)});' +
-    'rows=rows.filter(function(r){return r.ws===picked}).sort(function(a,b){return a.num.localeCompare(b.num,"ko",{numeric:true})});' +
+    'function visible(){if(!data)return[];var today=$("today").checked;return data.rows.filter(function(r){return !today||r.last.slice(0,10)===data.today})}' +
+    'function current(){return visible().filter(function(r){return r.ws===picked}).sort(function(a,b){return a.num.localeCompare(b.num,"ko",{numeric:true})})}' +
+    'function draw(){if(!data)return;var rows=visible(),seen={},opts=[];rows.forEach(function(r){if(!seen[r.ws]){seen[r.ws]={r:r,last:r.last};opts.push(r)}else if(r.last>seen[r.ws].last)seen[r.ws].last=r.last});' +
+    'opts.sort(function(a,b){return seen[b.ws].last.localeCompare(seen[a.ws].last)});if(!seen[picked])picked=opts.length?opts[0].ws:"";var s=$("ws");s.textContent="";' +
+    'opts.forEach(function(r){var o=document.createElement("option");o.value=r.ws;o.textContent=r.title||r.ws;if(r.ws===picked)o.selected=true;s.appendChild(o)});' +
+    'var cur=current(),keep={};cur.forEach(function(r){if(sel[pk(r)])keep[pk(r)]=1});sel=keep;' +
     'var tb=$("tb");tb.textContent="";var na=0,nd=0;' +
-    'rows.forEach(function(r){var tr=document.createElement("tr");if(r.state==="자리 비움"){tr.className="away";na++}else if(r.state==="제출함"){tr.className="done";nd++}' +
-    '[td(r.num),td(r.name),td(r.state,"st"),td(r.away),td(r.last.slice(11)||r.last),td(r.score)].forEach(function(e){tr.appendChild(e)});tb.appendChild(tr)});' +
-    'if(!rows.length){var tr=document.createElement("tr"),c=td("아직 들어온 학생이 없어요.");c.colSpan=6;tr.appendChild(c);tb.appendChild(tr)}' +
-    '$("nAll").textContent=rows.length;$("nAway").textContent=na;$("nDone").textContent=nd;$("stamp").textContent="마지막 갱신 "+data.now+" · 10초마다 자동 갱신"}' +
-    'function load(){google.script.run.withSuccessHandler(function(d){data=d;draw()}).withFailureHandler(function(e){$("stamp").textContent="불러오기 실패: "+e.message}).dashboardData(KEY)}' +
-    '$("ws").onchange=function(){picked=this.value;draw()};$("today").onchange=function(){picked="";draw()};' +
+    'cur.forEach(function(r){var tr=document.createElement("tr"),k=pk(r);if(r.state==="자리 비움"){tr.className="away";na++}else if(r.state==="제출함"){tr.className="done";nd++}if(sel[k])tr.className+=" sel";' +
+    'var c=document.createElement("td"),cb=document.createElement("input");cb.type="checkbox";cb.checked=!!sel[k];cb.setAttribute("aria-label",r.name+" 선택");cb.onchange=function(){if(cb.checked)sel[k]=1;else delete sel[k];draw()};c.appendChild(cb);tr.appendChild(c);' +
+    '[td(r.num),td(r.name),td(r.state,"st"),td(r.away),td(r.last.slice(11)||r.last),td(r.score)].forEach(function(e){tr.appendChild(e)});' +
+    'var d=document.createElement("td"),b=document.createElement("button");b.className="icon";b.textContent="지우기";b.setAttribute("aria-label",r.name+" 지우기");b.onclick=function(){ask([r],r.name+"("+r.num+") 학생을 지울까요?")};d.appendChild(b);tr.appendChild(d);tb.appendChild(tr)});' +
+    'if(!cur.length){var tr=document.createElement("tr"),c=td("아직 들어온 학생이 없어요.");c.colSpan=8;tr.appendChild(c);tb.appendChild(tr)}' +
+    'var n=Object.keys(sel).length;$("selbar").hidden=!n;$("selTxt").textContent=n+"명 선택됨";$("all").checked=n>0&&n===cur.length;' +
+    '$("nAll").textContent=cur.length;$("nAway").textContent=na;$("nDone").textContent=nd;$("stamp").textContent="마지막 갱신 "+data.now+" · 10초마다 자동 갱신"}' +
+    'function load(){if(busy)return;google.script.run.withSuccessHandler(function(d){if(busy)return;data=d;draw()}).withFailureHandler(function(e){$("stamp").textContent="불러오기 실패: "+e.message}).dashboardData(KEY)}' +
+    'function ask(people,title){if(!people.length){toast("지울 학생이 없어요.",false);return}pending=people;$("cTitle").textContent=title;$("hard").checked=false;$("menu").hidden=true;$("moreBtn").setAttribute("aria-expanded","false");$("confirm").hidden=false;$("cNo").focus()}' +
+    'function toast(t,canUndo){$("tTxt").textContent=t;$("undo").hidden=!canUndo;$("toast").hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(function(){$("toast").hidden=true;undoRows=null},10000)}' +
+    '$("cNo").onclick=function(){$("confirm").hidden=true;pending=null};' +
+    '$("cYes").onclick=function(){if(!pending)return;var hard=$("hard").checked,people=pending.map(function(r){return{num:r.num,name:r.name}}),ws=picked;' +
+    '$("confirm").hidden=true;busy=true;$("stamp").textContent="지우는 중…";' +
+    'var gone={};people.forEach(function(p){gone[pk(p)]=1});data.rows=data.rows.filter(function(r){return !(r.ws===ws&&gone[pk(r)])});sel={};draw();' +
+    'google.script.run.withSuccessHandler(function(res){busy=false;undoRows=hard?null:res.removed;' +
+    'var msg=res.removed.length+"명을 현황에서 지웠어요"+(hard?" (기록 "+res.removedLog+"줄, 제출 "+res.removedSubmit+"줄도 지움)":"");toast(msg,!hard);load()})' +
+    '.withFailureHandler(function(e){busy=false;toast("지우지 못했어요: "+e.message,false);load()}).dashboardDelete(KEY,ws,people,hard);pending=null};' +
+    '$("undo").onclick=function(){if(!undoRows)return;var rows=undoRows;undoRows=null;$("toast").hidden=true;busy=true;' +
+    'google.script.run.withSuccessHandler(function(r){busy=false;toast(r.restored+"명을 되돌렸어요",false);load()}).withFailureHandler(function(e){busy=false;toast("되돌리지 못했어요: "+e.message,false)}).dashboardRestore(KEY,rows)};' +
+    '$("selClear").onclick=function(){sel={};draw()};' +
+    '$("selDel").onclick=function(){var cur=current().filter(function(r){return sel[pk(r)]});ask(cur,"선택한 "+cur.length+"명을 지울까요?")};' +
+    '$("all").onchange=function(){sel={};if(this.checked)current().forEach(function(r){sel[pk(r)]=1});draw()};' +
+    '$("moreBtn").onclick=function(e){e.stopPropagation();var m=$("menu");m.hidden=!m.hidden;this.setAttribute("aria-expanded",String(!m.hidden))};' +
+    'document.addEventListener("click",function(e){if(!$("menu").contains(e.target)){$("menu").hidden=true;$("moreBtn").setAttribute("aria-expanded","false")}});' +
+    'document.addEventListener("keydown",function(e){if(e.key==="Escape"){$("menu").hidden=true;$("confirm").hidden=true;pending=null}});' +
+    'Array.prototype.forEach.call(document.querySelectorAll("[data-bulk]"),function(b){b.onclick=function(){if(!data)return;var k=b.getAttribute("data-bulk"),all=data.rows.filter(function(r){return r.ws===picked}),t=(all[0]&&(all[0].title||all[0].ws))||"";' +
+    'var people=k==="old"?all.filter(function(r){return r.last.slice(0,10)<data.today}):k==="test"?all.filter(function(r){return r.num==="00000"}):all;' +
+    'ask(people,k==="all"?"「"+t+"」 현황 "+people.length+"명을 모두 지울까요?":k==="old"?"오늘 이전 "+people.length+"명을 지울까요?":"시험용 학생 "+people.length+"명을 지울까요?")}});' +
+    '$("ws").onchange=function(){picked=this.value;sel={};draw()};$("today").onchange=function(){sel={};draw()};' +
     'load();setInterval(load,10000);' +
     '</script></body></html>';
 }

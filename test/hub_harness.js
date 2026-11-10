@@ -18,6 +18,8 @@ function makeSheet(name) {
     getMaxRows: () => sh.maxRows, getMaxColumns: () => sh.maxCols,
     insertRowsAfter: (_, n) => { sh.maxRows += n; }, insertColumnsAfter: (_, n) => { sh.maxCols += n; },
     getRange: range, setFrozenRows() {}, setColumnWidth() {},
+    getLastColumn: () => sh.cells.reduce((m, row) => Math.max(m, row ? row.length : 0), 0),
+    deleteRows: (start, n) => { sh.cells.splice(start - 1, n); },
     getConditionalFormatRules: () => sh.rules, setConditionalFormatRules: r => { sh.rules = r; },
     _cells: sh.cells
   };
@@ -98,4 +100,40 @@ assert.strictEqual(props.HUB_TEACHER_KEY, key);
 who.active = 'teacher@school';
 assert.strictEqual(typeof run('doGet')({parameter: {}}).t, 'string', 'no-key page is plain text');
 assert.strictEqual(run('doGet')({parameter: {ping: '1'}}).ok, true);
+// ---- 현황판 지우기 · 되돌리기 ----
+const statusRows = () => sheets['현황'].getRange(2, 1, Math.max(sheets['현황'].getLastRow() - 1, 1), 8).getDisplayValues().filter(r => r[0]);
+const logRows = () => sheets['기록'].getRange(2, 1, Math.max(sheets['기록'].getLastRow() - 1, 1), 8).getDisplayValues().filter(r => r[0]);
+// 학생 둘 더(같은 학습지), 다른 학습지에 같은 학생
+post({...base, num: '10701', name: '김하늘', sid: 's2', type: 'start'});
+post({...base, num: '10702', name: '이바다', sid: 's3', type: 'start'});
+assert.strictEqual(statusRows().length, 4);
+const logBefore = logRows().length;
+// 1) 현황에서만 지우기
+let res = run('dashboardDelete')(key, 'gugak-instruments', [{num: '010712', name: '홍길동'}, {num: '10701', name: '김하늘'}], false);
+assert.strictEqual(res.removed.length, 2);
+assert.deepStrictEqual(statusRows().map(r => r[0] + '/' + r[2]).sort(), ['dance-1/010712', 'gugak-instruments/10702']);
+assert.strictEqual(logRows().length, logBefore, 'log untouched on soft delete');
+// 2) 되돌리기 (이미 있는 줄은 건너뜀)
+assert.strictEqual(run('dashboardRestore')(key, res.removed).restored, 2);
+assert.strictEqual(statusRows().length, 4);
+assert.strictEqual(run('dashboardRestore')(key, res.removed).restored, 0, 'no duplicates on second restore');
+const restored = statusRows().find(r => r[2] === '010712' && r[0] === 'gugak-instruments');
+assert.deepStrictEqual(restored, ['gugak-instruments', '국악기 학습지', '010712', '홍길동', '제출함', '1', '2026-11-10 10:00:00', '9']);
+// 3) 완전히 지우기: 그 학습지의 그 학생 기록·제출만
+res = run('dashboardDelete')(key, 'gugak-instruments', [{num: '010712', name: '홍길동'}], true);
+assert.strictEqual(res.removed.length, 1);
+assert.strictEqual(res.removedLog, 4, 'start/away/back/submit');
+assert.strictEqual(res.removedSubmit, 1);
+assert(logRows().some(r => r[1] === 'dance-1' && r[2] === '010712'), 'other worksheet log kept');
+assert(logRows().some(r => r[2] === '10701'), 'other students kept');
+assert.strictEqual(sheets['제출'].getLastRow(), 1);
+// 4) 잘못된 요청
+assert.throws(() => run('dashboardDelete')('nope', 'gugak-instruments', [{num: '1', name: 'a'}], false));
+assert.throws(() => run('dashboardDelete')(key, 'BAD WS', [{num: '1', name: 'a'}], false));
+assert.throws(() => run('dashboardDelete')(key, 'gugak-instruments', [], false));
+assert.throws(() => run('dashboardRestore')('nope', []));
+// 5) 현황판 HTML 안의 스크립트 문법
+const html = run('doGet')({parameter: {dash: key}}).h;
+const inline = html.match(/<script>([\s\S]*)<\/script>/)[1];
+new vm.Script(inline);
 console.log('hub harness: all checks passed');
