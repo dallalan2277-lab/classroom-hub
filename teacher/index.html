@@ -146,6 +146,8 @@ $('startBtn').onclick = function () {
 $('testBtn').onclick = function () { if (!started) $('startBtn').onclick(); beep(3); if (navigator.vibrate) navigator.vibrate([300, 150, 300]); };
 
 // ---- 데이터: 숨겨진 탭에서도 느려지지 않게 워커가 5초마다 가져와요 ----
+// 작은 창으로 옮겨도 계속 쓸 수 있게 요소를 미리 잡아 둬요.
+var MINI = {status: $('mStatus'), big: $('mBig'), sub: $('mSub'), list: $('mList')};
 var data = null, receivedAt = 0, lastOk = 0, lastErr = '', fired = {}, worker = null;
 function startPolling() {
   var src = 'var url="",t=null;onmessage=function(e){url=e.data;clearTimeout(t);tick()};' +
@@ -205,7 +207,7 @@ function render() {
   var long = away.filter(function (a) { return a.sec >= settings.threshold; }), short = away.filter(function (a) { return a.sec < settings.threshold; });
   $('nAll').textContent = rows.length; $('nAway').textContent = away.length;
   $('nDone').textContent = rows.filter(function (r) { return r.state === '제출함'; }).length;
-  var L = $('longList'), S = $('shortList'), M = $('mList');
+  var L = $('longList'), S = $('shortList'), M = MINI.list;
   L.textContent = ''; S.textContent = ''; M.textContent = '';
   long.forEach(function (a) { L.appendChild(li(a, true)); M.appendChild(li(a, true)); });
   short.forEach(function (a) { S.appendChild(li(a, false)); });
@@ -219,7 +221,7 @@ function render() {
   else if (!started) { cls = 'off'; text = '알림을 시작해 주세요'; sub = '자리 비움 ' + away.length + '명'; }
   else { cls = 'ok'; text = '모두 학습지에 있어요'; sub = away.length ? '잠깐 자리 비움 ' + away.length + '명' : '접속 ' + rows.length + '명'; }
   setStatus($('status'), $('statusBig'), $('statusSub'), cls, text, sub);
-  setStatus($('mStatus'), $('mBig'), $('mSub'), cls, long.length ? '자리 비움 ' + long.length + '명' : (cls === 'ok' ? '모두 있어요' : text), long.length ? '' : sub);
+  setStatus(MINI.status, MINI.big, MINI.sub, cls, long.length ? '자리 비움 ' + long.length + '명' : (cls === 'ok' ? '모두 있어요' : text), long.length ? '' : sub);
   if (data) $('stamp').textContent = '마지막 확인 ' + data.now + ' · 5초마다 자동 확인 · 경고 기준 ' + settings.threshold + '초';
   if (lastErr && /키/.test(lastErr)) { $('app').hidden = true; $('setup').hidden = false; $('setupErr').textContent = lastErr + ' 현황판 주소를 다시 붙여 넣어 주세요.'; }
 }

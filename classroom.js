@@ -176,7 +176,12 @@
     card.appendChild(btn); veil.appendChild(card); document.body.appendChild(veil);
     setTimeout(function () { btn.focus(); }, 50);
   }
-  document.addEventListener('visibilitychange', function () { if (document.hidden) markAway('hidden'); });
+  // 새로고침·페이지 닫기는 자리 비움으로 세지 않아요.
+  var leaving = false;
+  window.addEventListener('pagehide', function () { leaving = true; });
+  window.addEventListener('beforeunload', function () { leaving = true; });
+  window.addEventListener('pageshow', function () { leaving = false; });
+  document.addEventListener('visibilitychange', function () { if (document.hidden && !leaving) markAway('hidden'); });
   window.addEventListener('blur', function () {
     clearTimeout(blurTimer);
     blurTimer = setTimeout(function () { if (!document.hasFocus() && !document.hidden) markAway('blur'); }, 3000);
@@ -220,7 +225,12 @@
 
   function begin(isNew) {
     tracking = true; renderChip();
-    if (isNew) send('start'); else flush();
+    if (isNew) send('start');
+    else {
+      // 자리를 비운 채 새로고침했다면, 돌아온 것으로 알려요.
+      if (S.awayAt) { send('back', {seconds: Math.max(0, Math.round((Date.now() - S.awayAt) / 1000))}); S.awayAt = 0; save(); }
+      flush();
+    }
     resolveReady({num: S.num, name: S.name});
   }
   function boot() {
