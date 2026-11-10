@@ -132,6 +132,10 @@ assert.throws(() => run('dashboardDelete')('nope', 'gugak-instruments', [{num: '
 assert.throws(() => run('dashboardDelete')(key, 'BAD WS', [{num: '1', name: 'a'}], false));
 assert.throws(() => run('dashboardDelete')(key, 'gugak-instruments', [], false));
 assert.throws(() => run('dashboardRestore')('nope', []));
+// 4b) 알림판 JSON
+const j = run('doGet')({parameter: {dash: key, format: 'json'}});
+assert.strictEqual(j.ok, true); assert(Array.isArray(j.rows) && j.rows.length > 0); assert(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(j.nowFull));
+assert.strictEqual(run('doGet')({parameter: {dash: 'nope', format: 'json'}}).ok, false);
 // 5) 현황판 HTML 안의 스크립트 문법
 const html = run('doGet')({parameter: {dash: key}}).h;
 const inline = html.match(/<script>([\s\S]*)<\/script>/)[1];

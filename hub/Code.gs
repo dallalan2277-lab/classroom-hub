@@ -116,6 +116,12 @@ function newKey_() {
 function doGet(e) {
   const p = (e && e.parameter) || {};
   if (p.ping) return json_({ok: true, msg: '학습지 허브가 동작 중이에요'});
+  // 선생님 알림판(GitHub Pages)이 5초마다 읽어 가는 JSON
+  if (p.dash && p.format === 'json') {
+    if (!checkKey_(p.dash)) return json_({ok: false, error: '현황판 키가 올바르지 않아요.'});
+    try { const d = dashboardData(p.dash); d.ok = true; return json_(d); }
+    catch (error) { return json_({ok: false, error: error.message}); }
+  }
   if (p.dash && checkKey_(p.dash)) {
     return HtmlService.createHtmlOutput(dashboardHtml_(p.dash))
       .setTitle('학습지 현황판')
@@ -386,6 +392,7 @@ function dashboardData(key) {
   return {
     today: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'),
     now: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'HH:mm:ss'),
+    nowFull: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss'),
     rows: rows.filter(function (r) { return r[0] !== ''; }).map(function (r) {
       return {ws: r[0], title: r[1], num: r[2], name: r[3], state: r[4], away: r[5], last: r[6], score: r[7]};
     })
@@ -502,7 +509,7 @@ function dashboardHtml_(key) {
     '</style></head><body><h1>학습지 현황판</h1>' +
     '<div class="bar"><select id="ws" aria-label="학습지"></select><label><input type="checkbox" id="today" checked> 오늘만 보기</label>' +
     '<span class="muted" id="stamp">불러오는 중…</span><span class="grow"></span>' +
-    '<button id="moreBtn" aria-haspopup="true" aria-expanded="false">정리 ▾</button>' +
+    '<button id="alertBtn">알림판 열기</button><button id="moreBtn" aria-haspopup="true" aria-expanded="false">정리 ▾</button>' +
     '<div class="menu" id="menu" hidden role="menu">' +
     '<button data-bulk="old" role="menuitem">오늘 이전 줄 지우기</button>' +
     '<button data-bulk="test" role="menuitem">시험용 학생(00000) 지우기</button>' +
@@ -514,8 +521,11 @@ function dashboardHtml_(key) {
     '<p>현황판에서만 사라져요. 시트의 기록·제출 탭에는 그대로 남아요. 지금 접속 중인 학생은 다음 신호를 보내면 다시 나타나요.</p>' +
     '<label><input type="checkbox" id="hard"> 기록·제출 탭에서도 완전히 지우기 <span style="color:var(--red)">(되돌릴 수 없어요)</span></label>' +
     '<div class="row"><button id="cNo">취소</button><button id="cYes" class="danger">지우기</button></div></div></div>' +
+    '<div class="veil" id="alertBox" hidden role="dialog" aria-modal="true" aria-labelledby="aTitle"><div class="box" style="text-align:center"><h2 id="aTitle">선생님 알림판</h2>' +
+    '<p>휴대폰 카메라로 비추면 알림판이 열려요. 오래 자리를 비운 학생이 생기면 소리와 빨간 화면으로 알려 줘요. 이 QR에는 비밀 키가 있으니 학생에게 보여 주지 마세요.</p>' +
+    '<div id="qr" style="display:inline-block;margin:4px 0 12px"></div><div class="row" style="justify-content:center"><a id="alertLink" target="_blank" rel="noopener"><button>이 컴퓨터에서 열기</button></a><button id="aClose">닫기</button></div></div></div>' +
     '<div class="toast" id="toast" hidden role="status"><span id="tTxt"></span><button id="undo">되돌리기</button></div>' +
-    '<script>' +
+    '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script>' +
     'var KEY=' + JSON.stringify(key) + ',data=null,picked="",sel={},pending=null,undoRows=null,busy=false,toastTimer=null;' +
     'function $(i){return document.getElementById(i)}' +
     'function pk(r){return r.num+"\\u0000"+r.name}' +
@@ -556,6 +566,9 @@ function dashboardHtml_(key) {
     'var people=k==="old"?all.filter(function(r){return r.last.slice(0,10)<data.today}):k==="test"?all.filter(function(r){return r.num==="00000"}):all;' +
     'ask(people,k==="all"?"「"+t+"」 현황 "+people.length+"명을 모두 지울까요?":k==="old"?"오늘 이전 "+people.length+"명을 지울까요?":"시험용 학생 "+people.length+"명을 지울까요?")}});' +
     '$("ws").onchange=function(){picked=this.value;sel={};draw()};$("today").onchange=function(){sel={};draw()};' +
+    'var ALERT_URL="https://dallalan2277-lab.github.io/classroom-hub/teacher/#k="+encodeURIComponent(KEY);$("alertLink").href=ALERT_URL;' +
+    '$("alertBtn").onclick=function(){$("alertBox").hidden=false;var q=$("qr");q.textContent="";if(window.QRCode)new QRCode(q,{text:ALERT_URL,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});else q.textContent="QR을 불러오지 못했어요. 아래 버튼을 쓰세요."};' +
+    '$("aClose").onclick=function(){$("alertBox").hidden=true};' +
     'load();setInterval(load,10000);' +
     '</script></body></html>';
 }

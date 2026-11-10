@@ -2,6 +2,7 @@
 import json, sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 LOG = []
+FAKE = {'ok': True, 'today': '', 'now': '', 'nowFull': '', 'rows': []}
 class H(BaseHTTPRequestHandler):
     def _send(self, obj, code=200):
         b = json.dumps(obj, ensure_ascii=False).encode()
@@ -9,10 +10,13 @@ class H(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*'); self.end_headers(); self.wfile.write(b)
     def do_POST(self):
         n = int(self.headers.get('Content-Length') or 0); raw = self.rfile.read(n).decode('utf-8')
+        if self.path.startswith('/fake'):
+            FAKE.update(json.loads(raw)); return self._send({'ok': True})
         try: LOG.append(json.loads(raw)); self._send({'ok': True})
         except Exception as e: self._send({'ok': False, 'error': str(e)})
     def do_GET(self):
-        if self.path.startswith('/log'): self._send(LOG)
+        if 'format=json' in self.path: self._send(FAKE)
+        elif self.path.startswith('/log'): self._send(LOG)
         elif self.path.startswith('/clear'): LOG.clear(); self._send({'ok': True})
         else: self._send({'ok': True})
     def log_message(self, *a): pass

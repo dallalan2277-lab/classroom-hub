@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>선생님 알림판</title>
+<style>
+:root{--bg:#f5f6f3;--card:#fff;--ink:#1f2a24;--muted:#66726b;--line:#dfe5e0;--accent:#244b3a;--red:#b3261e;--redbg:#fde8e6;--green:#2e7d4a;--greenbg:#e6f4ea}
+@media (prefers-color-scheme:dark){:root{--bg:#121714;--card:#1b221e;--ink:#e6ece8;--muted:#9eaba4;--line:#2c3631;--accent:#8fc5a8;--red:#ff8a80;--redbg:#3a1714;--green:#8fd6a6;--greenbg:#16301f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+main{max-width:560px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:4px 0 12px}
+button,select,input{font:inherit;font-size:15px}
+button{padding:8px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--card);font-weight:700}
+select,input{padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+.muted{color:var(--muted);font-size:13px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grow{flex:1}
+.status{border-radius:16px;padding:18px;margin-bottom:12px;text-align:center}
+.status b{display:block;font-size:26px;line-height:1.3}
+.status.ok{background:var(--greenbg);color:var(--green)}
+.status.bad{background:var(--redbg);color:var(--red)}
+.status.off{background:var(--card);color:var(--muted);border:1px solid var(--line)}
+.flash{animation:flash 1s ease-in-out 3}
+@keyframes flash{50%{filter:brightness(1.25)}}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;gap:10px;align-items:baseline;padding:8px 2px;border-bottom:1px solid var(--line);font-size:16px}
+.list li:last-child{border-bottom:0}
+.list .t{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700}
+.list .ws{font-size:12px;color:var(--muted)}
+li.long{color:var(--red)}
+.stats{display:flex;gap:8px;margin-bottom:12px}
+.stats div{flex:1;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:13px;color:var(--muted)}
+.stats b{display:block;font-size:20px;color:var(--ink)}
+[hidden]{display:none!important}
+#mini{font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;padding:10px;height:100%}
+#mini .status{padding:10px;margin-bottom:6px}
+#mini .status b{font-size:18px}
+#mini .list li{font-size:14px;padding:4px 0}
+</style>
+</head>
+<body>
+<main>
+  <h1>선생님 알림판</h1>
+
+  <section class="card" id="setup" hidden>
+    <p style="margin-top:0">현황판에서 <b>알림판 열기</b>를 눌러 QR로 열거나, 현황판 주소를 아래에 붙여 넣어 주세요.</p>
+    <div class="row"><input id="dashUrl" class="grow" placeholder="https://script.google.com/macros/s/…/exec?dash=…" aria-label="현황판 주소"><button id="saveKey">저장</button></div>
+    <p class="muted" id="setupErr" role="alert"></p>
+  </section>
+
+  <div id="app" hidden>
+    <div class="status off" id="status" role="status" aria-live="assertive"><b id="statusBig">알림을 시작해 주세요</b><span id="statusSub" class="muted"></span></div>
+
+    <div class="card" id="startCard">
+      <p style="margin-top:0">아래 버튼을 누르면 소리 알림이 켜지고, 이 화면이 꺼지지 않게 유지돼요.</p>
+      <button class="primary" id="startBtn" style="width:100%;padding:14px">알림 시작</button>
+    </div>
+
+    <div class="row card" style="padding:10px 12px">
+      <label>경고 기준 <select id="threshold"><option value="10">10초</option><option value="20">20초</option><option value="30">30초</option><option value="60">1분</option></select> 이상 이탈</label>
+      <span class="grow"></span>
+      <button id="soundBtn" aria-pressed="true">소리 켜짐</button>
+      <button id="testBtn">소리 시험</button>
+      <button id="pipBtn" hidden>작은 창으로 띄우기</button>
+    </div>
+
+    <div class="stats"><div>접속<b id="nAll">0</b></div><div>자리 비움<b id="nAway">0</b></div><div>제출<b id="nDone">0</b></div></div>
+
+    <section class="card"><div class="muted" style="margin-bottom:4px">오래 자리를 비운 학생</div><ul class="list" id="longList"></ul></section>
+    <section class="card"><div class="muted" style="margin-bottom:4px">잠깐 자리를 비운 학생</div><ul class="list" id="shortList"></ul></section>
+    <p class="muted" id="stamp">불러오는 중…</p>
+    <p class="muted">오늘 활동한 모든 학습지를 지켜봐요. 학생이 학습지로 돌아와 '돌아가기'를 누르면 목록에서 사라져요. <button id="forget" style="padding:2px 8px;font-size:12px">이 기기에서 키 지우기</button></p>
+  </div>
+</main>
+
+<div id="mini" hidden>
+  <div class="status off" id="mStatus"><b id="mBig">-</b><span id="mSub" class="muted"></span></div>
+  <ul class="list" id="mList"></ul>
+</div>
+
+<script>
+'use strict';
+var HUB = 'https://script.google.com/macros/s/AKfycbyIvmwidYjUqyMIx5SdVP4NhY5tsqAhuWOGzOhtRUI4NSYAoQkKMt-6s7DFud7s5aMN/exec';
+// 시험용: 이 컴퓨터(localhost)에서 열 때만 ?hub=주소 로 바꿔 볼 수 있어요.
+try { var qh = new URLSearchParams(location.search).get('hub'); if (qh && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) HUB = qh; } catch (e) {}
+var KEY_STORE = 'classroom-hub:dash-key', SET_STORE = 'classroom-hub:alert-settings';
+var $ = function (id) { return document.getElementById(id); };
+function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+// ---- 키: 주소의 #k=… (서버로 보내지지 않음) → 이 기기에 기억 ----
+var key = null;
+(function () {
+  var m = location.hash.match(/[#&]k=([^&]+)/);
+  if (m) { key = decodeURIComponent(m[1]); store(KEY_STORE, key); history.replaceState(null, '', location.pathname + location.search); }
+  else key = load(KEY_STORE);
+})();
+function keyFromUrl(text) { var m = String(text).match(/[?&#](?:dash|k)=([A-Za-z0-9%]+)/); return m ? decodeURIComponent(m[1]) : null; }
+$('saveKey').onclick = function () {
+  var k = keyFromUrl($('dashUrl').value.trim());
+  if (!k) { $('setupErr').textContent = '주소에서 dash= 뒤의 키를 찾지 못했어요. 현황판 주소 전체를 붙여 넣어 주세요.'; return; }
+  key = k; store(KEY_STORE, k); boot();
+};
+$('dashUrl').oninput = function () { $('setupErr').textContent = ''; };
+$('forget').onclick = function () { if (confirm('이 기기에서 알림판 키를 지울까요?')) { store(KEY_STORE, null); location.reload(); } };
+
+// ---- 설정 ----
+var settings = {threshold: 20, sound: true};
+try { var s0 = JSON.parse(load(SET_STORE) || 'null'); if (s0) { if ([10, 20, 30, 60].indexOf(s0.threshold) >= 0) settings.threshold = s0.threshold; settings.sound = s0.sound !== false; } } catch (e) {}
+function saveSettings() { store(SET_STORE, JSON.stringify(settings)); }
+$('threshold').value = String(settings.threshold);
+$('threshold').onchange = function () { settings.threshold = Number(this.value); saveSettings(); evaluate(); render(); };
+function soundLabel() { $('soundBtn').textContent = settings.sound ? '소리 켜짐' : '소리 꺼짐'; $('soundBtn').setAttribute('aria-pressed', String(settings.sound)); }
+soundLabel();
+$('soundBtn').onclick = function () { settings.sound = !settings.sound; saveSettings(); soundLabel(); };
+
+// ---- 소리·진동·화면 유지 ----
+var audio = null, started = false, wakeLock = null;
+function beep(times) {
+  if (!audio || !settings.sound) return;
+  var t = audio.currentTime;
+  for (var i = 0; i < times; i++) {
+    var o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'square'; o.frequency.value = i % 2 ? 660 : 880;
+    g.gain.setValueAtTime(0.0001, t + i * 0.35); g.gain.exponentialRampToValueAtTime(0.25, t + i * 0.35 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.35 + 0.28);
+    o.connect(g); g.connect(audio.destination); o.start(t + i * 0.35); o.stop(t + i * 0.35 + 0.3);
+  }
+}
+function keepAwake() {
+  if (!started || !('wakeLock' in navigator) || document.hidden) return;
+  navigator.wakeLock.request('screen').then(function (w) { wakeLock = w; }).catch(function () {});
+}
+document.addEventListener('visibilitychange', keepAwake);
+$('startBtn').onclick = function () {
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) {}
+  started = true; $('startCard').hidden = true; keepAwake(); beep(1);
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  render();
+};
+$('testBtn').onclick = function () { if (!started) $('startBtn').onclick(); beep(3); if (navigator.vibrate) navigator.vibrate([300, 150, 300]); };
+
+// ---- 데이터: 숨겨진 탭에서도 느려지지 않게 워커가 5초마다 가져와요 ----
+var data = null, receivedAt = 0, lastOk = 0, lastErr = '', fired = {}, worker = null;
+function startPolling() {
+  var src = 'var url="",t=null;onmessage=function(e){url=e.data;clearTimeout(t);tick()};' +
+    'function tick(){fetch(url,{cache:"no-store"}).then(function(r){return r.json()}).then(function(d){postMessage({ok:true,d:d})})' +
+    '.catch(function(err){postMessage({ok:false,error:String(err)})}).then(function(){t=setTimeout(tick,5000)})}';
+  worker = new Worker(URL.createObjectURL(new Blob([src], {type: 'text/javascript'})));
+  worker.onmessage = function (e) {
+    var m = e.data;
+    if (m.ok && m.d && m.d.ok) { data = m.d; receivedAt = Date.now(); lastOk = receivedAt; lastErr = ''; evaluate(); }
+    else if (m.ok && m.d && !m.d.ok) { lastErr = m.d.error || '키가 올바르지 않아요.'; if (/키/.test(lastErr)) { store(KEY_STORE, null); } }
+    else lastErr = '인터넷 연결을 확인해 주세요.';
+    render();
+  };
+  worker.postMessage(HUB + '?dash=' + encodeURIComponent(key) + '&format=json');
+}
+function parseTime(s) { var m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(s || ''); return m ? Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : NaN; }
+function rowsToday() {
+  if (!data) return [];
+  return data.rows.filter(function (r) { return r.last.slice(0, 10) === data.today; });
+}
+function awayRows() {
+  if (!data) return [];
+  var now = parseTime(data.nowFull) + (Date.now() - receivedAt);
+  return rowsToday().filter(function (r) { return r.state === '자리 비움'; }).map(function (r) {
+    var sec = Math.max(0, Math.round((now - parseTime(r.last)) / 1000));
+    return {r: r, sec: isNaN(sec) ? 0 : sec, id: r.ws + '|' + r.num + '|' + r.name + '|' + r.away};
+  }).sort(function (a, b) { return b.sec - a.sec; });
+}
+function fmt(sec) { return sec < 60 ? sec + '초' : Math.floor(sec / 60) + '분 ' + (sec % 60) + '초'; }
+function evaluate() {
+  var fresh = [];
+  awayRows().forEach(function (a) { if (a.sec >= settings.threshold && !fired[a.id]) { fired[a.id] = 1; fresh.push(a); } });
+  if (!fresh.length || !started) return;
+  beep(3);
+  if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]);
+  $('status').classList.remove('flash'); void $('status').offsetWidth; $('status').classList.add('flash');
+  if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+    try { new Notification('자리 비움 ' + fresh.length + '명', {body: fresh.map(function (a) { return a.r.num + ' ' + a.r.name; }).join(', '), tag: 'classroom-away', renotify: true}); } catch (e) {}
+  }
+}
+
+// ---- 화면 ----
+function li(a, long) {
+  var el = document.createElement('li'); if (long) el.className = 'long';
+  var n = document.createElement('span'); n.textContent = a.r.num + ' ' + a.r.name;
+  var w = document.createElement('span'); w.className = 'ws'; w.textContent = a.r.title || a.r.ws;
+  var t = document.createElement('span'); t.className = 't'; t.textContent = fmt(a.sec);
+  el.appendChild(n); el.appendChild(w); el.appendChild(t); return el;
+}
+function setStatus(box, big, sub, cls, text, subText) {
+  box.className = 'status ' + cls + (box.classList.contains('flash') ? ' flash' : '');
+  big.textContent = text; sub.textContent = subText;
+}
+function render() {
+  var stale = data && Date.now() - lastOk > 30000;
+  var rows = rowsToday(), away = awayRows();
+  var long = away.filter(function (a) { return a.sec >= settings.threshold; }), short = away.filter(function (a) { return a.sec < settings.threshold; });
+  $('nAll').textContent = rows.length; $('nAway').textContent = away.length;
+  $('nDone').textContent = rows.filter(function (r) { return r.state === '제출함'; }).length;
+  var L = $('longList'), S = $('shortList'), M = $('mList');
+  L.textContent = ''; S.textContent = ''; M.textContent = '';
+  long.forEach(function (a) { L.appendChild(li(a, true)); M.appendChild(li(a, true)); });
+  short.forEach(function (a) { S.appendChild(li(a, false)); });
+  if (!long.length) { var e1 = document.createElement('li'); e1.className = 'muted'; e1.textContent = '없어요'; L.appendChild(e1); }
+  if (!short.length) { var e2 = document.createElement('li'); e2.className = 'muted'; e2.textContent = '없어요'; S.appendChild(e2); }
+  var cls, text, sub;
+  if (lastErr && !data) { cls = 'off'; text = '연결할 수 없어요'; sub = lastErr; }
+  else if (!data) { cls = 'off'; text = '불러오는 중…'; sub = ''; }
+  else if (stale) { cls = 'bad'; text = '연결이 끊겼어요'; sub = '인터넷 연결을 확인해 주세요. (' + Math.round((Date.now() - lastOk) / 1000) + '초 전 마지막 확인)'; }
+  else if (long.length) { cls = 'bad'; text = '오래 자리를 비운 학생 ' + long.length + '명'; sub = long.slice(0, 3).map(function (a) { return a.r.num + ' ' + a.r.name + ' ' + fmt(a.sec); }).join(' · '); }
+  else if (!started) { cls = 'off'; text = '알림을 시작해 주세요'; sub = '자리 비움 ' + away.length + '명'; }
+  else { cls = 'ok'; text = '모두 학습지에 있어요'; sub = away.length ? '잠깐 자리 비움 ' + away.length + '명' : '접속 ' + rows.length + '명'; }
+  setStatus($('status'), $('statusBig'), $('statusSub'), cls, text, sub);
+  setStatus($('mStatus'), $('mBig'), $('mSub'), cls, long.length ? '자리 비움 ' + long.length + '명' : (cls === 'ok' ? '모두 있어요' : text), long.length ? '' : sub);
+  if (data) $('stamp').textContent = '마지막 확인 ' + data.now + ' · 5초마다 자동 확인 · 경고 기준 ' + settings.threshold + '초';
+  if (lastErr && /키/.test(lastErr)) { $('app').hidden = true; $('setup').hidden = false; $('setupErr').textContent = lastErr + ' 현황판 주소를 다시 붙여 넣어 주세요.'; }
+}
+setInterval(render, 1000);
+
+// ---- 작은 창(문서 PIP): 다른 창 위에 항상 떠 있어요 ----
+var pip = null;
+if ('documentPictureInPicture' in window) $('pipBtn').hidden = false;
+$('pipBtn').onclick = function () {
+  if (pip) { pip.close(); return; }
+  if (!started) $('startBtn').onclick();
+  documentPictureInPicture.requestWindow({width: 300, height: 200}).then(function (w) {
+    pip = w;
+    Array.prototype.forEach.call(document.querySelectorAll('style'), function (st) { w.document.head.appendChild(st.cloneNode(true)); });
+    w.document.body.style.margin = '0';
+    var mini = $('mini'); mini.hidden = false; w.document.body.appendChild(mini);
+    $('pipBtn').textContent = '작은 창 닫기';
+    w.addEventListener('pagehide', function () { mini.hidden = true; document.body.appendChild(mini); pip = null; $('pipBtn').textContent = '작은 창으로 띄우기'; });
+  }).catch(function () { alert('작은 창을 열 수 없어요. 크롬(버전 116 이상)이나 엣지에서 열어 주세요.'); });
+};
+
+function boot() {
+  if (!key) { $('setup').hidden = false; $('app').hidden = true; return; }
+  $('setup').hidden = true; $('app').hidden = false; lastErr = '';
+  if (worker) worker.terminate();
+  startPolling(); render();
+}
+boot();
+</script>
+</body>
+</html>
