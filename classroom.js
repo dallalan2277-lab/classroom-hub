@@ -24,7 +24,7 @@
   'use strict';
 
   // 중앙 허브(Apps Script 웹 앱) 주소. 배포 후 한 번만 채우면 모든 학습지에 적용돼요.
-  var HUB_URL = '';
+  var HUB_URL = 'https://script.google.com/macros/s/AKfycbyIvmwidYjUqyMIx5SdVP4NhY5tsqAhuWOGzOhtRUI4NSYAoQkKMt-6s7DFud7s5aMN/exec';
 
   var script = document.currentScript || document.querySelector('script[data-ws]');
   var WS = (script && script.getAttribute('data-ws') || '').trim();
