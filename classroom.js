@@ -19,6 +19,9 @@
  *  Classroom.submit(result)   : result = {score, total, wrong:[...], answers:{문항: '답'}}
  *                               → Promise<{ok:boolean, error?:string, offline?:boolean}>
  *  Classroom.online           : 허브 주소가 설정되어 실제로 전송하는지 여부
+ *  Classroom.away             : 지금까지 자리 비움 횟수
+ *  Classroom.switchStudent()  : 다른 학생으로 바꾸기(이 기기의 기록을 지우고 다시 입력)
+ *  document 이벤트            : 'classroom:away'(자리 비움 생김), 'classroom:switch'(학생 바뀜 → 학습지 기록 지우기)
  */
 (function () {
   'use strict';
@@ -102,16 +105,18 @@
   (document.head || document.documentElement).appendChild(style);
 
   function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  // 다른 학생으로 바꿔요. 학습지는 'classroom:switch' 신호를 받아 자기 기록을 지워요.
+  function switchStudent() {
+    try { document.dispatchEvent(new CustomEvent('classroom:switch')); } catch (e) {}
+    S.num = ''; S.name = ''; S.sid = ''; S.away = 0; S.awayAt = 0; S.attempt = 0; S.submitted = false; save(); location.reload();
+  }
   var chip;
   function renderChip() {
     if (!chip) {
       chip = el('button', 'cr-chip'); chip.type = 'button';
       chip.title = '다른 학생으로 바꾸려면 누르세요';
       chip.addEventListener('click', function () {
-        if (confirm(S.num + ' ' + S.name + ' 학생이 아닌가요?\n확인을 누르면 이 기기에 남은 학습 기록을 지우고 학번·이름을 다시 입력해요.')) {
-          try { document.dispatchEvent(new CustomEvent('classroom:switch')); } catch (e) {}
-          S.num = ''; S.name = ''; S.sid = ''; S.away = 0; S.attempt = 0; S.submitted = false; save(); location.reload();
-        }
+        if (confirm(S.num + ' ' + S.name + ' 학생이 아닌가요?\n확인을 누르면 이 기기에 남은 학습 기록을 지우고 학번·이름을 다시 입력해요.')) switchStudent();
       });
       document.body.appendChild(chip);
     }
@@ -156,6 +161,7 @@
   function markAway(reason) {
     if (!tracking || warnOpen) return;
     warnOpen = true; S.away++; S.awayAt = Date.now(); save(); renderChip();
+    try { document.dispatchEvent(new CustomEvent('classroom:away', {detail: {away: S.away}})); } catch (e) {}
     send('away', {reason: reason}, true);
     var veil = el('div', 'cr-veil'), card = el('div', 'cr-card cr-warn');
     card.setAttribute('role', 'alertdialog'); card.setAttribute('aria-modal', 'true');
@@ -185,6 +191,7 @@
     get student() { return S.num ? {num: S.num, name: S.name} : null; },
     get submitted() { return S.submitted; },
     get away() { return S.away; },
+    switchStudent: switchStudent,
     submit: function (result) {
       result = result || {};
       if (!S.num) return Promise.resolve({ok: false, error: '학번과 이름을 먼저 입력해 주세요.'});

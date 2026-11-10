@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>세계의 춤 용어 학습지</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+/* 학습지 한 장: 가운데 좁은 종이 기둥, 위에 이름표, 아래로 춤별 문항, 맨 끝 제출과 확인 코드 */
+:root{
+  --bg:#eef0f4; --paper:#ffffff; --ink:#1d2033; --muted:#5d6278; --line:#d9dce6;
+  --accent:#a8651a; --accent-soft:#f6ead9; --on-accent:#ffffff; --ok:#1f8a5b; --ok-soft:#e1f3ea; --no:#c2413a; --no-soft:#fbe6e4;
+  --warn-bg:rgba(20,22,35,.72);
+  --f-display:'Gowun Batang','Nanum Myeongjo',serif;
+  --f-body:'Noto Sans KR',system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121119; --paper:#1b1a24; --ink:#f1ede6; --muted:#a9a3b8; --line:#2f2d3c;
+  --accent:#e8b04a; --accent-soft:#3a2f1c; --on-accent:#14110c; --ok:#4cc38a; --ok-soft:#173326; --no:#ef6f66; --no-soft:#3a1d1c;
+  --warn-bg:rgba(0,0,0,.78); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121119; --paper:#1b1a24; --ink:#f1ede6; --muted:#a9a3b8; --line:#2f2d3c;
+  --accent:#e8b04a; --accent-soft:#3a2f1c; --on-accent:#14110c; --ok:#4cc38a; --ok-soft:#173326; --no:#ef6f66; --no-soft:#3a1d1c;
+  --warn-bg:rgba(0,0,0,.78); color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.75;word-break:keep-all;overflow-wrap:break-word;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 4rem}
+.sheet{max-width:860px;margin:0 auto}
+h1,h2,h3{margin:0;line-height:1.3;text-wrap:balance}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+
+header.top{padding:2.4rem 0 1.4rem}
+.kicker{font-size:.78rem;letter-spacing:.14em;color:var(--accent);font-weight:700}
+h1{font-family:var(--f-display);font-size:2.4rem;margin:.3rem 0 .4rem}
+.sub{color:var(--muted);margin:0}
+
+details.qr{background:var(--paper);border:1px solid var(--line);border-radius:14px;margin-bottom:1rem}
+details.qr>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;padding:.85rem 1.2rem;font-weight:700}
+details.qr>summary::-webkit-details-marker{display:none}
+details.qr>summary::before{content:"";width:1.3rem;height:1.3rem;flex:none;background:
+ linear-gradient(var(--ink),var(--ink)) 0 0/40% 40% no-repeat,linear-gradient(var(--ink),var(--ink)) 100% 0/40% 40% no-repeat,linear-gradient(var(--ink),var(--ink)) 0 100%/40% 40% no-repeat,linear-gradient(var(--ink),var(--ink)) 100% 100%/20% 20% no-repeat}
+details.qr>summary small{font-weight:400;color:var(--muted);font-size:.85rem}
+details.qr>summary::after{content:"펼치기";margin-left:auto;font-size:.82rem;font-weight:700;color:var(--accent)}
+details.qr[open]>summary::after{content:"접기"}
+.qr-body{display:flex;flex-wrap:wrap;gap:1.4rem;align-items:center;padding:.2rem 1.2rem 1.3rem}
+.qr-img{background:#fff;padding:12px;border-radius:10px;border:1px solid var(--line);line-height:0}
+.qr-img img,.qr-img canvas{display:block;max-width:100%;height:auto}
+.qr-img.fail{line-height:1.5;padding:1rem;color:#333;max-width:16rem}
+.qr-img.big{margin:0 auto}
+.qr-side{flex:1;min-width:14rem;display:grid;gap:.6rem}
+.qr-side p{margin:0}
+.qr-side code{font-size:.78rem;word-break:break-all;padding:.5rem .7rem;border-radius:8px;background:var(--bg);color:var(--muted);user-select:all}
+.qr-btns{display:flex;gap:.5rem;flex-wrap:wrap}
+.qr-btns .btn{padding:.4rem 1rem;font-size:.9rem}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:1.4rem 1.6rem}
+.who{display:grid;gap:1rem}
+.who-row{display:flex;flex-wrap:wrap;gap:.8rem;align-items:flex-end}
+.who label{display:flex;flex-direction:column;gap:.25rem;font-size:.82rem;color:var(--muted);font-weight:700}
+.who input{font:inherit;font-size:1.05rem;padding:.5rem .8rem;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);width:11rem;max-width:100%}
+.notice{font-size:.92rem;color:var(--muted);margin:0;padding:.8rem 1rem;border-radius:10px;background:var(--accent-soft)}
+.notice b{color:var(--ink)}
+.btn{border:0;border-radius:99px;padding:.65rem 1.4rem;background:var(--accent);color:var(--on-accent);font-weight:700;font-size:1rem}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn:disabled{opacity:.4;cursor:default}
+
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;margin:1.2rem 0 0;display:flex;flex-wrap:wrap;gap:.4rem 1.2rem;align-items:center;
+  padding:.7rem 1.1rem;border-radius:12px;background:var(--paper);border:1px solid var(--line);font-size:.9rem;color:var(--muted)}
+.bar b{color:var(--ink);font-variant-numeric:tabular-nums}
+.bar .meter{flex:1;min-width:8rem;height:6px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar .meter i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.bar .away{font-weight:700}
+.bar .away.has{color:var(--no)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+
+section.lesson{margin-top:2.2rem}
+.lesson-head{display:flex;align-items:baseline;gap:.8rem;flex-wrap:wrap;margin-bottom:.8rem}
+.lesson-head h2{font-family:var(--f-display);font-size:1.6rem}
+.lesson-head span{color:var(--muted);font-size:.9rem}
+.bank{display:flex;flex-wrap:wrap;gap:.4rem;padding:.9rem 1rem;border:1px dashed var(--line);border-radius:12px;margin-bottom:1rem;background:var(--paper)}
+.bank b{width:100%;font-size:.75rem;letter-spacing:.12em;color:var(--muted)}
+.bank span{padding:.1rem .7rem;border-radius:99px;border:1px solid var(--line);font-size:.92rem;transition:opacity .2s}
+.bank span.used{opacity:.35;text-decoration:line-through}
+
+.dance{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:1.1rem 1.4rem 1.2rem;margin-bottom:.9rem}
+.dance h3{font-size:1.05rem;display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem}
+.dance h3 i{width:.7rem;height:.7rem;border-radius:50%;background:var(--c)}
+ol.items{margin:0;padding:0;list-style:none;display:grid;gap:.6rem}
+ol.items li{display:grid;grid-template-columns:2rem 1fr;gap:.4rem;font-size:1.06rem;line-height:2.2}
+ol.items li .n{font-family:var(--f-display);color:var(--accent);font-weight:700;line-height:2.2}
+input.blank{font:inherit;font-weight:700;color:var(--ink);background:transparent;border:0;border-bottom:2px dashed var(--accent);border-radius:0;
+  padding:0 .3rem;margin:0 .15rem;text-align:center;min-width:4.5em;max-width:100%}
+input.blank:focus{outline:none;background:var(--accent-soft);border-bottom-style:solid}
+input.blank:disabled{opacity:1;-webkit-text-fill-color:var(--ink)}
+input.blank.ok{border-bottom:2px solid var(--ok);background:var(--ok-soft)}
+input.blank.no{border-bottom:2px solid var(--no);background:var(--no-soft)}
+.fix{display:inline-block;font-size:.85rem;font-weight:700;color:var(--ok);margin-left:.2rem;line-height:1.4}
+.locked .dance,.locked .bank{opacity:.55}
+
+.submit{margin-top:2rem;display:flex;flex-wrap:wrap;gap:1rem;align-items:center}
+.submit p{margin:0;color:var(--muted);font-size:.9rem}
+
+.result{margin-top:2rem;border:2px solid var(--accent)}
+.sent{margin:0 0 1rem;padding:.6rem .9rem;border-radius:10px;font-weight:700;font-size:.95rem}
+.sent:empty{display:none}
+.sent.ok{background:var(--ok-soft);color:var(--ok)}
+.sent.sending{background:var(--accent-soft);color:var(--ink)}
+.sent.fail{background:var(--no-soft);color:var(--no)}
+.result h2{font-family:var(--f-display);font-size:1.5rem;margin-bottom:.8rem}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.8rem;margin-bottom:1.2rem}
+.stats div{padding:.7rem .9rem;border-radius:10px;background:var(--bg)}
+.stats small{display:block;font-size:.75rem;color:var(--muted);font-weight:700}
+.stats b{font-size:1.5rem;font-variant-numeric:tabular-nums}
+.code{font-family:ui-monospace,'Consolas',monospace;font-size:2rem;font-weight:700;letter-spacing:.12em;padding:.4rem 1rem;border-radius:10px;background:var(--accent-soft);display:inline-block}
+.result .actions{display:flex;flex-wrap:wrap;gap:.8rem;margin-top:1.2rem}
+
+details.teacher{margin-top:3rem;font-size:.9rem;color:var(--muted)}
+details.teacher summary{cursor:pointer;font-weight:700}
+.tcheck{display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end;margin-top:.8rem}
+.tcheck input{font:inherit;padding:.4rem .7rem;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);width:10rem}
+#tOut{margin-top:.6rem;font-weight:700;color:var(--ink)}
+
+.warn{position:fixed;inset:0;z-index:50;background:var(--warn-bg);display:grid;place-items:center;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.warn .box{background:var(--paper);border-radius:16px;padding:1.8rem 2rem;max-width:26rem;text-align:center;border:3px solid var(--no)}
+.warn h2{font-family:var(--f-display);font-size:1.5rem;color:var(--no);margin-bottom:.6rem}
+.warn p{margin:0 0 1.2rem}
+
+@media (max-width:560px){h1{font-size:1.9rem}.card{padding:1.1rem 1.1rem}.dance{padding:1rem 1rem}ol.items li{font-size:1rem}.code{font-size:1.5rem}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="sheet">
+  <header class="top">
+    <div class="kicker">중학교 1학년 음악 · 춤을 세계 음악 속으로 · 1차시</div>
+    <h1>세계의 춤 용어 학습지</h1>
+    <p class="sub">1차시에 본 여섯 가지 춤의 악기, 리듬, 동작 이름을 빈칸에 써 보세요. 위쪽 <b>보기</b>에서 낱말을 찾을 수 있어요.</p>
+  </header>
+
+  <details class="qr" id="qrBox">
+    <summary><span>QR 코드로 학습지 열기</span><small>선생님이 화면에 띄워 주세요</small></summary>
+    <div class="qr-body">
+      <div class="qr-img" id="qrImg" aria-label="학습지 주소 QR 코드"></div>
+      <div class="qr-side">
+        <p>휴대폰 카메라로 QR 코드를 비추면 이 학습지가 열려요.</p>
+        <code id="qrUrl"></code>
+        <div class="qr-btns"><button class="btn ghost" id="qrCopy">주소 복사</button><button class="btn ghost" id="qrBig">크게 보기</button></div>
+      </div>
+    </div>
+  </details>
+
+  <div class="card who" id="who">
+    <div class="who-row">
+      <label for="sNum">학번<input id="sNum" inputmode="numeric" autocomplete="off" placeholder="예: 10315"></label>
+      <label for="sName">이름<input id="sName" autocomplete="off" placeholder="예: 김하늘"></label>
+      <button class="btn" id="startBtn">시작하기</button>
+    </div>
+    <p class="notice" id="notice"></p>
+  </div>
+
+  <div class="bar" id="bar" hidden>
+    <span><b id="who2"></b></span>
+    <span>빈칸 <b id="filled">0</b> / <b id="total">0</b></span>
+    <span class="meter"><i id="meterI"></i></span>
+    <span class="away" id="awayTxt">자리 비움 0회</span>
+  </div>
+
+  <p class="notice" id="saveWarn" hidden style="margin-top:1rem">이 브라우저는 답을 저장하지 못해요. <b>새로고침하면 쓴 답이 사라지니</b> 다 풀 때까지 새로고침하지 마세요.</p>
+  <div id="sheetBody" class="locked"></div>
+
+  <div class="submit" id="submitRow">
+    <button class="btn" id="submitBtn" disabled>제출하고 채점하기</button>
+    <p id="submitHint">시작하기를 누른 뒤 풀 수 있어요.</p>
+  </div>
+
+  <div class="card result" id="result" hidden></div>
+
+  <details class="teacher">
+    <summary>교사용 · 확인 코드 풀기</summary>
+    <p>학생이 보여 준 학번, 이름, 확인 코드를 넣으면 점수와 자리 비움 횟수가 나와요.</p>
+    <div class="tcheck">
+      <input id="tNum" placeholder="학번" aria-label="학번" autocomplete="off">
+      <input id="tName" placeholder="이름" aria-label="이름" autocomplete="off">
+      <input id="tCode" placeholder="확인 코드" aria-label="확인 코드" autocomplete="off">
+      <button class="btn ghost" id="tBtn">확인</button>
+    </div>
+    <div id="tOut"></div>
+  </details>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="../classroom.js" data-ws="dance-1" data-title="세계의 춤 용어 학습지 · 1차시"></script>
+<script>
+/* ---------- 설정 ----------
+   학번·이름 입력, 화면 이탈 감지, 선생님께 보내기는 공용 파일 classroom.js가 맡아요(학습지 허브).
+   SHARE_URL: QR 코드에 담을 이 학습지 주소. */
+const SHARE_URL='https://dallalan2277-lab.github.io/classroom-hub/dance/';
+
+/* ---------- 문항 ---------- */
+const LESSONS=[
+ {title:'1차시 · 세계의 춤',sub:'탱고부터 하카까지',dances:[
+  {name:'탱고',c:'#e0455b',items:[
+   ['탱고의 "목소리"라고 불리는 악기로, 손으로 늘이고 줄이며 바람을 넣는 악기는 {반도네온}이에요.'],
+   ['탱고에서 박을 하나씩 끊어서 힘 있게 치는 연주법을 {마르카토}라고 해요.'],
+   ['두 사람이 마주 서서 한 손은 잡고, 다른 팔은 상대의 등에 얹는 탱고의 기본자세는 {아브라소}예요.']]},
+  {name:'플라멩코',c:'#ff6a3d',items:[
+   ['플라멩코는 12박이 한 묶음인 리듬을 써요. 이 리듬 묶음을 {콤파스}라고 해요.'],
+   ['굽과 앞코로 바닥을 두드려 리듬을 연주하는 발 기술은 {사파테아도}예요.'],
+   ['손바닥을 맞부딪쳐 리듬을 만드는 "몸의 악기", 플라멩코의 손뼉을 {팔마|팔마스}라고 해요.']]},
+  {name:'왈츠',c:'#86b6ff',items:[
+   ['왈츠는 한 마디에 세 박, 첫 박이 강한 "쿵-짝-짝"의 {3/4|4분의3|4분의 3|삼사}박자예요.'],
+   ['수업에서 들은 요한 슈트라우스 2세의 왈츠, 오스트리아의 "제2의 국가"라고도 불리는 곡은 「{아름답고 푸른 도나우|아름답고 푸른 도나우강|푸른 도나우}」예요.']]},
+  {name:'스윙 댄스',c:'#f4bd3a',items:[
+   ['8분음표 두 개를 "긴-짧은"으로 연주해 통통 튀게 들리는 리듬을 {스윙} 리듬이라고 해요.'],
+   ['2박과 4박에 힘을 주는 것을 {백비트}라고 해요.'],
+   ['두 사람이 고무줄처럼 멀어졌다가 다시 끌려오는 린디 합의 대표 동작은 {스윙아웃}이에요.']]},
+  {name:'아이리시 스텝 댄스',c:'#3ccf8e',items:[
+   ['셋씩 묶여 흔들리듯 뛰는 6/8박자 춤곡은 {지그}, 고른 8분음표가 쉬지 않고 달리는 4/4박자 춤곡은 {릴}이에요.'],
+   ['아일랜드 민속 음악에서는 바이올린을 다른 이름으로 불러요. 빠르고 경쾌하게 연주하는 이 악기의 이름은 {피들}이에요.']]},
+  {name:'하카',c:'#d9824f',items:[
+   ['하카는 뉴질랜드 {마오리|마오리족} 사람들의 전통이에요.'],
+   ['리더가 먼저 외치면 모두가 함께 답하는 방식을 {메기고 받기}라고 해요.']]}
+ ]}
+];
+
+/* ---------- 상태 ---------- */
+const KEY='danceTerms.l1.v1';
+const S={num:'',name:'',sid:'',started:false,submitted:false,answers:{},away:0,awayAt:0,attempts:0,startAt:0,endAt:0,sent:''};
+try{Object.assign(S,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
+let canSave=true;
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){if(canSave){canSave=false;const n=document.getElementById('saveWarn');if(n)n.hidden=false}}};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* 학번·이름, 화면 이탈, 전송은 공용 classroom.js(window.Classroom)가 맡아요 */
+const CR=window.Classroom||null;
+const ONLINE=!!(CR&&CR.online);
+const awayCount=()=>CR?CR.away:0;
+const norm=s=>String(s).toLowerCase().replace(/[\s·\-"'「」『』.,()]/g,'');
+
+/* ---------- 그리기 ---------- */
+const BLANKS=[];
+function build(){
+ let n=0,html='';
+ LESSONS.forEach((L,li)=>{
+  const bank=[];
+  let body='';
+  L.dances.forEach(d=>{
+   body+=`<div class="dance" style="--c:${d.c}"><h3><i></i>${esc(d.name)}</h3><ol class="items">`;
+   d.items.forEach(([t])=>{
+    n++;
+    const parts=t.split(/\{([^}]+)\}/);
+    let line='';
+    parts.forEach((p,i)=>{
+     if(i%2===0){line+=esc(p);return}
+     const ans=p.split('|'),id='b'+BLANKS.length;
+     BLANKS.push({id,ans,main:ans[0],lesson:li});bank.push(ans[0]);
+     const w=Math.max(4.5,ans[0].length*1.15+1.2);
+     line+=`<input class="blank" id="${id}" style="width:${w}em" autocomplete="off" spellcheck="false" aria-label="${n}번 빈칸">`;
+    });
+    body+=`<li><span class="n">${n}</span><span>${line}</span></li>`;
+   });
+   body+='</ol></div>';
+  });
+  const shuffled=bank.map(w=>[w,(hash(w)%997)]).sort((a,b)=>a[1]-b[1]).map(x=>x[0]);
+  html+=`<section class="lesson"><div class="lesson-head"><h2>${esc(L.title)}</h2><span>${esc(L.sub)}</span></div>
+   <div class="bank" data-lesson="${li}"><b>보기</b>${shuffled.map(w=>`<span data-w="${esc(norm(w))}">${esc(w)}</span>`).join('')}</div>${body}</section>`;
+ });
+ $('sheetBody').innerHTML=html;
+ $('total').textContent=BLANKS.length;
+ BLANKS.forEach(b=>{const el=$(b.id);el.value=S.answers[b.id]||'';el.addEventListener('input',()=>{S.answers[b.id]=el.value;save();progress()})});
+}
+function hash(s){let h=2166136261;for(const ch of String(s)){h^=ch.codePointAt(0);h=Math.imul(h,16777619)>>>0}return h}
+
+function progress(){
+ const filled=BLANKS.filter(b=>(S.answers[b.id]||'').trim()).length;
+ $('filled').textContent=filled;$('meterI').style.width=(filled/BLANKS.length*100)+'%';
+ document.querySelectorAll('.bank span').forEach(sp=>{sp.classList.toggle('used',BLANKS.some(b=>norm(S.answers[b.id]||'')===sp.dataset.w))});
+}
+function setAway(){const a=$('awayTxt'),n=awayCount();a.textContent=`자리 비움 ${n}회`;a.classList.toggle('has',n>0)}
+document.addEventListener('classroom:away',setAway);
+
+function setNotice(){
+ $('notice').innerHTML=ONLINE
+  ?'<b>시작하기 전에 꼭 읽어 주세요.</b> 학습지를 푸는 동안 다른 탭이나 앱으로 나가면 <b>선생님께 바로 기록돼요.</b> 언제 나갔다가 몇 초 만에 돌아왔는지도 함께 남아요. 제출하면 점수도 선생님께 전송돼요.'
+  :'<b>시작하기 전에 꼭 읽어 주세요.</b> 학습지를 푸는 동안 다른 탭이나 앱으로 나가면 "자리 비움" 횟수가 기록돼요. 다 풀고 나면 나오는 <b>확인 코드</b>에 점수와 함께 이 횟수가 들어가요.';
+}
+function applyState(){
+ $('sNum').value=S.num;$('sName').value=S.name;
+ const active=S.started&&!S.submitted;
+ $('sheetBody').classList.toggle('locked',!S.started);
+ BLANKS.forEach(b=>{$(b.id).disabled=!active});
+ $('bar').hidden=!S.started;
+ $('who2').textContent=S.started?`${S.num} ${S.name}`:'';
+ $('startBtn').hidden=S.started;$('sNum').disabled=S.started;$('sName').disabled=S.started;
+ $('submitBtn').disabled=!active;
+ $('submitRow').hidden=S.submitted;
+ $('submitHint').textContent=S.started?'빈칸을 다 채우지 않아도 제출할 수 있어요. 제출하면 고칠 수 없어요.':'시작하기를 누른 뒤 풀 수 있어요.';
+ setAway();progress();
+ if(S.submitted)showResult();else{$('result').hidden=true;BLANKS.forEach(b=>{const el=$(b.id);el.classList.remove('ok','no');const f=el.nextElementSibling;if(f&&f.classList.contains('fix'))f.remove()})}
+}
+
+/* ---------- 시작 / 제출 ---------- */
+function startAs(st){
+ /* 공용 기기: 다른 학생이면 이전 학생의 답을 지우고 새로 시작해요 */
+ if(S.num&&(S.num!==st.num||S.name!==st.name))Object.assign(S,{started:false,submitted:false,answers:{},attempts:0,startAt:0,endAt:0,sent:''});
+ const fresh=!S.started;
+ Object.assign(S,{num:st.num,name:st.name,started:true,startAt:S.startAt||Date.now()});save();applyState();
+ if(fresh&&!S.submitted){const first=$(BLANKS[0].id);first.focus();}
+}
+$('startBtn').onclick=()=>{if(CR)CR.ready.then(startAs)};
+document.addEventListener('classroom:switch',()=>{try{localStorage.removeItem(KEY)}catch(e){}});
+function isRight(b){const v=norm(S.answers[b.id]||'');return v&&b.ans.some(a=>norm(a)===v)}
+function score(){return BLANKS.filter(isRight).length}
+$('submitBtn').onclick=()=>{S.submitted=true;S.endAt=Date.now();S.attempts=(S.attempts||0)+1;S.sent=ONLINE?'sending':'';save();applyState();$('result').scrollIntoView({behavior:'smooth',block:'start'});sendSubmit()};
+function sendSubmit(){
+ if(!ONLINE)return;
+ S.sent='sending';save();sentUI();
+ const sc=score(),answers={},wrong=[];
+ BLANKS.forEach((b,i)=>{answers[i+1]=S.answers[b.id]||'';if(!isRight(b))wrong.push(`${i+1}번(${b.main})`)});
+ answers['확인 코드']=makeCode(S.num,S.name,sc,awayCount(),S.attempts);
+ CR.submit({score:sc,total:BLANKS.length,wrong,answers})
+  .then(r=>{S.sent=r&&r.ok?'ok':'fail';save();sentUI()});
+}
+function sentUI(){
+ const el=$('sentMsg');if(!el)return;
+ el.className='sent '+(S.sent||'');
+ el.innerHTML=S.sent==='ok'?'✓ 선생님께 제출되었어요.'
+  :S.sent==='sending'?'선생님께 보내는 중이에요…'
+  :S.sent==='fail'?'⚠ 선생님께 보내지 못했어요. 인터넷 연결을 확인하고 다시 보내거나, 아래 확인 코드를 선생님께 보여 주세요. <button class="btn ghost" id="resendBtn" style="margin-left:.4rem;padding:.25rem .9rem">다시 보내기</button>':'';
+ const rb=$('resendBtn');if(rb)rb.onclick=sendSubmit;
+}
+
+/* 확인 코드: 학번·이름으로 잠근 점수 / 자리 비움 / 시도 횟수 */
+const B36=x=>x.toString(36).toUpperCase();
+function makeCode(num,name,sc,away,att){
+ const n=sc*10000+Math.min(away,99)*100+Math.min(att,99);
+ const k=hash('k|'+num+'|'+name)&0xFFFFF;
+ const v=(n^k)>>>0, chk=hash('c|'+num+'|'+name+'|'+n)%1296;
+ return B36(v).padStart(4,'0')+'-'+B36(chk).padStart(2,'0');
+}
+function readCode(num,name,code){
+ const m=String(code).toUpperCase().replace(/\s/g,'').match(/^([0-9A-Z]+)-([0-9A-Z]{2})$/);if(!m)return null;
+ const k=hash('k|'+num+'|'+name)&0xFFFFF,n=(parseInt(m[1],36)^k)>>>0;
+ if(hash('c|'+num+'|'+name+'|'+n)%1296!==parseInt(m[2],36))return null;
+ return {sc:Math.floor(n/10000),away:Math.floor(n/100)%100,att:n%100};
+}
+function showResult(){
+ const sc=score(),mins=Math.max(1,Math.round(((S.endAt||Date.now())-S.startAt)/60000));
+ BLANKS.forEach(b=>{const el=$(b.id),ok=isRight(b);el.classList.toggle('ok',ok);el.classList.toggle('no',!ok);
+  const f=el.nextElementSibling;if(f&&f.classList.contains('fix'))f.remove();
+  if(!ok)el.insertAdjacentHTML('afterend',`<span class="fix">→ ${esc(b.main)}</span>`)});
+ const code=makeCode(S.num,S.name,sc,awayCount(),S.attempts);
+ const r=$('result');r.hidden=false;
+ r.innerHTML=`<h2>${esc(S.name)} 학생의 결과</h2>
+  <div class="stats"><div><small>맞힌 빈칸</small><b>${sc} / ${BLANKS.length}</b></div><div><small>자리 비움</small><b>${awayCount()}회</b></div><div><small>걸린 시간</small><b>${mins}분</b></div><div><small>제출 횟수</small><b>${S.attempts}번째</b></div></div>
+  <div><small style="display:block;color:var(--muted);font-weight:700;font-size:.8rem;margin-bottom:.3rem">확인 코드 · 선생님께 보여 주세요</small><span class="code">${code}</span></div>
+  <p style="margin:1rem 0 0;color:var(--muted)">틀린 빈칸 옆에 초록색으로 정답이 나와 있어요. 소리 내어 한 번씩 읽어 보세요.</p>
+  <div class="actions"><button class="btn ghost" id="retryBtn">다시 풀기</button><button class="btn ghost" id="nextBtn">다른 학생이 새로 시작하기</button></div>`;
+ r.insertAdjacentHTML('afterbegin','<p id="sentMsg" class="sent"></p>');sentUI();
+ $('nextBtn').onclick=()=>{if($('nextBtn').dataset.sure!=='1'){$('nextBtn').dataset.sure='1';$('nextBtn').textContent='한 번 더 누르면 이 결과가 화면에서 지워져요';return}
+  try{localStorage.removeItem(KEY)}catch(e){}if(CR)CR.switchStudent();else location.reload()};
+ $('retryBtn').onclick=()=>{S.submitted=false;S.sent='';S.answers={};S.startAt=Date.now();S.endAt=0;save();BLANKS.forEach(b=>$(b.id).value='');applyState();window.scrollTo({top:0,behavior:'smooth'})};
+}
+
+/* ---------- 교사용 ---------- */
+$('tBtn').onclick=()=>{
+ const r=readCode($('tNum').value.trim(),$('tName').value.trim(),$('tCode').value.trim());
+ $('tOut').textContent=r?`맞힌 빈칸 ${r.sc} / ${BLANKS.length} · 자리 비움 ${r.away}회 · 제출 ${r.att}번째`:'코드가 맞지 않아요. 학번과 이름을 학생이 처음 쓴 그대로 넣었는지 확인해 주세요.';
+};
+
+/* ---------- QR 코드 ---------- */
+function drawQR(){
+ const box=$('qrImg');box.innerHTML='';box.classList.remove('fail');
+ const size=box.classList.contains('big')?Math.max(300,Math.min(560,Math.floor(Math.min(innerWidth||800,innerHeight||800)*.7))):220;
+ if(typeof QRCode==='undefined'){box.textContent='QR 코드를 불러오지 못했어요. 옆의 주소를 칠판에 적어 주세요.';box.classList.add('fail');return}
+ new QRCode(box,{text:SHARE_URL,width:size,height:size,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+}
+$('qrUrl').textContent=SHARE_URL;
+$('qrBox').addEventListener('toggle',()=>{if($('qrBox').open)drawQR()});
+$('qrBig').onclick=()=>{const b=$('qrImg');b.classList.toggle('big');$('qrBig').textContent=b.classList.contains('big')?'작게 보기':'크게 보기';drawQR()};
+$('qrCopy').onclick=()=>{const done=()=>{$('qrCopy').textContent='복사했어요';setTimeout(()=>$('qrCopy').textContent='주소 복사',1500)};
+ try{navigator.clipboard.writeText(SHARE_URL).then(done,selectUrl)}catch(e){selectUrl()}};
+function selectUrl(){const r=document.createRange();r.selectNodeContents($('qrUrl'));const sel=getSelection();sel.removeAllRanges();sel.addRange(r)}
+
+build();setNotice();applyState();
+document.querySelector('#who .who-row').hidden=true;
+if(CR)CR.ready.then(startAs);
+</script>
+
+</body>
+</html>
