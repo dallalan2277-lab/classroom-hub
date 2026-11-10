@@ -81,7 +81,8 @@ function showDashboardLink() {
   requireOwner_();
   const key = PropertiesService.getScriptProperties().getProperty(PROP_TEACHER_KEY_);
   if (!key) throw new Error('먼저 setup을 실행하세요.');
-  const url = ScriptApp.getService().getUrl();
+  // 편집기에서 실행하면 시험용 /dev 주소가 나와서, 실제 배포 주소(/exec)로 바꿔 보여 줘요.
+  const url = (ScriptApp.getService().getUrl() || '').replace(/\/dev$/, '/exec');
   if (!url) throw new Error('아직 웹 앱으로 배포되지 않았어요. 배포 > 새 배포를 먼저 하세요.');
   const link = url + '?dash=' + encodeURIComponent(key);
   console.log('선생님 현황판: ' + link);
