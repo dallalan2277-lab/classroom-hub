@@ -120,7 +120,7 @@ async function submitToTeacher(){
   btn.disabled=true;out.textContent='보내는 중이에요…';
   const r=await window.Classroom.submit(submitResult());
   btn.disabled=false;
-  out.textContent=r.ok?(r.offline?'연습 모드라 선생님께 전송되지는 않았어요.':'✓ 선생님께 제출했어요. 더 공부한 뒤 다시 제출해도 돼요.'):r.error;
+  out.textContent=r.ok?(r.teacher?'교사 모드라 기록은 보내지 않았어요.':r.offline?'연습 모드라 선생님께 전송되지는 않았어요.':'✓ 선생님께 제출했어요. 더 공부한 뒤 다시 제출해도 돼요.'):r.error;
   $('#submitSummary').textContent=submitSummaryText();
 }
 function downloadRecord(){const record={title:'소리탐구실 국악기 학습 기록',exportedAt:new Date().toISOString(),progress:{completed:stageCount(),total:22},instruments:instruments.map(i=>({name:i.name,family:i.family,completed:isDone(i.id),observations:i.clues.map((text,n)=>({text,checked:!!state.checks[i.id]?.[n]})),answer:state.answers[i.id]||'',note:state.notes[i.id]||''})),classification:CLASS_QUESTIONS.map((q,n)=>({question:q.q,answer:state.classification[n]||'',correct:state.classification[n]===q.answer})),review:REVIEW.map((q,n)=>({question:q.q,answer:state.review[n]||'',correct:state.review[n]===q.answer})),reflection:state.reflection};const blob=new Blob([JSON.stringify(record,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='소리탐구실-학습기록.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('학습 기록을 내려받았어요.');}

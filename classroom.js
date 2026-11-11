@@ -21,7 +21,14 @@
  *  Classroom.online           : 허브 주소가 설정되어 실제로 전송하는지 여부
  *  Classroom.away             : 지금까지 자리 비움 횟수
  *  Classroom.switchStudent()  : 다른 학생으로 바꾸기(이 기기의 기록을 지우고 다시 입력)
+ *  Classroom.teacher          : 교사 모드인지 여부
  *  document 이벤트            : 'classroom:away'(자리 비움 생김), 'classroom:switch'(학생 바뀜 → 학습지 기록 지우기)
+ *
+ * 교사 모드: 학습지 주소 뒤에 ?교사 (또는 ?teacher)를 붙여 열어요. 예) …/gugak/?교사
+ *  - 학번·이름을 묻지 않고, 자리 비움을 세지 않고, 허브로 아무것도 보내지 않아요.
+ *  - 제출하면 {ok:true, offline:true, teacher:true}가 돌아와 학습지가 채점·정답을 보여 줘요.
+ *  - 이 기기의 학생 기록과 섞이지 않게, 교사 모드에서 쓰는 브라우저 저장은 'teacher:' 이름표를 붙여 따로 둬요.
+ *  - 비밀번호가 없는 간단한 방식이라 학생도 주소를 알면 들어올 수 있어요(기록은 남지 않음).
  */
 (function () {
   'use strict';
@@ -41,6 +48,26 @@
   }
   var ONLINE = /^https:\/\//.test(HUB) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(HUB);
   var KEY = 'classroom:' + WS;
+
+  // ---- 교사 모드 (?교사 또는 ?teacher) ---------------------------------------
+  var TEACHER = false;
+  try { var tq = new URLSearchParams(location.search); TEACHER = tq.has('교사') || tq.has('teacher'); } catch (e) {}
+  if (TEACHER) {
+    ONLINE = false;
+    // 학습지들이 쓰는 localStorage 이름 앞에 'teacher:'를 붙여, 같은 기기의 학생 기록을 건드리지 않아요.
+    // (classroom.js가 학습지 코드보다 먼저 실행되어야 해요.)
+    try {
+      var LS = window.localStorage, SP = Storage.prototype, g = SP.getItem, st = SP.setItem, rm = SP.removeItem;
+      var tk = function (store, k) { return store === LS ? 'teacher:' + k : k; };
+      SP.getItem = function (k) { return g.call(this, tk(this, k)); };
+      SP.setItem = function (k, v) { return st.call(this, tk(this, k), v); };
+      SP.removeItem = function (k) { return rm.call(this, tk(this, k)); };
+    } catch (e) {}
+  }
+  function leaveTeacher() {
+    try { var u = new URL(location.href); u.searchParams.delete('교사'); u.searchParams.delete('teacher'); location.href = u.toString(); }
+    catch (e) { location.href = location.pathname; }
+  }
 
   // ---- 저장 ----------------------------------------------------------------
   var S = {num: '', name: '', sid: '', away: 0, awayAt: 0, startAt: 0, attempt: 0, submitted: false, queue: []};
@@ -100,6 +127,7 @@
     '.cr-chip{position:fixed;left:12px;bottom:12px;z-index:2147482999;background:#fff;border:1px solid #d5dbd6;border-radius:999px;padding:6px 12px;font-size:12px;color:#33413a;box-shadow:0 4px 14px rgba(0,0,0,.08);cursor:pointer;font-family:inherit}' +
     '.cr-chip b{font-weight:700}.cr-chip .cr-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#3a9a5b;margin-right:6px;vertical-align:1px}' +
     '.cr-chip.cr-off .cr-dot{background:#c48a1a}.cr-chip .cr-away{color:#b3261e;font-weight:700}' +
+    '.cr-chip.cr-teacher{background:#fff4d6;border-color:#e0b23c;color:#5a4300}.cr-chip.cr-teacher .cr-dot{background:#d08a00}' +
     '@media print{.cr-chip,.cr-veil{display:none!important}}';
   var style = document.createElement('style'); style.textContent = css;
   (document.head || document.documentElement).appendChild(style);
@@ -112,6 +140,18 @@
   }
   var chip;
   function renderChip() {
+    if (TEACHER) {
+      if (!chip) {
+        chip = el('button', 'cr-chip cr-teacher'); chip.type = 'button';
+        chip.title = '교사 모드를 끄려면 누르세요';
+        chip.appendChild(el('span', 'cr-dot'));
+        chip.appendChild(el('b', null, '교사 모드'));
+        chip.appendChild(document.createTextNode(' · 기록 안 보냄 · 끄기'));
+        chip.addEventListener('click', function () { if (confirm('교사 모드를 끄고 학생 화면으로 열까요?')) leaveTeacher(); });
+        document.body.appendChild(chip);
+      }
+      return;
+    }
     if (!chip) {
       chip = el('button', 'cr-chip'); chip.type = 'button';
       chip.title = '다른 학생으로 바꾸려면 누르세요';
@@ -196,7 +236,7 @@
   // ---- 시작 ----------------------------------------------------------------
   var resolveReady;
   var api = {
-    ws: WS, online: ONLINE,
+    ws: WS, online: ONLINE, teacher: TEACHER,
     ready: new Promise(function (r) { resolveReady = r; }),
     get student() { return S.num ? {num: S.num, name: S.name} : null; },
     get submitted() { return S.submitted; },
@@ -216,6 +256,7 @@
         answers: answers
       };
       if (data.score > data.total) data.total = data.score;
+      if (TEACHER) { S.attempt = data.attempt; S.submitted = true; return Promise.resolve({ok: true, offline: true, teacher: true}); }
       var finish = function () { S.attempt = data.attempt; S.submitted = true; S.awayAt = 0; save(); renderChip(); };
       if (!ONLINE) { finish(); return Promise.resolve({ok: true, offline: true}); }
       return post(body('submit', data)).then(function (r) {
@@ -239,6 +280,13 @@
     resolveReady({num: S.num, name: S.name});
   }
   function boot() {
+    if (TEACHER) {
+      // 저장해 둔 학생 정보는 쓰지 않고, 기록도 보내지 않아요(자리 비움 감지도 꺼 둬요).
+      S = {num: '00000', name: '교사 모드', sid: 'teacher', away: 0, awayAt: 0, startAt: Date.now(), attempt: 0, submitted: false, queue: []};
+      save = function () {};
+      renderChip(); resolveReady({num: S.num, name: S.name});
+      return;
+    }
     if (S.num && S.name && S.sid) begin(false);
     else loginDialog(function () { begin(true); });
   }

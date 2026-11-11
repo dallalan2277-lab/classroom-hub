@@ -556,7 +556,7 @@ var CONFIG = {
       state.submits++; save();
       $("#scoreText").hidden = false; $("#scoreText").textContent = score+" / "+graded.length+"점";
       if (CONFIG.SHOW_RESULT) showResult();
-      toast(r && r.offline ? "연습 모드라 선생님께 전송되지는 않았어요." : "제출되었습니다. 수고했어요!");
+      toast(r && r.teacher ? "교사 모드라 기록은 보내지 않았어요." : r && r.offline ? "연습 모드라 선생님께 전송되지는 않았어요." : "제출되었습니다. 수고했어요!");
       btn.textContent = "다시 제출";
     }).catch(function(err){
       toast("전송하지 못했어요. 와이파이를 확인하고 다시 눌러 주세요.");
