@@ -1,0 +1,244 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>신호등 가창 수업</title>
+<meta name="theme-color" content="#205b45">
+<meta name="description" content="이무진 〈신호등〉으로 가사의 마음을 읽고, 노래의 구조를 익히고, 1절을 함께 부르는 중학교 음악 수업.">
+<link rel="stylesheet" href="./lesson.css">
+<link rel="stylesheet" href="./lyrics-v3.css">
+<link rel="stylesheet" href="./classroom.css">
+<link rel="stylesheet" href="./reader.css">
+<link rel="stylesheet" href="./relay.css">
+<link rel="stylesheet" href="./activity.css">
+<link rel="stylesheet" href="./layout.css">
+<link rel="stylesheet" href="./term-quiz.css">
+<link rel="stylesheet" href="./boost.css">
+<link rel="stylesheet" href="./musictools.css">
+<link rel="stylesheet" href="./music-activities.css">
+<script src="./data.js" defer></script>
+<script src="./reader.js" defer></script>
+<script src="./app.js" defer></script>
+<script src="./lyrics.js" defer></script>
+<script src="./relay.js" defer></script>
+<script src="./classroom.js" defer></script>
+<script src="./layout.js" defer></script>
+<script src="./term-quiz.js" defer></script>
+<script src="./present.js" defer></script>
+<script src="./songmap.js" defer></script>
+<script src="./musictools.js" defer></script>
+
+  <a class="skip-link" href="#lesson">수업 내용으로 건너뛰기</a>
+  <aside class="sidebar" id="lesson-sidebar">
+    <a class="brand" href="#intro" aria-label="신호등 수업 처음으로"><span class="brand-icon" aria-hidden="true"><i></i><i></i><i></i></span><span>소리의 <b>이유</b><small>MUSIC CLASSROOM</small></span></a>
+    <div class="sidebar-heading">오늘의 음악 수업 <span>· 45분</span></div>
+    <div class="song-title">신호등 <span>이무진</span></div>
+    <nav class="lesson-nav" aria-label="수업 순서">
+      <button class="active" data-go="0" data-stage="understand" aria-current="step"><span class="nav-number">01</span><span>수업 열기<span class="nav-time">3분</span><small>나라면 어떤 불?</small></span></button>
+      <button data-go="1" data-stage="understand"><span class="nav-number">02</span><span>노래 속 이야기<span class="nav-time">4분</span><small>무엇을 무엇에 빗댔을까</small></span></button>
+      <button data-go="2" data-stage="understand"><span class="nav-number">03</span><span>가사 속 마음 찾기<span class="nav-time">10분</span><small>질문 먼저, 해설은 나중에</small></span></button>
+      <button data-go="3" data-stage="understand"><span class="nav-number">04</span><span>노래의 구조<span class="nav-time">5분</span><small>카드 눌러 알아보기</small></span></button>
+      <button data-go="4" data-stage="express"><span class="nav-number">05</span><span>반주에 맞춰 부르기<span class="nav-time">10분</span><small>노래방 반주로 1절</small></span></button>
+      <button data-go="5" data-stage="remember"><span class="nav-number">06</span><span>번호 뽑고 가사 잇기<span class="nav-time">8분</span><small>1절 빈칸 릴레이</small></span></button>
+      <button data-go="6" data-stage="remember"><span class="nav-number">07</span><span>어느 부분일까?<span class="nav-time">5분</span><small>구조 이름 맞히기</small></span></button>
+    </nav>
+    <div class="sidebar-bottom"><div class="exam-note"><span class="tiny-signal"></span><div>뜻은 2절까지 알아보고<small>외워 부르기는 1절만 해요.</small></div></div><div class="sidebar-foot">SING. UNDERSTAND. REMEMBER.<span>가사와 함께 보는 수업 · v.05</span></div></div>
+  </aside>
+  <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-controls="lesson-sidebar" aria-expanded="true" aria-label="수업 메뉴 접기"><span class="sidebar-toggle-arrow" aria-hidden="true">‹</span><span class="sidebar-toggle-label" aria-hidden="true">메뉴</span></button>
+  <div class="workspace">
+    <header class="topbar"><div class="breadcrumb">음악 <span>/</span> 가창 수업 <span>/</span> <strong id="current-section">수업 열기</strong></div><div class="topbar-tools"><div id="lesson-timer"></div><button type="button" class="tool-button" id="lyrics-present-toggle" aria-pressed="false">가사 전문 보기</button><button type="button" class="tool-button present-tools-only" id="present-toggle" aria-pressed="false" title="메뉴와 가사를 접고 본문을 크게 보여 줘요 (단축키 F)"><span class="lamp" aria-hidden="true"><i></i><i></i><i></i></span>발표 모드</button></div></header>
+    <main id="lesson" class="main-content">
+      <div class="course-meta"><span><i class="green-dot"></i> 이무진 · 신호등</span><span>뜻 알기 <b>×</b> 노래하기 <b>×</b> 외우기</span></div>
+      <section class="slide intro-slide" data-slide="0" data-label="수업 열기" aria-labelledby="title-0">
+        <div class="hero-copy"><p class="eyebrow">LESSON 01 <span>가창 수업</span></p><h1 class="slide-title" id="title-0" tabindex="-1">한 소절씩,<br><em>뜻을 알고</em> 부르기<span class="title-dot">.</span></h1><p class="hero-subtitle">이무진의 〈신호등〉 속 이야기를 읽고,<br>내 목소리로 불러 봐요.</p><div class="hero-tags"><span>뜻은 1·2절</span><span>외워 부르기는 1절</span></div><button class="button primary hero-button" data-next>수업 시작하기 <span aria-hidden="true">↗</span></button><p class="hero-caption">오른쪽 가사를 보면서<br>한 구절씩 마음을 찾아가요.</p></div>
+        <div class="signal-art" role="img" aria-label="길 위의 노란 신호등 일러스트"><span class="art-index">TRAFFIC LIGHT / 2021</span><div class="orbit"></div><div class="orbit orbit-two"></div><div class="traffic-body"><div class="traffic-light red"></div><div class="traffic-light yellow"></div><div class="traffic-light green"></div></div><div class="traffic-pole"></div><div class="meaning-sticker"><span class="sticker-star">✳</span><span>요즘 나는<br><b>무슨 색 불일까?</b></span></div><div class="art-bottom">손가락으로 골라요 · 빨강 1 노랑 2 초록 3</div></div>
+        <div class="journey-strip"><div><span class="step-icon">01</span><b>이해하기</b><small>노래의 구조와 가사의 뜻</small></div><div><span class="step-icon">02</span><b>표현하기</b><small>반주에 맞춰 함께 부르기</small></div><div><span class="step-icon">03</span><b>기억하기</b><small>번호 뽑고 가사 잇기</small></div></div>
+      </section>
+      <section class="slide story-slide" data-slide="1" data-label="노래 속 이야기" hidden aria-labelledby="title-1">
+        <div class="section-heading"><p class="eyebrow">02 / 노래 속 이야기</p><h1 class="slide-title" id="title-1" tabindex="-1">도로 위의 초보, <em>세상 속의 나.</em></h1><p>이 노래가 어떻게 만들어졌는지 알아보고, 무엇을 무엇에 빗댔는지 찾아봐요.</p></div>
+        <div class="choice-layout">
+          <article class="paper-card choice-lesson">
+            <span class="card-kicker">먼저 알아두기</span>
+            <h2>새로운 곳에<br>처음 발을 내딛는 마음.</h2>
+            <p>이무진은 막 사회생활을 시작한 사람이 느끼는 혼란을, 운전이 서툰 초보 운전자에 빗대어 이 노래를 만들었다고 말했어요.</p>
+            <div class="choice-analogy"><span>사회생활 첫걸음</span><b aria-hidden="true">↔</b><span>초보 운전자</span></div>
+            <div class="choice-definition"><b>비유</b><p>한 가지를, 닮은 점이 있는 다른 것에 견주어 말하는 방법이에요. 예) “내 동생은 껌딱지야.”</p></div>
+            <div class="choice-definition"><b>짝과 말해 보기</b><p>새 학년 첫날의 나와 초보 운전자는 무엇이 닮았을까?</p></div>
+            <a class="choice-source" href="https://www.sportschosun.com/entertainment/2021-05-14/202105150100109440007026" target="_blank" rel="noreferrer">창작 배경 · 이무진 인터뷰 ↗</a>
+          </article>
+          <article class="paper-card choice-question">
+            <div class="choice-question-head"><span class="card-kicker">문제로 확인하기</span><span class="pill">5지선다</span></div>
+            <fieldset class="choice-fieldset"><legend>이 노래에서 사회생활을 막 시작한 사람을 무엇에 빗대었나요?</legend>
+              <div class="choice-options">
+                <label class="choice-option"><input type="radio" name="story-answer" value="1"><span class="choice-number">1</span><span>운전을 아주 잘하는 사람</span></label>
+                <label class="choice-option"><input type="radio" name="story-answer" value="2"><span class="choice-number">2</span><span>운전이 아직 서툰 초보 운전자</span></label>
+                <label class="choice-option"><input type="radio" name="story-answer" value="3"><span class="choice-number">3</span><span>교통질서를 지키게 하는 경찰관</span></label>
+                <label class="choice-option"><input type="radio" name="story-answer" value="4"><span class="choice-number">4</span><span>길을 알려 주는 표지판</span></label>
+                <label class="choice-option"><input type="radio" name="story-answer" value="5"><span class="choice-number">5</span><span>목적지까지 가는 길이 그려진 지도</span></label>
+              </div>
+            </fieldset>
+            <div class="choice-actions"><p>하나를 고른 뒤 함께 확인해요.</p><button class="button primary" id="story-reveal" type="button" disabled>정답 보기 <span aria-hidden="true">＋</span></button></div>
+            <div class="choice-feedback" id="story-feedback" role="status" aria-live="polite" hidden><strong id="story-feedback-title"></strong><p>사회생활을 막 시작한 사람은 스스로 결정해야 할 일이 많지만 아직 경험이 부족해요. 그래서 길 위에서 판단이 서툰 초보 운전자에 빗대었어요.</p></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="slide reader-slide" data-slide="2" data-label="가사 속 마음 찾기" hidden aria-labelledby="title-3">
+        <div class="section-heading"><p class="eyebrow">03 / 가사 속 마음 찾기</p><h1 class="slide-title" id="title-3" tabindex="-1">가사 한 줄에서, <em>마음 하나 찾기.</em></h1><p class="reader-color-summary">신호등의 <b>빨강·초록·노랑</b>이 노래 속에서 어떤 마음으로 바뀌는지 찾아봐요.</p></div>
+        <div class="reader-toolbar">
+          <div class="reader-jumps" aria-label="어디부터 읽을까요"><button type="button" id="reader-jump-one" aria-pressed="true">1절부터</button><button type="button" id="reader-jump-two" aria-pressed="false">2절부터</button><button type="button" id="reader-jump-video" aria-pressed="false">노란불 영상</button></div>
+          <div class="reader-count"><span id="reader-count-label">가사 읽기</span><b id="reader-count-current">01</b><i>/</i><span id="reader-count-total">14</span></div>
+        </div>
+        <div class="reader-grid">
+          <article class="reader-lyric-card" aria-labelledby="reader-lyric-label">
+            <div class="reader-lyric-header"><span id="reader-lyric-label">1절 · 첫걸음</span><small id="reader-line-range">가사 01–03</small></div>
+            <span class="reader-quote-mark" aria-hidden="true">“</span>
+            <div class="reader-lyric-lines" id="reader-lyric-lines"></div>
+            <div class="reader-lyric-footer"><span class="reader-reading-dot" aria-hidden="true"></span><p>가사를 소리 내어 읽고,<br>오른쪽 질문에 먼저 답해 봐요.</p></div>
+          </article>
+          <article class="reader-analysis" aria-labelledby="reader-analysis-title">
+            <div class="reader-listen" id="reader-listen" hidden><span>들으며 하기</span><p id="reader-listen-text"></p></div>
+            <div class="reader-ask"><span>먼저 생각해 보기</span><p id="reader-ask"></p></div>
+            <button type="button" class="reader-reveal" id="reader-reveal" aria-expanded="false" aria-controls="reader-answer">해설 보기</button>
+            <div id="reader-answer" class="reader-answer" hidden>
+              <span class="reader-analysis-kicker">가사에서 마음 찾기</span>
+              <h2 id="reader-analysis-title"></h2>
+              <div class="reader-explanation"><h3><span>01</span> 어떻게 표현했나 <b id="reader-technique-tag">비유</b></h3><p id="reader-technique"></p></div>
+              <div class="reader-explanation"><h3><span>02</span> 어떤 마음일까</h3><p id="reader-interpretation"></p></div>
+              <div class="reader-evidence"><span>가사 속 증거</span><p id="reader-evidence-text"></p></div>
+            </div>
+          </article>
+        </div>
+        <section class="reader-video-step" id="reader-video-step" hidden aria-labelledby="reader-video-title">
+          <div class="reader-video-heading"><span class="reader-video-kicker">첫 후렴을 읽기 전에</span><h2 id="reader-video-title">노란불 앞에서는 왜 당황할까?</h2><p>노란불이 켜지면 운전자는 아주 짧은 시간 안에 ‘멈출까, 갈까’를 정해야 해요.</p></div>
+          <div class="reader-video-grid">
+            <div class="reader-video-media">
+              <div class="reader-video-player" id="dilemma-player"><a class="dilemma-cover" id="dilemma-link" href="https://www.youtube.com/watch?v=KUbQi2bATZU" target="_blank" rel="noreferrer"><span class="dilemma-provider">YouTube · 배경 영상</span><span class="dilemma-play" aria-hidden="true">▶</span><strong>노란불과 딜레마존</strong><span>눌러서 새 탭에서 보기</span></a></div>
+              <p class="video-note">딜레마존: 노란불이 켜졌을 때 멈추기도, 지나가기도 애매한 구간</p>
+              <p class="reader-video-caption">볼 때 생각할 점 · 짧은 시간, 운전자의 마음</p>
+            </div>
+            <div class="reader-video-question" role="group" aria-labelledby="dilemma-question-title">
+              <span class="reader-analysis-kicker">보고 나서 확인하기</span><h3 id="dilemma-question-title">노란불 상황과 가사가 닮은 점은?</h3><p class="dilemma-choice-hint">가장 알맞은 것을 하나 골라요.</p>
+              <div class="dilemma-choices"><button type="button" data-dilemma-choice="1" aria-pressed="false"><span>①</span> 신호 색깔을 구별하기 어려움</button><button type="button" data-dilemma-choice="2" aria-pressed="false"><span>②</span> 아주 짧은 시간에 결정해야 하는 부담</button><button type="button" data-dilemma-choice="3" aria-pressed="false"><span>③</span> 목적지까지 가는 길을 외우기 어려움</button></div>
+              <p id="dilemma-feedback" class="dilemma-feedback" role="status" aria-live="polite"></p>
+              <div class="dilemma-connection" id="dilemma-connection" hidden><b>영상에서 가사로</b><p>노란불 앞에서 빨리 정해야 하는 부담은, 내 길과 속도를 고민하는 노래 속 사람의 마음과 닮았어요.</p><p>그래서 가사 속 노란불은 초보의 <strong>당황하고 불안한 마음</strong>을 보여 줘요.</p><span>다음 구간에서 ‘3초’를 박으로 세어 봐요. →</span></div>
+            </div>
+          </div>
+        </section>
+        <section class="reader-beat-step" id="reader-beat-step" hidden aria-labelledby="reader-beat-title">
+          <div class="reader-video-heading"><span class="reader-video-kicker">첫 후렴 전 · 음악으로 느끼기</span><h2 id="reader-beat-title">“그 사이 3초”는 몇 박일까?</h2><p>메트로놈을 켜고 무릎으로 박을 타 보세요. 그다음 ‘3초는 몇 박?’을 눌러 함께 세어 봐요.</p></div>
+          <div data-beat-lab></div>
+          <p class="reader-beat-question"><b>생각해 보기</b> 노래에서 3초는 몇 박 정도일까요? 그 짧은 시간 안에 멈출지 갈지 정해야 한다면 어떤 기분일까요?</p>
+        </section>
+        <div class="reader-footer"><p id="reader-position-note">1절 · 가사 01–03을 읽고 있어요.</p><div class="reader-navigation"><button type="button" id="reader-prev" disabled><span aria-hidden="true">←</span> 이전 구간</button><button type="button" id="reader-next">다음 구간 <span aria-hidden="true">→</span></button></div></div>
+        <p class="reader-interpretation-note">해설은 하나의 정답이 아니에요. 가사를 근거로 다르게 생각해도 좋아요.</p>
+        <div id="reader-announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+      </section>
+
+      <section class="slide form-slide" data-slide="3" data-label="노래의 구조" hidden aria-labelledby="title-2">
+        <div class="section-heading"><p class="eyebrow">04 / 노래의 구조</p><h1 class="slide-title" id="title-2" tabindex="-1">노래도 <em>부분마다 하는 일이 달라요.</em></h1><p>카드를 눌러 각 부분이 무슨 역할을 하는지 알아봐요. 오늘은 <b>이야기(Verse)</b>와 <b>후렴(Chorus)</b>을 꼭 기억해요.</p></div>
+        <div class="concept-covered-grid" aria-label="노래 구조 카드">
+          <button class="concept-covered-card concept-intro" type="button" data-concept="intro" aria-haspopup="dialog" aria-controls="form-dialog"><span class="concept-card-index">01</span><strong>INTRO</strong><span class="concept-pronunciation">시작 · 전주</span><span class="concept-cover-prompt">눌러서 알아보기 <b aria-hidden="true">＋</b></span></button>
+          <button class="concept-covered-card concept-verse" type="button" data-concept="verse" aria-haspopup="dialog" aria-controls="form-dialog"><span class="concept-card-index">02</span><strong>VERSE</strong><span class="concept-pronunciation">이야기 부분</span><span class="concept-cover-prompt">눌러서 알아보기 <b aria-hidden="true">＋</b></span></button>
+          <button class="concept-covered-card concept-prechorus" type="button" data-concept="prechorus" aria-haspopup="dialog" aria-controls="form-dialog"><span class="concept-card-index">03</span><strong>PRE-CHORUS</strong><span class="concept-pronunciation">후렴 전 연결</span><span class="concept-cover-prompt">눌러서 알아보기 <b aria-hidden="true">＋</b></span></button>
+          <button class="concept-covered-card concept-chorus" type="button" data-concept="chorus" aria-haspopup="dialog" aria-controls="form-dialog"><span class="concept-card-index">04</span><strong>CHORUS</strong><span class="concept-pronunciation">후렴</span><span class="concept-cover-prompt">눌러서 알아보기 <b aria-hidden="true">＋</b></span></button>
+          <button class="concept-covered-card concept-bridge" type="button" data-concept="bridge" aria-haspopup="dialog" aria-controls="form-dialog"><span class="concept-card-index">05</span><strong>BRIDGE</strong><span class="concept-pronunciation">새로운 변화</span><span class="concept-cover-prompt">눌러서 알아보기 <b aria-hidden="true">＋</b></span></button>
+          <button class="concept-covered-card concept-outro" type="button" data-concept="outro" aria-haspopup="dialog" aria-controls="form-dialog"><span class="concept-card-index">06</span><strong>OUTRO</strong><span class="concept-pronunciation">마무리 · 후주</span><span class="concept-cover-prompt">눌러서 알아보기 <b aria-hidden="true">＋</b></span></button>
+        </div>
+        <section class="song-map-card" aria-labelledby="song-map-title">
+          <div class="song-map-top"><h2 id="song-map-title">〈신호등〉 노래 지도</h2><span id="song-map-count" class="song-map-count"></span></div>
+          <p class="song-map-help">처음부터 끝까지 노래가 흘러가는 순서예요. 칸을 누르면 오른쪽 가사에서 그 부분이 표시돼요. 칸의 길이는 가사 줄 수만큼이에요.</p>
+          <div id="song-map" class="song-map" role="group" aria-label="〈신호등〉 구간 순서"></div>
+          <div id="song-map-detail" class="song-map-detail" aria-live="polite"><p class="song-detail-role">칸을 하나 눌러 보세요. 같은 색은 같은 역할이에요.</p></div>
+          <div class="song-map-legend" aria-hidden="true"><span class="lg-verse">이야기</span><span class="lg-pre">연결</span><span class="lg-chorus">후렴</span><span class="lg-bridge">변화</span><span class="lg-intro">시작·마무리</span></div>
+        </section>
+        <p class="concept-footnote">모든 노래에 이 부분이 다 있는 것은 아니에요. 시작·마무리 칸은 가사가 없어서 길이를 대략 그렸어요.</p>
+        <dialog id="form-dialog" class="concept-dialog" aria-labelledby="concept-dialog-title" aria-describedby="concept-dialog-definition">
+          <div class="concept-dialog-top"><span id="concept-dialog-index">SONG FORM 01</span><button type="button" id="concept-dialog-close" class="concept-dialog-close" aria-label="설명 닫기" autofocus>닫기 <b aria-hidden="true">×</b></button></div>
+          <div class="concept-dialog-content"><p class="concept-dialog-reading" id="concept-dialog-reading"></p><h2 id="concept-dialog-title"></h2><p class="concept-dialog-definition" id="concept-dialog-definition"></p><div class="concept-listen-clue"><span>귀로 찾아보기</span><p id="concept-dialog-clue"></p></div><p class="concept-dialog-note" id="concept-dialog-note"></p></div>
+          <div class="concept-dialog-footer"><span>노래를 다시 들으며 이 부분을 찾아보세요.</span><span>ESC 키로도 닫을 수 있어요.</span></div>
+        </dialog>
+      </section>
+
+      <section class="slide karaoke-slide" data-slide="4" data-label="반주에 맞춰 부르기" hidden aria-labelledby="title-4">
+        <div class="section-heading"><p class="eyebrow">05 / 함께 부르기</p><h1 class="slide-title" id="title-4" tabindex="-1">이제, <em>반주에 맞춰 불러요.</em></h1><p>가사의 뜻을 떠올리며, 노래방 반주에 맞춰 1절을 함께 불러 봐요.</p></div>
+        <div class="sing-simple">
+          <a class="sing-launch" id="karaoke-link" href="https://www.youtube.com/watch?v=WPCVPGVmHcA" target="_blank" rel="noreferrer"><span class="sing-launch-play" aria-hidden="true">▶</span><span><strong>노래방 반주 열기</strong><small>금영 KY 22924 · 기본 키 · YouTube 새 탭</small></span></a>
+          <ol class="sing-flow">
+            <li><b>1</b><span>듣기</span><small>무릎으로 박 타기</small></li>
+            <li><b>2</b><span>후렴만</span><small>다 같이 크게</small></li>
+            <li><b>3</b><span>1절 전체</span><small>첫 후렴 끝까지</small></li>
+          </ol>
+        </div>
+      </section>
+      <section class="slide relay-slide" data-slide="5" data-label="번호 뽑고 가사 잇기" hidden aria-labelledby="title-5">
+        <div class="section-heading"><p class="eyebrow">06 / 가사 릴레이</p><h1 class="slide-title" id="title-5" tabindex="-1">번호는 랜덤, <em>가사는 처음부터.</em></h1><p>뽑힌 번호의 친구가 빈칸을 채워요. 막히면 모둠 친구가 한 번 도와줄 수 있어요.</p></div>
+        <div class="relay-flow" aria-label="활동 순서"><span><b>1</b> 번호 뽑기</span><i aria-hidden="true">→</i><span><b>2</b> 빈칸 채우기</span><i aria-hidden="true">→</i><span><b>3</b> 정답 보고 다음 구간</span></div>
+        <div class="relay-layout">
+          <article class="relay-draw-card" aria-labelledby="relay-draw-title">
+            <span class="relay-card-kicker" id="relay-draw-title">이번 차례</span>
+            <div class="relay-number-wrap"><span id="relay-number">—</span><span class="relay-number-unit">번</span></div>
+            <p id="relay-draw-caption">먼저 번호를 뽑아 주세요.</p>
+            <button class="relay-draw-button" id="relay-draw" type="button"><span aria-hidden="true">✳</span> 번호 뽑기</button>
+            <p class="relay-draw-rule">한 번 나온 번호는<br>모두 뽑을 때까지 다시 나오지 않아요.</p>
+          </article>
+          <article class="relay-question-card" aria-labelledby="relay-round-label">
+            <div class="relay-question-top"><span class="relay-card-kicker" id="relay-round-label">1절 · 첫 구간</span><span class="relay-counter"><b id="relay-round-number">01</b><span>/</span><span id="relay-round-total">10</span></span></div>
+            <div class="relay-progress-track"><span id="relay-round-progress"></span></div>
+            <div id="relay-locked" class="relay-locked"><span class="relay-lock-icon" aria-hidden="true">↗</span><h2>번호를 뽑으면<br>가사가 나타나요.</h2><p>가사는 1절 처음부터 차례대로,<br>번호는 매번 무작위로.</p></div>
+            <div id="relay-question" class="relay-question" hidden><p class="relay-question-prompt">빈칸에 들어갈 가사를 말해 보세요.</p><div id="relay-lines" class="relay-lines"></div><p class="relay-answer-help" id="relay-answer-help" hidden>정답을 함께 확인해 봐요.</p></div>
+            <div id="relay-complete" class="relay-complete" hidden><span aria-hidden="true">✳</span><h2>1절을 끝까지 이었어요!</h2><p>마지막에는 다 같이<br>처음부터 이어 불러 볼까요?</p><button type="button" class="relay-restart-button" id="relay-restart">처음부터 다시 <span aria-hidden="true">↻</span></button></div>
+            <div class="relay-question-actions" id="relay-question-actions"><button type="button" id="relay-reveal" class="relay-reveal-button" disabled>정답 확인</button><button type="button" id="relay-next" class="relay-next-button" disabled>다음 가사 <span aria-hidden="true">→</span></button></div>
+          </article>
+        </div>
+        <article class="relay-pool-card" aria-labelledby="relay-pool-title">
+          <div class="relay-pool-header"><div><h2 id="relay-pool-title">번호판 <span id="relay-pool-count">25명 남음</span></h2><p>흐려진 번호는 이미 뽑힌 번호예요.</p></div><form id="relay-settings" class="relay-settings"><label for="relay-maximum">우리 반 인원</label><input type="number" id="relay-maximum" name="maximum" min="1" max="100" step="1" value="25" inputmode="numeric" aria-describedby="relay-settings-help"><button type="submit">적용</button></form></div>
+          <p class="relay-error" id="relay-error" role="alert" hidden></p>
+          <div id="relay-number-pool" class="relay-number-pool" aria-label="뽑을 수 있는 번호와 이미 뽑힌 번호"></div>
+          <div class="relay-pool-footer"><p id="relay-settings-help">수업 시작 전에 반 인원을 맞춰 두세요. 가사는 지금 구간부터 이어져요.</p><button type="button" id="relay-refill" class="relay-refill-button" hidden>번호 다시 채우기 <span aria-hidden="true">↻</span></button></div>
+          <p id="relay-pool-empty" class="relay-pool-empty" hidden>번호를 모두 뽑았어요. ‘번호 다시 채우기’를 눌러 이어가세요.</p>
+        </article>
+        <section class="relay-score-card" aria-label="모둠 점수판"><p>혼자 맞히면 +1, 모둠 친구가 도와서 맞히면 모둠에 +1이에요.</p><div data-scoreboard></div></section>
+        <p class="relay-lesson-note"><span aria-hidden="true">✳</span> 오른쪽 가사에서도 같은 빈칸이 가려져 있어요. 정답을 확인하면 함께 보여요.</p>
+        <div id="relay-announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+      </section>
+
+      <section class="slide term-quiz-slide" data-slide="6" data-label="어느 부분일까?" hidden aria-labelledby="title-6">
+        <div class="section-heading"><p class="eyebrow">07 / 어느 부분일까?</p><h1 class="slide-title" id="title-6" tabindex="-1">이 가사는, <em>노래의 어느 부분일까요?</em></h1><p>가사가 어디에 나오는지, 몇 번 되풀이되는지 보고 알맞은 이름을 골라요.</p></div>
+        <div class="term-quiz-toolbar"><span class="term-quiz-kicker">구조 이름 맞히기</span><div class="term-quiz-counter"><b id="term-quiz-number">01</b><i>/</i><span id="term-quiz-total">06</span></div><span class="term-quiz-score" id="term-quiz-score">맞힌 문제 0 / 6</span></div>
+        <div id="term-quiz-question" class="term-quiz-grid">
+          <article class="term-quiz-cue-card" aria-labelledby="term-quiz-cue-title">
+            <div class="term-quiz-cue-heading"><span id="term-quiz-cue-title" tabindex="-1">가사를 읽어 보세요</span><span class="term-quiz-example-badge" id="term-quiz-example" hidden>연습용 예시</span></div>
+            <div class="term-quiz-listen" id="term-quiz-listen" hidden><span>들으며 하기</span><p id="term-quiz-listen-text"></p></div>
+            <span class="term-quiz-quote" aria-hidden="true">“</span>
+            <div class="term-quiz-lyrics" id="term-quiz-lyrics"></div>
+            <div class="term-quiz-position"><span>힌트 · 어디에, 몇 번?</span><p id="term-quiz-clue"></p></div>
+          </article>
+          <article class="term-quiz-answer-card">
+            <fieldset class="term-quiz-fieldset"><legend>이 부분의 이름은 무엇일까요?</legend><div class="term-quiz-options">
+              <label class="term-quiz-option"><input type="radio" name="term-quiz-answer" value="intro"><span class="term-quiz-option-number">1</span><span>시작 (Intro)</span></label>
+              <label class="term-quiz-option"><input type="radio" name="term-quiz-answer" value="verse"><span class="term-quiz-option-number">2</span><span>이야기 (Verse)</span></label>
+              <label class="term-quiz-option"><input type="radio" name="term-quiz-answer" value="prechorus"><span class="term-quiz-option-number">3</span><span>후렴 전 연결 (Pre-chorus)</span></label>
+              <label class="term-quiz-option"><input type="radio" name="term-quiz-answer" value="chorus"><span class="term-quiz-option-number">4</span><span>후렴 (Chorus)</span></label>
+              <label class="term-quiz-option"><input type="radio" name="term-quiz-answer" value="bridge"><span class="term-quiz-option-number">5</span><span>새로운 변화 (Bridge)</span></label>
+              <label class="term-quiz-option"><input type="radio" name="term-quiz-answer" value="outro"><span class="term-quiz-option-number">6</span><span>마무리 (Outro)</span></label>
+            </div></fieldset>
+            <div class="term-quiz-feedback" id="term-quiz-feedback" role="status" aria-live="polite" aria-atomic="true" hidden><strong id="term-quiz-feedback-title"></strong><p id="term-quiz-feedback-text"></p></div>
+            <div class="term-quiz-actions"><button type="button" id="term-quiz-reveal" disabled>정답 확인</button><button type="button" id="term-quiz-next" disabled>다음 문제 <span aria-hidden="true">→</span></button></div>
+          </article>
+        </div>
+        <article id="term-quiz-complete" class="term-quiz-complete" hidden><span class="term-quiz-complete-mark" aria-hidden="true">✳</span><p class="term-quiz-kicker">퀴즈 끝!</p><h2>오늘 배운 것을 한 문장으로 말해 볼까요?</h2><p class="term-quiz-result"><b id="term-quiz-result-score">0</b><span> / 6문제</span></p><p class="term-quiz-result-note">“Verse는 <b>새 이야기</b>, Chorus는 <b>되풀이되는 중요한 마음</b>.”<br>빈칸을 내 말로 바꿔 말해 봐도 좋아요.</p><button type="button" id="term-quiz-restart">다시 풀기 <span aria-hidden="true">↻</span></button></article>
+        <p class="term-quiz-footnote">가사만 보지 말고 위치와 되풀이를 함께 살펴봐요. 시작·마무리 문제는 가사가 없는 부분이라 연습용 예시예요.</p>
+        <div id="term-quiz-announcement" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+      </section>
+
+      <footer class="lesson-footer"><div class="footer-progress"><span class="page-counter"><b id="page-current">01</b><i>/</i><span id="page-total">07</span></span><div class="progress-track"><span id="lesson-progress"></span></div><span class="footer-now" id="footer-now">수업 열기<small>3분</small></span></div><div class="page-controls"><button class="prev-button" data-prev disabled><span>←</span> 이전</button><button class="next-button" data-next>다음 화면 <span>→</span></button></div></footer>
+      <p class="prototype-note">← → 키로 화면 이동 · F 키로 발표 모드</p>
+    </main>
+  </div>
+  <aside class="lyrics-rail" id="lyrics-rail" aria-label="수업 중 함께 보는 가사 전문">
+    <header class="lyrics-rail-heading"><div class="lyrics-heading-top"><span>가사 전문 · 수업 내내 함께 보기</span><button id="lyrics-close" aria-label="가사 전문 접기">×</button></div><h2>신호등 <small>이무진</small></h2><p id="lyrics-mode-note">가사를 보면서 해설과 노래를 함께 따라가요.</p><div class="lyrics-toolbar"><nav class="lyrics-jumps" aria-label="가사 구간 바로가기"><button data-lyrics-jump="0">1절</button><button data-lyrics-jump="22">2절</button><button data-lyrics-jump="39">후반부</button></nav><div class="lyrics-size-controls" aria-label="가사 글자 크기"><button id="lyrics-smaller" aria-label="가사 글자 작게">A−</button><button id="lyrics-larger" aria-label="가사 글자 크게">A＋</button></div></div></header>
+    <div id="lyrics-body" class="lyrics-body" tabindex="0" aria-label="가사 전문, 아래로 스크롤해서 모두 볼 수 있습니다"></div>
+    <footer class="lyrics-rail-footer"><span>이무진 〈신호등〉<br>수업용 구간 표시</span><button id="lyrics-current">지금 구간으로 ↑</button></footer>
+  </aside>
+  <button class="lyrics-mobile-toggle" id="lyrics-toggle" aria-expanded="false" aria-controls="lyrics-rail"><i aria-hidden="true">≡</i><span>가사 전문</span><small>언제든 펼쳐 보기</small></button>
+  <div id="page-announcement" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+</body></html>

@@ -1,0 +1,165 @@
+/* 수업 도구: 외부 글꼴·이미지 없이 기존 수업 색상과 글꼴을 사용합니다. */
+.mt-panel,
+.mt-timer {
+  box-sizing: border-box;
+  color: var(--ink, #243b31);
+  font-family: inherit;
+}
+
+.mt-panel *,
+.mt-timer * { box-sizing: border-box; }
+
+.mt-panel {
+  min-width: 0;
+  margin-block: 22px;
+  padding: clamp(16px, 2.2vw, 28px);
+  border: 1px solid var(--line, #dfe4d5);
+  border-radius: 14px;
+  background: var(--paper, #fffef9);
+}
+
+.mt-panel p,
+.mt-panel h2,
+.mt-panel h3 { margin: 0; }
+
+.mt-panel .mt-title {
+  margin-bottom: 18px;
+  font-size: clamp(22px, 2.2vw, 28px);
+  line-height: 1.4;
+  font-weight: 800;
+}
+
+.mt-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 46px;
+  min-height: 46px;
+  padding: 10px 16px;
+  border: 1px solid var(--line, #dfe4d5);
+  border-radius: 9px;
+  background: #edf2e8;
+  color: var(--green, #205b45);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.mt-button:hover:not(:disabled) { background: #e0eada; }
+.mt-button:active:not(:disabled) { transform: translateY(1px); }
+.mt-button:disabled { opacity: .46; cursor: default; }
+.mt-button:focus-visible { outline: 3px solid var(--green, #205b45); outline-offset: 4px; }
+.mt-primary { background: var(--green, #205b45); border-color: var(--green, #205b45); color: #fff; }
+.mt-primary:hover:not(:disabled) { background: #174c39; }
+.mt-caption,
+.mt-help,
+.mt-formula { color: var(--ink-soft, #4f6152); font-size: 16px; line-height: 1.7; overflow-wrap: anywhere; }
+.mt-panel .mt-help { margin-top: 16px; }
+.mt-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* 박 실험실 */
+.mt-beat-controls,
+.mt-tempo-controls { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 18px; }
+.mt-beat-controls { justify-content: space-between; margin-bottom: 20px; }
+.mt-beat-controls > .mt-button { min-width: 106px; font-size: 22px; }
+.mt-tempo-controls { gap: 12px; }
+.mt-tempo-controls > .mt-button { width: 50px; height: 50px; padding: 4px; font-size: 28px; }
+.mt-tempo-label { display: flex; flex-direction: column; align-items: center; min-width: 155px; }
+.mt-tempo-label .mt-caption { font-size: 14px; line-height: 1.5; }
+.mt-tempo-value { font-size: 52px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.mt-meter-label { color: var(--ink-soft, #4f6152); font-size: 16px; line-height: 1.6; }
+.mt-beats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-block: 10px 22px; }
+.mt-beat { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 98px; border: 2px solid var(--line, #dfe4d5); border-radius: 12px; background: #f3f5ee; }
+.mt-first-beat { border-style: double; border-width: 5px; }
+.mt-beat-number { font-size: 44px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.mt-beat-name { font-size: 16px; }
+.mt-beat.mt-active { background: var(--green, #205b45); border-color: var(--green, #205b45); color: #fff; animation: mt-beat-pulse .16s ease-out; }
+.mt-first-beat.mt-active { background: var(--yellow, #edc557); border-color: var(--ink, #243b31); color: var(--ink, #243b31); }
+.mt-experiment-button { width: 100%; background: #fcf2ce; border-color: var(--yellow, #edc557); color: var(--ink, #243b31); font-size: 22px; }
+.mt-experiment-button:hover:not(:disabled) { background: #f7e5a4; }
+.mt-experiment { margin-top: 16px; padding: 18px; background: #f6f7ef; border-radius: 10px; }
+.mt-count-row { display: flex; align-items: baseline; gap: 10px; }
+.mt-count { font-size: 64px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.mt-count-unit { font-size: 22px; }
+.mt-experiment-track { height: 14px; margin-block: 12px 16px; border: 1px solid #c4bb93; border-radius: 20px; background: #e5e6d9; overflow: hidden; }
+.mt-experiment-fill { display: block; width: 0; height: 100%; background: var(--yellow, #edc557); }
+.mt-result { font-size: 19px; font-weight: 750; line-height: 1.7; overflow-wrap: anywhere; }
+.mt-panel .mt-formula { margin-top: 8px; }
+.mt-audio-status { color: #9b3026; font-size: 16px; font-weight: 700; line-height: 1.6; }
+.mt-audio-status:empty { display: none; }
+.mt-panel .mt-audio-status:not(:empty) { margin-top: 12px; }
+@keyframes mt-beat-pulse { from { transform: scale(.96); } to { transform: scale(1); } }
+
+/* 상단 타이머: 숫자는 40px, 전체 높이는 40px 이내입니다. */
+.mt-timer { display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; max-width: 100%; height: 40px; padding: 1px 5px; border: 1px solid var(--line, #dfe4d5); border-radius: 8px; background: var(--paper, #fffef9); white-space: nowrap; }
+.mt-timer-readout { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.mt-timer-label { font-size: 16px; font-weight: 700; line-height: 1.1; }
+.mt-timer-value { font-size: 40px; line-height: .9; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -1.6px; }
+.mt-timer .mt-button { min-width: 44px; min-height: 34px; height: 34px; padding: 3px 7px; border-radius: 6px; font-size: 16px; line-height: 1.2; white-space: nowrap; }
+.mt-timer-warning { background: #fff0ba; border-color: var(--sig-yellow, #e2b23a); color: #654900; }
+.mt-timer-ended { background: #fce4df; border-color: var(--sig-red, #c8483a); color: #942d24; }
+.mt-timer-warning .mt-button,
+.mt-timer-ended .mt-button { background: var(--paper, #fffef9); }
+body.present .mt-timer { border-width: 2px; }
+
+/* 모둠 점수판 */
+.mt-score-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.mt-group-choices { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.mt-group-choices .mt-caption { margin-right: 3px; }
+.mt-group-choices .mt-button { min-width: 44px; padding-inline: 10px; }
+.mt-group-choices .mt-button[aria-pressed="true"] { background: var(--green, #205b45); border-color: var(--green, #205b45); color: #fff; }
+.mt-score-reset { min-width: 135px; }
+.mt-confirm-reset { background: #fff0ba; border-color: var(--sig-yellow, #e2b23a); color: #654900; }
+.mt-score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 14px; margin-top: 18px; }
+.mt-score-card { min-width: 0; padding: 16px; border: 3px solid var(--line, #dfe4d5); border-radius: 12px; background: var(--paper, #fffef9); }
+.mt-score-card.mt-leading { border-color: var(--yellow, #edc557); }
+.mt-score-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 5px; }
+.mt-group-name { font-size: 20px; font-weight: 800; }
+.mt-leader-label { border-radius: 5px; padding: 2px 6px; background: #fff0ba; color: #654900; font-size: 14px; font-weight: 750; }
+.mt-score-value { display: block; margin-block: 10px 14px; font-size: 56px; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.mt-score-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.mt-score-actions .mt-button { flex: 1; font-size: 22px; }
+.mt-score-status { min-height: 1.6em; margin-top: 12px !important; color: var(--ink-soft, #4f6152); font-size: 16px; line-height: 1.6; }
+
+/* 가창 체크리스트 */
+.mt-check-list { display: grid; gap: 12px; }
+.mt-check-toggle { width: 100%; justify-content: flex-start; gap: 16px; padding: 18px; background: #f3f5ee; color: var(--ink, #243b31); text-align: left; }
+.mt-check-signal { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border: 2px solid #87938a; border-radius: 50%; background: #dbe1d8; color: transparent; font-size: 27px; }
+.mt-check-copy { display: flex; flex-direction: column; min-width: 0; gap: 6px; }
+.mt-check-title { font-size: 22px; line-height: 1.45; }
+.mt-check-description { font-size: 16px; font-weight: 500; line-height: 1.65; color: var(--ink-soft, #4f6152); }
+.mt-check-toggle[aria-pressed="true"] { border-color: var(--green, #205b45); background: #e6f0e7; }
+.mt-check-toggle[aria-pressed="true"] .mt-check-signal { background: var(--sig-green, #2f8a5b); border-color: var(--green, #205b45); color: #fff; }
+.mt-check-status { padding-block: 18px; font-size: 20px; font-weight: 750; line-height: 1.55; }
+.mt-complete .mt-check-status { color: var(--green, #205b45); font-size: clamp(26px, 3vw, 36px); }
+
+@media (max-width: 600px) {
+  .mt-beat-controls { justify-content: center; }
+  .mt-beat-controls > .mt-button { width: 100%; }
+  .mt-beats { gap: 8px; }
+  .mt-beat { min-height: 88px; }
+  .mt-experiment { padding: 14px; }
+  .mt-score-toolbar { align-items: stretch; }
+  .mt-score-reset { width: 100%; }
+  .mt-check-toggle { padding: 14px; gap: 12px; }
+  .mt-check-title { font-size: 20px; }
+}
+
+@media (max-width: 420px) {
+  .mt-timer { gap: 4px; padding-inline: 3px; }
+  .mt-timer-readout { gap: 4px; }
+  .mt-timer-label { max-width: 34px; white-space: normal; line-height: 1.05; }
+  .mt-timer .mt-button { padding-inline: 5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mt-panel *, .mt-timer * { animation: none !important; transition: none !important; }
+  .mt-button:active:not(:disabled) { transform: none; }
+}

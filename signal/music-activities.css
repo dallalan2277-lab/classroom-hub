@@ -1,0 +1,80 @@
+/* 음악 활동: 노래 지도, 듣기 카드, 박 세기 단계, 가창 화면, 점수판 자리 */
+:root{--part-verse:#cfe0cf;--part-verse-ink:#24503a;--part-pre:#f5e6b0;--part-pre-ink:#7a5a08;--part-chorus:#e9b93a;--part-chorus-ink:#3d2c00;--part-bridge:#efc4bb;--part-bridge-ink:#8a2f22;--part-intro:#e4e6dd;--part-intro-ink:#4f5a4c}
+
+/* ── 노래 지도 ── */
+.song-map-card{margin-top:22px;padding:22px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.song-map-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.song-map-top h2{font-size:22px;letter-spacing:-.5px}
+.song-map-count{font-size:16px;font-weight:800;color:var(--part-chorus-ink);background:var(--part-pre);padding:4px 12px;border-radius:20px}
+.song-map-help{font-size:15px;line-height:1.7;color:var(--ink-soft);margin:8px 0 16px;word-break:keep-all}
+.song-map{display:flex;flex-wrap:wrap;gap:4px;min-height:84px}
+.song-block{flex-basis:0;min-width:min-content;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px 2px;border-radius:8px;border:2px solid transparent;cursor:pointer;transition:transform .15s,border-color .15s}
+.song-block b{font-size:16px;font-weight:800;white-space:nowrap}
+.song-block small{font-size:11px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.song-block:hover{transform:translateY(-2px)}
+.song-block[aria-pressed="true"]{border-color:var(--ink);transform:translateY(-3px)}
+.song-verse{background:var(--part-verse);color:var(--part-verse-ink)}
+.song-pre{background:var(--part-pre);color:var(--part-pre-ink)}
+.song-chorus{background:var(--part-chorus);color:var(--part-chorus-ink)}
+.song-bridge{background:var(--part-bridge);color:var(--part-bridge-ink)}
+.song-intro,.song-outro{background:var(--part-intro);color:var(--part-intro-ink)}
+.song-map-detail{margin-top:14px;min-height:76px;padding:14px 16px;border-radius:10px;background:#f3f5ec}
+.song-detail-head{font-size:18px;font-weight:800;color:var(--ink)}
+.song-detail-role{font-size:16px;line-height:1.6;color:var(--ink-soft);margin-top:4px}
+.song-detail-line{font-size:15px;color:var(--ink-soft);margin-top:4px}
+.song-map-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:13px;color:var(--ink-soft)}
+.song-map-legend span:before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.lg-verse:before{background:var(--part-verse)}.lg-pre:before{background:var(--part-pre)}.lg-chorus:before{background:var(--part-chorus)}.lg-bridge:before{background:var(--part-bridge)}.lg-intro:before{background:var(--part-intro)}
+@media(max-width:700px){.song-map{flex-wrap:wrap}.song-block{flex:1 1 22%!important;min-height:60px}}
+
+/* ── 듣기 카드 ── */
+.reader-listen,.term-quiz-listen{margin:0 0 14px;padding:14px 16px;border-radius:10px;background:#e3efe6;border:1px solid #b9d6c2}
+.reader-listen>span,.term-quiz-listen>span{display:block;font-size:13px;font-weight:800;letter-spacing:.5px;color:#21704a;margin-bottom:4px}
+.reader-listen>span:before,.term-quiz-listen>span:before{content:"♪ "}
+.reader-listen>p,.term-quiz-listen>p{font-size:18px;line-height:1.55;font-weight:700;color:var(--ink);word-break:keep-all}
+
+/* ── 3초 박 세기 단계 ── */
+.reader-beat-step{display:grid;gap:18px}
+.reader-beat-question{font-size:18px;line-height:1.7;padding:16px 18px;border-radius:10px;background:#fbf3d5;border:1px solid #ecd78f;color:var(--ink);word-break:keep-all}
+.reader-beat-question b{display:block;font-size:13px;color:#8a6510;margin-bottom:4px}
+
+/* ── 가창 화면 ── */
+.sing-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+.sing-main{display:grid;gap:16px;min-width:0}
+.sing-launch{display:flex;align-items:center;gap:16px;padding:18px 20px;border-radius:12px;background:#1f2b26;color:#f4f6ee;text-decoration:none}
+.sing-launch:hover{background:#26362f}
+.sing-launch>span:nth-child(2){flex:1;min-width:0}
+.sing-launch strong{display:block;font-size:20px}
+.sing-launch small{display:block;font-size:14px;color:#b9c9ad;margin-top:4px}
+.sing-launch-play{display:flex;align-items:center;justify-content:center;width:52px;height:38px;border-radius:9px;background:#d9433d;color:#fff;font-size:18px;flex-shrink:0}
+.sing-steps,.clap-guide{padding:18px 20px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.sing-steps h2,.clap-guide h2,.sing-side h2,.relay-score-card h2{font-size:19px;margin-bottom:10px}
+.sing-steps ol{margin:0;padding-left:0;list-style:none;display:grid;gap:8px}
+.sing-steps li{font-size:16px;line-height:1.6;color:var(--ink-soft)}
+.sing-steps li b{color:var(--ink);margin-right:8px}
+.clap-guide>p{font-size:15px;line-height:1.6;color:var(--ink-soft)}
+.clap-line{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px!important}
+.clap-line span{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:var(--part-chorus);color:var(--part-chorus-ink);font-weight:800;font-size:17px}
+.clap-line i{display:inline-block;width:20px}
+.clap-guide small{display:block;margin-top:10px;font-size:13px;color:var(--ink-soft)}
+@media(max-width:900px){.sing-layout{grid-template-columns:1fr}}
+
+/* ── 점수판 자리 ── */
+.relay-score-card{margin-top:22px}
+.relay-score-card>p{font-size:15px;color:var(--ink-soft);margin-bottom:12px}
+
+/* ── 가창 화면 (단순형) ── */
+.sing-simple{max-width:760px;margin:12px auto 0;display:grid;gap:28px}
+.sing-simple .sing-launch{padding:28px 30px;gap:22px;border-radius:16px}
+.sing-simple .sing-launch strong{font-size:28px}
+.sing-simple .sing-launch small{font-size:15px}
+.sing-simple .sing-launch-play{width:72px;height:52px;font-size:24px;border-radius:12px}
+.sing-flow{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.sing-flow li{display:grid;justify-items:center;gap:4px;padding:18px 10px;border-top:3px solid var(--line);text-align:center}
+.sing-flow li b{font-size:15px;color:var(--ink-soft)}
+.sing-flow li span{font-size:22px;font-weight:800;color:var(--ink)}
+.sing-flow li small{font-size:14px;color:var(--ink-soft)}
+.sing-flow li:nth-child(1){border-color:var(--part-verse)}
+.sing-flow li:nth-child(2){border-color:var(--part-chorus)}
+.sing-flow li:nth-child(3){border-color:var(--green)}
+@media(max-width:600px){.sing-flow{grid-template-columns:1fr}}

@@ -1,0 +1,89 @@
+/* 교실 TV용 보강: 발표 모드, 신호등 색 언어, 진행 표시, 생각 먼저 묻기 */
+:root{--sig-red:#c8483a;--sig-yellow:#e2b23a;--sig-green:#2f8a5b;--ink-soft:#4f6152}
+body{background:var(--bg);color:var(--ink)}
+
+/* ── 상단 도구 ── */
+.topbar-tools{display:flex;align-items:center;gap:10px}
+.tool-button{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:8px;font-size:15px;font-weight:700;background:#e6eddc;color:#2f5a3f;border:1px solid #cddbbf}
+.tool-button:hover{background:#dae6cc}
+.tool-button[aria-pressed="true"]{background:var(--green);color:#fff;border-color:var(--green)}
+.tool-button .lamp{display:inline-flex;gap:3px}
+.tool-button .lamp i{width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.35}
+.tool-button .lamp i:nth-child(2){opacity:1;background:var(--sig-yellow)}
+#lyrics-present-toggle{display:none}
+
+/* ── 발표 모드: 메뉴·가사 접고 본문을 크게 ── */
+.present .sidebar,.present .sidebar-toggle,.present .lyrics-mobile-toggle{display:none!important}
+.present .workspace{margin-left:0!important;margin-right:0}
+.present .lyrics-rail{display:none}
+.present.present-lyrics .lyrics-rail{display:flex}
+.present.present-lyrics .workspace{margin-right:var(--lyrics-width)}
+.present #lyrics-present-toggle{display:inline-flex}
+.present .main-content{zoom:1.28;max-width:1280px}
+.present.present-lyrics .main-content{zoom:1.12}
+.present .breadcrumb{font-size:17px}
+.present .prototype-note{display:none}
+@media(max-width:900px){.present .main-content{zoom:1}.present-tools-only{display:none}}
+
+/* ── 신호등 색 언어: 이해(빨강·멈춰 생각) → 표현(초록·출발) → 기억(노랑·확인) ── */
+.traffic-light.red{background:#b4574b;opacity:.55}
+.traffic-light.green{background:#3f8a5f;opacity:.55}
+.journey-strip>div:nth-child(1) .step-icon{background:#f6dcd6;color:#9c3427}
+.journey-strip>div:nth-child(2) .step-icon{background:#d6ecdf;color:#21704a}
+.journey-strip>div:nth-child(3) .step-icon{background:#f7e7b6;color:#8a6510}
+:root{--sidebar:216px}
+@media(min-width:1500px){:root{--sidebar:236px}}
+@media(min-width:901px) and (max-width:1150px){:root{--sidebar:184px}}
+@media(max-width:900px){:root{--sidebar:0px}}
+.lesson-nav button{min-height:0;padding:11px 10px;font-size:15px;line-height:1.35}
+.lesson-nav button[data-stage] .nav-number{color:var(--stage);font-weight:800}
+.lesson-nav button.active .nav-number{color:#fff}
+.lesson-nav button.active:after{display:none}
+.lesson-nav button small{font-size:12px}
+.lesson-nav button[data-stage="understand"]{--stage:var(--sig-red)}
+.lesson-nav button[data-stage="express"]{--stage:var(--sig-green)}
+.lesson-nav button[data-stage="remember"]{--stage:#b0820f}
+.sidebar-heading{font-size:13px}
+.nav-time{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:9px;background:#e9eee0;color:#3d5a43;font-size:11px;font-weight:700}
+.lesson-nav button.active .nav-time{background:#ffffff26;color:#fff}
+
+/* ── 진행 표시를 크게 ── */
+.page-counter>b{font-size:26px}
+.page-counter{font-size:16px;color:var(--ink-soft)}
+.progress-track{height:8px;width:160px;border-radius:8px}
+.progress-track>span{background:linear-gradient(90deg,var(--sig-red),var(--sig-yellow) 50%,var(--sig-green))}
+.footer-now{font-size:16px;font-weight:700;color:var(--ink)}
+.footer-now small{font-weight:500;color:var(--ink-soft);margin-left:6px}
+.page-controls>button{font-size:16px;padding:12px 18px}
+
+/* ── 본문 문장 대비 ── */
+.section-heading>p:last-child,.paper-card>p,.hero-subtitle{color:var(--ink-soft)}
+.slide-title{line-height:1.35}
+
+/* ── 가사 해석: 질문 먼저, 해설은 나중에 ── */
+.reader-ask{margin:4px 0 18px;padding:16px 18px;border-radius:10px;background:#fbf3d5;border:1px solid #ecd78f}
+.reader-ask>span{display:block;font-size:13px;font-weight:800;letter-spacing:.5px;color:#8a6510;margin-bottom:6px}
+.reader-ask>p{font-size:21px;line-height:1.55;font-weight:700;color:var(--ink);word-break:keep-all}
+.reader-reveal{display:inline-flex;align-items:center;gap:8px;margin:0 0 16px;padding:11px 18px;border-radius:8px;background:var(--green);color:#fff;font-size:16px;font-weight:700}
+.reader-reveal:hover{background:#174530}
+.reader-answer{animation:slide-in .2s ease}
+
+/* ── 영상 링크 카드 (아티팩트는 YouTube를 안에 넣을 수 없음) ── */
+a.video-cover,a.dilemma-cover{text-decoration:none;cursor:pointer}
+.video-note{font-size:14px;color:var(--ink-soft);margin-top:8px}
+
+/* ── 구조 카드: 한국어 이름을 먼저 크게 ── */
+.concept-covered-card .concept-pronunciation{font-size:20px;font-weight:800;color:var(--ink)}
+.concept-ko{display:block;font-size:22px;font-weight:800;margin-top:4px}
+
+@media(prefers-reduced-motion:reduce){.reader-answer{animation:none}}
+.lesson-footer{flex-wrap:wrap}
+.page-controls>button{white-space:nowrap}
+@media(max-width:1400px){body:not(.present) .footer-now{display:none}body:not(.present) .progress-track{width:100px}}
+.reader-explanation p,.reader-evidence p{font-size:17px;line-height:1.7;color:var(--ink-soft)}
+.topbar{gap:14px}
+.breadcrumb{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-tools{flex-shrink:0}
+.tool-button{white-space:nowrap}
+@media(max-width:1180px){body:not(.present) .breadcrumb{display:none}body:not(.present) .topbar{justify-content:flex-end}}
+@media(max-width:900px){.present.present-lyrics .main-content{zoom:1}}
