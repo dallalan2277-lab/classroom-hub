@@ -15,6 +15,7 @@
 | `gugak/` | 국악기 학습지 (ws `gugak-instruments`) |
 | `dance/` | 세계의 춤 용어 학습지 1차시 (ws `dance-1`, 확인 코드 유지) |
 | `stage/` | 음악극 탐험대 학습지 (ws `music-stage`) |
+| `ensemble/` | 서양 음악의 연주 형태 학습지. **아직 허브 미연결**(classroom.js 없음, 첫 화면 카드 없음). 2026-11-11 아티팩트에서 그대로 옮김, 수정 작업 중. 허브 연결은 선생님이 나중에 하기로 함 |
 | `teacher/` | 선생님 알림판 (`#k=키`로 열면 기기에 저장, 오래 이탈한 학생 소리·진동·작은 창) |
 | `index.html` | 학습지 모음 첫 화면 |
 | `test/` | `hub_harness.js`(가짜 시트로 Code.gs 시험), `mock_hub.py`(로컬 가짜 허브) |

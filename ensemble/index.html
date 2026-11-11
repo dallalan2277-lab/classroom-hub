@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>서양 음악의 연주 형태</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* 레이아웃: 왼쪽 진행 레일(8단계) + 오른쪽 학습 카드 한 장. 기악=코랄, 성악=청록 */
+  --bg: #f6f5f2;
+  --surface: #ffffff;
+  --ink: #1f2433;
+  --muted: #646a7a;
+  --line: #e2e0da;
+  --inst: #e0606e;
+  --inst-soft: #fdecee;
+  --vocal: #198f86;
+  --vocal-soft: #e3f4f2;
+  --good: #2c8a4b;
+  --good-soft: #e5f4e9;
+  --bad: #c0392b;
+  --bad-soft: #fbe9e7;
+  --display: "Do Hyeon", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171e; --surface: #1e212b; --ink: #ecedf1; --muted: #a3a8b6; --line: #333847;
+    --inst: #f2818c; --inst-soft: #3a2328; --vocal: #4cc3b8; --vocal-soft: #1b3533;
+    --good: #5cc27b; --good-soft: #1d3324; --bad: #f07466; --bad-soft: #3b2220;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171e; --surface: #1e212b; --ink: #ecedf1; --muted: #a3a8b6; --line: #333847;
+  --inst: #f2818c; --inst-soft: #3a2328; --vocal: #4cc3b8; --vocal-soft: #1b3533;
+  --good: #5cc27b; --good-soft: #1d3324; --bad: #f07466; --bad-soft: #3b2220;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.65; }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; text-wrap: balance; margin: 0; line-height: 1.25; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible, a:focus-visible { outline: 3px solid var(--vocal); outline-offset: 2px; }
+
+.app { display: grid; grid-template-columns: 260px 1fr; gap: 28px; max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+@media (max-width: 860px) { .app { grid-template-columns: 1fr; gap: 16px; padding: 16px; } }
+
+/* 진행 레일 */
+.rail { position: sticky; top: 20px; align-self: start; display: flex; flex-direction: column; gap: 18px; }
+@media (max-width: 860px) { .rail { position: static; } }
+.brand h1 { font-size: 30px; }
+.brand p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.progress-bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.progress-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--inst), var(--vocal)); width: 0; transition: width .4s; }
+.progress-label { font-size: 13px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.group-label { font-size: 13px; font-weight: 700; letter-spacing: .04em; margin: 4px 0 6px; }
+.group-label.inst { color: var(--inst); }
+.group-label.vocal { color: var(--vocal); }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+@media (max-width: 860px) { .steps { flex-direction: row; flex-wrap: wrap; } }
+.step-btn { width: 100%; display: flex; align-items: center; gap: 10px; border: 1px solid transparent; background: none; color: var(--ink); padding: 7px 10px; border-radius: 10px; text-align: left; }
+.step-btn:hover:not(:disabled) { background: var(--surface); border-color: var(--line); }
+.step-btn[aria-current="step"] { background: var(--surface); border-color: var(--line); font-weight: 700; }
+.step-btn:disabled { color: var(--muted); cursor: not-allowed; opacity: .6; }
+.dot { width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; border: 2px solid var(--line); color: var(--muted); font-variant-numeric: tabular-nums; }
+.step-btn.done .dot { background: var(--good); border-color: var(--good); color: #fff; }
+.step-btn.inst[aria-current="step"] .dot { border-color: var(--inst); color: var(--inst); }
+.step-btn.vocal[aria-current="step"] .dot { border-color: var(--vocal); color: var(--vocal); }
+.teacher { font-size: 13px; color: var(--muted); border: 1px dashed var(--line); background: none; border-radius: 8px; padding: 6px 10px; }
+
+/* 카드 */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
+.card-head { padding: 28px 32px 22px; border-bottom: 1px solid var(--line); }
+.card-head.inst { background: var(--inst-soft); }
+.card-head.vocal { background: var(--vocal-soft); }
+.eyebrow { font-size: 14px; font-weight: 700; }
+.inst .eyebrow { color: var(--inst); }
+.vocal .eyebrow { color: var(--vocal); }
+.card-head h2 { font-size: 44px; margin-top: 2px; }
+.card-head h2 small { font-family: var(--body); font-size: 17px; color: var(--muted); margin-left: 8px; }
+.definition { font-size: 20px; margin: 10px 0 0; max-width: 40em; }
+.card-body { padding: 26px 32px 32px; display: flex; flex-direction: column; gap: 28px; }
+@media (max-width: 600px) { .card-head, .card-body { padding-left: 18px; padding-right: 18px; } .card-head h2 { font-size: 36px; } }
+
+.section-title { font-size: 22px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.section-title .num { font-family: var(--body); font-size: 12px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; }
+
+.two-col { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; }
+@media (max-width: 760px) { .two-col { grid-template-columns: 1fr; } }
+.points { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.points li::marker { color: var(--muted); }
+
+/* 성부 × 사람 다이어그램 */
+.diagram { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.diagram-cap { font-size: 13px; color: var(--muted); }
+.voice-row { display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: center; }
+.voice-name { font-size: 13px; color: var(--muted); text-align: right; }
+.people { display: flex; flex-wrap: wrap; gap: 4px; }
+.person { width: 16px; height: 16px; border-radius: 50%; }
+.inst-c .person { background: var(--inst); }
+.vocal-c .person { background: var(--vocal); }
+.person.acc { background: transparent !important; border: 2px dashed var(--muted); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+.legend i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+
+.pieces { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.piece { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px; }
+.piece.main { border-width: 2px; }
+.inst-c .piece.main { border-color: var(--inst); }
+.vocal-c .piece.main { border-color: var(--vocal); }
+.piece .tag { font-size: 12px; font-weight: 700; color: var(--muted); }
+.piece .title { font-size: 19px; font-weight: 700; line-height: 1.4; }
+.piece .composer { color: var(--muted); font-size: 15px; }
+.piece .listen { font-size: 15px; margin-top: 6px; }
+.piece .listen b { font-weight: 700; }
+
+.compare { border-radius: 14px; padding: 14px 18px; font-size: 16px; background: var(--bg); border: 1px solid var(--line); }
+.compare b { font-weight: 700; }
+
+/* 퀴즈 */
+.quiz { border-top: 2px dashed var(--line); padding-top: 24px; display: flex; flex-direction: column; gap: 22px; }
+.quiz-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.quiz-head span { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.q { display: flex; flex-direction: column; gap: 10px; }
+.q-text { font-weight: 700; font-size: 18px; }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.opt { text-align: left; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 11px 14px; line-height: 1.45; transition: border-color .15s, background .15s; }
+.opt:hover:not(:disabled) { border-color: var(--muted); }
+.opt.correct { border-color: var(--good); background: var(--good-soft); font-weight: 700; }
+.opt.wrong { border-color: var(--bad); background: var(--bad-soft); text-decoration: line-through; color: var(--muted); }
+.opt:disabled { cursor: default; }
+.feedback { font-size: 15px; border-radius: 10px; padding: 10px 14px; display: none; }
+.feedback.show { display: block; }
+.feedback.good { background: var(--good-soft); color: var(--ink); border-left: 4px solid var(--good); }
+.feedback.bad { background: var(--bad-soft); color: var(--ink); border-left: 4px solid var(--bad); }
+
+.nav { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center; }
+.btn { border: none; border-radius: 12px; padding: 13px 22px; font-weight: 700; font-size: 17px; }
+.btn.primary { background: var(--ink); color: var(--bg); }
+.btn.primary:disabled { background: var(--line); color: var(--muted); cursor: not-allowed; }
+.btn.ghost { background: none; border: 1.5px solid var(--line); color: var(--ink); }
+.lock-note { font-size: 14px; color: var(--muted); }
+
+/* 시작·마무리 */
+.intro-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 640px) { .intro-grid { grid-template-columns: 1fr; } }
+.intro-box { border-radius: 14px; padding: 18px 20px; }
+.intro-box.inst { background: var(--inst-soft); }
+.intro-box.vocal { background: var(--vocal-soft); }
+.intro-box h3 { font-size: 24px; }
+.intro-box p { margin: 6px 0 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { font-size: 14px; background: var(--surface); border-radius: 99px; padding: 3px 12px; border: 1px solid var(--line); }
+.key-idea { font-size: 18px; border-left: 4px solid var(--ink); padding: 4px 0 4px 16px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 15px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 13px; color: var(--muted); font-weight: 700; background: var(--bg); }
+tr:last-child td { border-bottom: none; }
+td.k { font-weight: 700; white-space: nowrap; }
+td.k.inst { color: var(--inst); }
+td.k.vocal { color: var(--vocal); }
+.score { font-family: var(--display); font-size: 56px; line-height: 1; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" aria-label="학습 진행">
+    <div class="brand">
+      <h1>서양 음악의 연주 형태</h1>
+      <p>배우고 → 퀴즈 맞히고 → 다음 장르로</p>
+    </div>
+    <div>
+      <div class="progress-bar"><span id="bar"></span></div>
+      <div class="progress-label" id="progressLabel">0 / 8 장르 완료</div>
+    </div>
+    <nav id="stepNav"></nav>
+    <button class="teacher" id="teacherBtn" type="button">교사용: 모든 단계 열기</button>
+  </aside>
+  <main id="main" aria-live="polite"></main>
+</div>
+
+<script>
+const GENRES = [
+  {
+    id: "solo", group: "inst", groupName: "기악곡", name: "독주", en: "Solo",
+    def: "한 명의 연주자가 하나의 악기를 연주하는 형태입니다.",
+    points: [
+      "주로 피아노 반주가 함께하지만, 반주 없이 혼자 연주하는 <b>무반주</b> 독주도 있어요.",
+      "연주자 한 사람의 음색과 기교가 음악 전체를 이끕니다.",
+      "피아노처럼 혼자서 가락과 화음을 모두 낼 수 있는 악기는 반주 없이 독주하는 경우가 많아요."
+    ],
+    diagram: [{ v: "독주 악기", n: 1 }, { v: "피아노 반주", n: 1, acc: true }],
+    diagramCap: "성부 1개를 1명이 연주 (+ 반주)",
+    pieces: [
+      { main: true, title: "클라리넷 소나타 내림마장조, Op.167", composer: "생상스 (프랑스)", listen: "클라리넷 한 대가 노래하듯 가락을 이끌고 피아노가 받쳐 줍니다. 클라리넷의 부드러운 저음과 맑은 고음을 비교해 들어 보세요." },
+      { title: "무반주 첼로 모음곡 제1번 G장조", composer: "J. S. 바흐 (독일)", listen: "반주가 전혀 없는 <b>무반주 독주</b>의 대표곡. 첼로 한 대가 가락과 화음을 동시에 표현합니다." }
+    ],
+    compare: "<b>독주와 독창의 차이</b> · 독주는 <b>악기</b>로, 독창은 <b>목소리</b>로 혼자 연주해요.",
+    quiz: [
+      { q: "독주에 대한 설명으로 옳은 것은?", o: ["한 명의 연주자가 하나의 악기를 연주한다", "두 명 이상이 같은 가락을 연주한다", "반드시 관현악 반주가 있어야 한다", "여러 성부를 여러 악기로 연주한다"], a: 0, e: "독주는 한 명이 하나의 악기를 연주하는 형태예요. 피아노 반주가 함께하는 경우가 많고, 무반주인 경우도 있어요." },
+      { q: "반주 없이 악기 한 대로만 연주하는 독주를 무엇이라고 할까요?", o: ["아카펠라", "무반주 독주", "제창", "합주"], a: 1, e: "반주 없이 혼자 연주하는 독주는 '무반주 독주'예요. 아카펠라는 반주 없는 '노래'에 쓰는 말이에요." }
+    ]
+  },
+  {
+    id: "ensemble", group: "inst", groupName: "기악곡", name: "중주", en: "Chamber ensemble",
+    def: "2성부 이상의 악곡을 한 사람이 한 성부씩 맡아 연주하는 형태입니다.",
+    points: [
+      "인원에 따라 2중주(듀엣, Duet), 3중주(트리오, Trio), 4중주(콰르텟, Quartet), 5중주(퀸텟, Quintet)로 불러요.",
+      "<b>현악 4중주</b>: 제1바이올린, 제2바이올린, 비올라, 첼로",
+      "<b>피아노 3중주</b>: 피아노, 바이올린, 첼로",
+      "연주자 모두가 각자 다른 성부를 맡기 때문에 서로 대화하듯 주고받는 느낌이 살아 있어요."
+    ],
+    diagram: [{ v: "바이올린 1", n: 1 }, { v: "바이올린 2", n: 1 }, { v: "비올라", n: 1 }, { v: "첼로", n: 1 }],
+    diagramCap: "예) 현악 4중주 · 성부 4개, 성부마다 1명",
+    pieces: [
+      { main: true, title: "피아노 5중주 A장조 '송어', D.667", composer: "슈베르트 (오스트리아)", listen: "피아노·바이올린·비올라·첼로·더블베이스의 5중주. 4악장에서 가곡 '송어'의 가락이 여러 악기로 변주되는 부분을 찾아보세요." },
+      { title: "현악 4중주 '황제', Op.76 No.3", composer: "하이든 (오스트리아)", listen: "현악 4중주의 대표곡. 2악장의 주제 가락이 네 악기를 차례로 옮겨 다니며 등장해요." }
+    ],
+    compare: "<b>중주와 합주의 차이</b> · 중주는 한 성부를 <b>한 사람</b>이, 합주는 한 성부를 <b>여러 사람</b>이 맡아요.",
+    quiz: [
+      { q: "4명이 각자 한 성부씩 맡아 연주하는 중주를 영어로 무엇이라고 할까요?", o: ["듀엣 (Duet)", "트리오 (Trio)", "콰르텟 (Quartet)", "퀸텟 (Quintet)"], a: 2, e: "4중주는 콰르텟(Quartet)이에요. 2중주 듀엣, 3중주 트리오, 5중주 퀸텟도 함께 기억해요." },
+      { q: "현악 4중주의 악기 구성으로 옳은 것은?", o: ["바이올린, 바이올린, 비올라, 첼로", "피아노, 바이올린, 비올라, 첼로", "바이올린, 비올라, 첼로, 더블베이스", "플루트, 오보에, 클라리넷, 바순"], a: 0, e: "현악 4중주는 바이올린 2대, 비올라, 첼로로 이루어져요." }
+    ]
+  },
+  {
+    id: "orchestra", group: "inst", groupName: "기악곡", name: "합주", en: "Orchestra & band",
+    def: "여러 성부를 여러 개의 악기로 연주하는 형태입니다.",
+    points: [
+      "<b>현악 합주</b>: 현악기들로만 연주 (예: 현악 오케스트라)",
+      "<b>관악 합주</b>: 목관·금관 악기 중심으로 연주 (예: 관악대, 윈드 오케스트라)",
+      "<b>관현악</b>: 현악기·관악기·타악기가 모두 함께하는 가장 큰 합주 형태 (오케스트라)",
+      "한 성부를 여러 명이 함께 연주하고, 지휘자가 전체를 이끌어요."
+    ],
+    diagram: [{ v: "바이올린 1", n: 14 }, { v: "바이올린 2", n: 12 }, { v: "비올라", n: 10 }, { v: "첼로", n: 8 }, { v: "관·타악기", n: 18 }],
+    diagramCap: "예) 관현악 · 성부마다 여러 명",
+    pieces: [
+      { main: true, title: "교향곡 제9번 '신세계로부터'", composer: "드보르자크 (체코)", listen: "관현악의 대표곡. 2악장에서 잉글리시 호른이 부르는 쓸쓸한 가락과, 4악장 금관 악기의 힘찬 주제를 비교해 보세요." },
+      { title: "현악 세레나데 C장조, Op.48", composer: "차이콥스키 (러시아)", listen: "현악기로만 연주하는 <b>현악 합주</b>. 관악기 없이도 풍성한 울림을 느낄 수 있어요." }
+    ],
+    compare: "<b>합주의 종류 구분</b> · 현악기만 → 현악 합주 / 관악기 중심 → 관악 합주 / 현·관·타악기 모두 → 관현악",
+    quiz: [
+      { q: "현악기, 관악기, 타악기가 모두 함께 연주하는 합주 형태는?", o: ["현악 합주", "관악 합주", "관현악", "현악 4중주"], a: 2, e: "현·관·타악기가 모두 함께하는 합주는 관현악(오케스트라)이에요." },
+      { q: "중주와 합주를 구별하는 가장 중요한 기준은?", o: ["악기의 크기", "한 성부를 연주하는 사람의 수", "곡의 길이", "반주의 유무"], a: 1, e: "중주는 한 성부를 한 사람이, 합주는 한 성부를 여러 사람이 연주해요." }
+    ]
+  },
+  {
+    id: "vsolo", group: "vocal", groupName: "성악곡", name: "독창", en: "Vocal solo",
+    def: "혼자 노래 부르는 형태입니다.",
+    points: [
+      "주로 피아노나 관현악 반주가 함께해요.",
+      "가곡, 오페라 아리아 등에서 많이 볼 수 있어요.",
+      "목소리 음역에 따라 소프라노, 메조소프라노, 알토(여성), 테너, 바리톤, 베이스(남성)로 나뉘어요."
+    ],
+    diagram: [{ v: "노래", n: 1 }, { v: "반주", n: 1, acc: true }],
+    diagramCap: "성부 1개를 1명이 노래 (+ 반주)",
+    pieces: [
+      { main: true, title: "예술가곡 '헌정' (가곡집 《미르테의 꽃》 중)", composer: "슈만 (독일)", listen: "슈만이 아내 클라라에게 결혼 선물로 바친 노래. 사랑을 고백하는 벅찬 감정을 피아노 반주가 어떻게 함께 표현하는지 들어 보세요." },
+      { title: "가곡 '마왕'", composer: "슈베르트 (독일)", listen: "한 명의 가수가 해설자·아버지·아들·마왕 네 인물을 목소리로 구별해 노래해요." }
+    ],
+    compare: "<b>독창과 제창의 차이</b> · 둘 다 가락은 하나지만, 독창은 <b>1명</b>, 제창은 <b>여러 명</b>이 불러요.",
+    quiz: [
+      { q: "독창에 대한 설명으로 옳은 것은?", o: ["혼자 노래하며 주로 피아노나 관현악 반주가 함께한다", "여러 사람이 같은 가락을 노래한다", "반주 없이 합창으로만 부른다", "각 성부를 여러 사람이 맡아 노래한다"], a: 0, e: "독창은 혼자 부르는 노래로, 주로 피아노나 관현악 반주가 함께해요." },
+      { q: "슈만의 예술가곡 '헌정'의 연주 형태는?", o: ["중창", "제창", "독창", "합창"], a: 2, e: "'헌정'은 가수 한 명이 피아노 반주에 맞춰 부르는 독창곡이에요." }
+    ]
+  },
+  {
+    id: "unison", group: "vocal", groupName: "성악곡", name: "제창", en: "Unison singing",
+    def: "여러 사람이 같은 가락을 노래하는 형태입니다.",
+    points: [
+      "모두 같은 가락(1성부)을 부르기 때문에 <b>화음감은 느낄 수 없어요</b>.",
+      "대신 많은 사람이 한목소리로 부르므로 <b>강한 표현력</b>을 가져요.",
+      "행사나 의식에서 모두가 함께 부르는 노래에 많이 쓰여요."
+    ],
+    diagram: [{ v: "가락 하나", n: 24 }],
+    diagramCap: "성부 1개를 여러 명이 함께",
+    pieces: [
+      { main: true, title: "애국가", composer: "안익태 작곡", listen: "졸업식·운동 경기 등에서 모두가 같은 가락으로 부르는 대표적인 제창곡이에요." },
+      { title: "교가 · 군가", composer: "학교 · 군대의 노래", listen: "우리 학교 교가를 떠올려 보세요. 전교생이 같은 가락을 부를 때 느껴지는 힘이 제창의 특징이에요." }
+    ],
+    compare: "<b>제창과 합창의 차이</b> · 제창은 모두 <b>같은 가락</b>, 합창은 <b>여러 성부</b>로 나누어 화음을 만들어요.",
+    quiz: [
+      { q: "제창의 특징으로 옳은 것은?", o: ["화음이 풍부하다", "화음감은 느낄 수 없으나 강한 표현력을 가진다", "반드시 한 사람이 부른다", "각 성부를 한 사람씩 맡는다"], a: 1, e: "제창은 모두 같은 가락을 부르므로 화음은 없지만, 한목소리로 부르는 강한 표현력이 있어요." },
+      { q: "다음 중 주로 제창으로 부르는 노래는?", o: ["애국가", "'축배의 노래'", "'헌정'", "'Walking Down The Street'"], a: 0, e: "애국가, 교가, 군가는 여러 사람이 같은 가락으로 부르는 대표적인 제창곡이에요." }
+    ]
+  },
+  {
+    id: "vensemble", group: "vocal", groupName: "성악곡", name: "중창", en: "Vocal ensemble",
+    def: "2성부 이상의 악곡을 몇몇 사람이 한 성부씩 맡아서 노래하는 형태입니다.",
+    points: [
+      "인원에 따라 2중창, 3중창, 4중창 등이 있어요.",
+      "한 사람이 한 성부를 맡으므로 각 목소리의 개성이 잘 드러나요.",
+      "오페라에서 등장인물들이 함께 노래하는 장면에 자주 쓰여요."
+    ],
+    diagram: [{ v: "소프라노", n: 1 }, { v: "테너", n: 1 }, { v: "바리톤", n: 1 }],
+    diagramCap: "예) 3중창 · 성부 3개, 성부마다 1명",
+    pieces: [
+      { main: true, title: "오페라 《라 트라비아타》 중 '축배의 노래'", composer: "베르디 (이탈리아)", listen: "주인공 알프레도(테너)와 비올레타(소프라노)가 번갈아, 또 함께 부르는 2중창. 중간에 합창이 끼어드는 부분도 찾아보세요." },
+      { title: "오페라 《마술피리》 중 '파-파-파 2중창'", composer: "모차르트 (오스트리아)", listen: "파파게노와 파파게나가 '파-파-파'를 주고받는 재미있는 2중창이에요." }
+    ],
+    compare: "<b>중창과 중주는 짝꿍</b> · 한 성부를 한 사람이 맡는 것은 같고, 중창은 <b>목소리</b>, 중주는 <b>악기</b>예요.",
+    quiz: [
+      { q: "중창에 대한 설명으로 옳은 것은?", o: ["여러 사람이 같은 가락을 노래한다", "2성부 이상을 몇몇 사람이 한 성부씩 맡아 노래한다", "반주 없이만 부른다", "한 성부를 수십 명이 함께 노래한다"], a: 1, e: "중창은 2성부 이상의 악곡을 몇몇 사람이 한 성부씩 맡아 부르는 형태예요." },
+      { q: "베르디의 오페라 《라 트라비아타》 중 '축배의 노래'에서 두 주인공이 함께 부르는 형태는?", o: ["독창", "2중창", "제창", "아카펠라"], a: 1, e: "두 사람이 각자 성부를 맡아 부르므로 2중창이에요." }
+    ]
+  },
+  {
+    id: "choir", group: "vocal", groupName: "성악곡", name: "합창", en: "Choir",
+    def: "2성부 이상의 악곡을 각 성부별로 여러 사람이 맡아서 노래하는 형태입니다.",
+    points: [
+      "<b>남성 합창</b>: 남성의 목소리로만 구성",
+      "<b>여성 합창</b>: 여성의 목소리로만 구성",
+      "<b>혼성 합창</b>: 남성과 여성이 함께 (보통 소프라노·알토·테너·베이스 4성부)",
+      "한 성부를 여러 사람이 부르므로 풍성하고 웅장한 울림이 나요."
+    ],
+    diagram: [{ v: "소프라노", n: 10 }, { v: "알토", n: 9 }, { v: "테너", n: 8 }, { v: "베이스", n: 8 }],
+    diagramCap: "예) 혼성 4부 합창 · 성부마다 여러 명",
+    pieces: [
+      { main: true, title: "오페라 《로엔그린》 중 '결혼 행진곡'", composer: "바그너 (독일)", listen: "결혼식에서 자주 듣는 바로 그 가락! 원래는 오페라 속 혼성 합창곡이에요. 여러 성부가 어우러지는 화음에 귀 기울여 보세요." },
+      { title: "오라토리오 《메시아》 중 '할렐루야'", composer: "헨델 (독일·영국)", listen: "4성부 혼성 합창이 '할렐루야'를 주고받다가 한꺼번에 터져 나오는 웅장함을 느껴 보세요." }
+    ],
+    compare: "<b>합창과 합주는 짝꿍</b> · 한 성부를 여러 사람이 맡는 것은 같고, 합창은 <b>목소리</b>, 합주는 <b>악기</b>예요.",
+    quiz: [
+      { q: "남성과 여성이 함께 노래하는 합창을 무엇이라고 할까요?", o: ["남성 합창", "여성 합창", "혼성 합창", "제창"], a: 2, e: "남녀가 함께하는 합창은 혼성 합창이에요." },
+      { q: "중창과 합창을 구별하는 기준은?", o: ["반주 악기의 종류", "한 성부를 노래하는 사람의 수", "노래의 빠르기", "가사의 언어"], a: 1, e: "중창은 한 성부를 한 사람이, 합창은 한 성부를 여러 사람이 불러요." }
+    ]
+  },
+  {
+    id: "acappella", group: "vocal", groupName: "성악곡", name: "아카펠라", en: "A cappella",
+    def: "반주 없이 합창으로만 부르는 형태입니다.",
+    points: [
+      "이탈리아어 'a cappella'는 '예배당(교회) 풍으로'라는 뜻으로, 원래는 교회에서 반주 없이 부르던 합창에서 나왔어요.",
+      "악기가 없기 때문에 목소리로 베이스·리듬(보이스 퍼커션)까지 표현하기도 해요.",
+      "오늘날에는 대중음악, 재즈 등 다양한 장르에서도 볼 수 있어요."
+    ],
+    diagram: [{ v: "소프라노", n: 1 }, { v: "알토", n: 1 }, { v: "테너", n: 1 }, { v: "바리톤", n: 1 }, { v: "베이스", n: 1 }],
+    diagramCap: "예) 5인 그룹 · 목소리만, 반주 없음",
+    pieces: [
+      { main: true, title: "Walking Down The Street", composer: "리얼 그룹 (The Real Group, 스웨덴)", listen: "악기 소리처럼 들리는 부분도 모두 사람의 목소리예요. 베이스 가락과 리듬을 누가 어떻게 내는지 찾아 들어 보세요." }
+    ],
+    compare: "<b>아카펠라 판별법</b> · 노래만 들리고 <b>반주 악기가 하나도 없다</b>면 아카펠라!",
+    quiz: [
+      { q: "아카펠라에 대한 설명으로 옳은 것은?", o: ["관현악 반주에 맞춰 혼자 노래한다", "반주 없이 합창으로만 부른다", "여러 사람이 같은 가락을 노래한다", "악기 하나로 연주한다"], a: 1, e: "아카펠라는 반주 없이 목소리로만 부르는 합창 형태예요." },
+      { q: "리얼 그룹의 'Walking Down The Street'에서 베이스와 리듬을 내는 것은?", o: ["더블베이스와 드럼", "피아노", "사람의 목소리", "전자 악기"], a: 2, e: "아카펠라는 반주 악기 없이 베이스와 리듬까지 모두 목소리로 표현해요." }
+    ]
+  }
+];
+
+const FINAL_QUIZ = [
+  { q: "바이올린 연주자 한 명이 피아노 반주에 맞춰 연주한다.", o: ["독주", "중주", "합주", "독창"], a: 0 },
+  { q: "피아노·바이올린·비올라·첼로·더블베이스 연주자가 한 명씩 모여 슈베르트의 '송어'를 연주한다.", o: ["독주", "5중주", "관현악", "합창"], a: 1 },
+  { q: "운동장에 모인 전교생이 같은 가락으로 교가를 부른다.", o: ["독창", "제창", "중창", "합창"], a: 1 },
+  { q: "소프라노·알토·테너·베이스 파트에 각각 10명씩 서서 헨델의 '할렐루야'를 부른다.", o: ["4중창", "제창", "혼성 합창", "아카펠라"], a: 2 },
+  { q: "60여 명이 현악기·관악기·타악기로 드보르자크의 '신세계 교향곡'을 연주한다.", o: ["현악 4중주", "관현악", "관악 합주", "중주"], a: 1 },
+  { q: "다섯 명의 가수가 악기 없이 목소리만으로 노래하고, 베이스와 리듬도 목소리로 낸다.", o: ["아카펠라", "제창", "합주", "독창"], a: 0 }
+];
+
+const STEPS = ["intro", ...GENRES.map(g => g.id), "final"];
+const state = { current: 0, done: new Set(), answered: {}, teacher: false, final: {} };
+
+const $ = s => document.querySelector(s);
+const esc = s => s;
+
+function unlockedIndex() {
+  if (state.teacher) return STEPS.length - 1;
+  let i = 1;
+  for (const g of GENRES) { if (state.done.has(g.id)) i++; else break; }
+  return i;
+}
+
+function renderNav() {
+  const max = unlockedIndex();
+  const item = (idx, label, cls, num) => {
+    const id = STEPS[idx];
+    const done = state.done.has(id);
+    return `<li><button type="button" class="step-btn ${cls} ${done ? "done" : ""}" data-idx="${idx}" ${idx > max ? "disabled" : ""} ${idx === state.current ? 'aria-current="step"' : ""}>
+      <span class="dot">${done ? "✓" : num}</span><span>${label}</span></button></li>`;
+  };
+  let html = `<ul class="steps">${item(0, "들어가며", "", "0")}</ul>`;
+  html += `<div class="group-label inst">기악곡의 연주 형태</div><ul class="steps">`;
+  GENRES.forEach((g, i) => { if (g.group === "inst") html += item(i + 1, g.name, "inst", i + 1); });
+  html += `</ul><div class="group-label vocal">성악곡의 연주 형태</div><ul class="steps">`;
+  GENRES.forEach((g, i) => { if (g.group === "vocal") html += item(i + 1, g.name, "vocal", i + 1); });
+  html += `</ul><div class="group-label" style="color:var(--muted)">마무리</div><ul class="steps">${item(STEPS.length - 1, "정리 & 종합 퀴즈", "", "★")}</ul>`;
+  $("#stepNav").innerHTML = html;
+  const n = GENRES.filter(g => state.done.has(g.id)).length;
+  $("#bar").style.width = (n / GENRES.length * 100) + "%";
+  $("#progressLabel").textContent = `${n} / ${GENRES.length} 장르 완료`;
+  document.querySelectorAll(".step-btn").forEach(b => b.addEventListener("click", () => go(+b.dataset.idx)));
+}
+
+function diagramHTML(g) {
+  const rows = g.diagram.map(r => `<div class="voice-row"><div class="voice-name">${r.v}</div><div class="people">${
+    Array.from({ length: r.n }, () => `<span class="person ${r.acc ? "acc" : ""}"></span>`).join("")}</div></div>`).join("");
+  const hasAcc = g.diagram.some(r => r.acc);
+  return `<div class="diagram ${g.group}-c" role="img" aria-label="${g.diagramCap}">
+    <div class="diagram-cap">${g.diagramCap}</div>${rows}
+    <div class="legend"><span><i style="background:var(--${g.group})"></i>${g.group === "inst" ? "연주자" : "노래하는 사람"} 1명</span>${hasAcc ? `<span><i style="border:2px dashed var(--muted)"></i>반주</span>` : ""}<span>한 줄 = 한 성부</span></div></div>`;
+}
+
+function quizHTML(g) {
+  const ans = state.answered[g.id] || {};
+  return g.quiz.map((q, qi) => {
+    const solved = ans[qi] && ans[qi].solved;
+    const wrongs = (ans[qi] && ans[qi].wrong) || [];
+    return `<div class="q" data-q="${qi}">
+      <div class="q-text">Q${qi + 1}. ${q.q}</div>
+      <div class="opts">${q.o.map((o, oi) => {
+        let cls = "";
+        if (solved && oi === q.a) cls = "correct";
+        else if (wrongs.includes(oi)) cls = "wrong";
+        return `<button type="button" class="opt ${cls}" data-o="${oi}" ${solved || wrongs.includes(oi) ? "disabled" : ""}>${String.fromCharCode(9312 + oi)} ${o}</button>`;
+      }).join("")}</div>
+      <div class="feedback ${solved ? "show good" : wrongs.length ? "show bad" : ""}">${solved ? "정답이에요! " + q.e : wrongs.length ? "다시 생각해 보세요. 위의 설명과 다이어그램을 참고해도 좋아요." : ""}</div>
+    </div>`;
+  }).join("");
+}
+
+function genreHTML(g, idx) {
+  const solvedCount = Object.values(state.answered[g.id] || {}).filter(x => x.solved).length;
+  const isLast = idx === GENRES.length;
+  const nextLabel = isLast ? "정리 & 종합 퀴즈로" : `다음: ${GENRES[idx].name}`;
+  return `<article class="card">
+    <header class="card-head ${g.group}">
+      <div class="eyebrow">${g.groupName}의 연주 형태 · ${idx} / ${GENRES.length}</div>
+      <h2>${g.name}<small>${g.en}</small></h2>
+      <p class="definition">${g.def}</p>
+    </header>
+    <div class="card-body ${g.group}-c">
+      <section class="two-col">
+        <div><h3 class="section-title"><span class="num">1</span>알아보기</h3><ul class="points">${g.points.map(p => `<li>${p}</li>`).join("")}</ul></div>
+        <div><h3 class="section-title"><span class="num">2</span>성부와 사람 수</h3>${diagramHTML(g)}</div>
+      </section>
+      <section><h3 class="section-title"><span class="num">3</span>대표곡 감상</h3>
+        <div class="pieces">${g.pieces.map(p => `<div class="piece ${p.main ? "main" : ""}">
+          <div class="tag">${p.main ? "교과서 대표곡" : "함께 들어 볼 곡"}</div>
+          <div class="title">${p.title}</div><div class="composer">${p.composer}</div>
+          <div class="listen"><b>감상 포인트</b> · ${p.listen}</div></div>`).join("")}</div>
+      </section>
+      <div class="compare">${g.compare}</div>
+      <section class="quiz">
+        <div class="quiz-head"><h3 class="section-title" style="margin:0"><span class="num">4</span>확인 퀴즈</h3><span>${solvedCount} / ${g.quiz.length} 정답 · 모두 맞히면 다음 장르가 열려요</span></div>
+        ${quizHTML(g)}
+      </section>
+      <div class="nav">
+        <button type="button" class="btn ghost" id="prevBtn">이전</button>
+        <span class="lock-note">${state.done.has(g.id) || state.teacher ? "" : "퀴즈를 모두 맞히면 버튼이 열려요"}</span>
+        <button type="button" class="btn primary" id="nextBtn" ${state.done.has(g.id) || state.teacher ? "" : "disabled"}>${nextLabel} →</button>
+      </div>
+    </div>
+  </article>`;
+}
+
+function introHTML() {
+  const chip = g => `<span class="chip">${g.name}</span>`;
+  return `<article class="card">
+    <header class="card-head">
+      <div class="eyebrow" style="color:var(--muted)">학습 목표</div>
+      <h2>다양한 서양 음악의 연주 형태를 구별하여 감상할 수 있다</h2>
+    </header>
+    <div class="card-body">
+      <p class="key-idea">연주 형태를 구별하는 세 가지 질문<br>
+      ① 악기로 연주하나요, 목소리로 노래하나요?<br>
+      ② 성부(가락의 줄기)는 몇 개인가요?<br>
+      ③ 한 성부를 몇 명이 맡고 있나요?</p>
+      <div class="intro-grid">
+        <div class="intro-box inst"><h3>기악곡</h3><p>악기로 연주하는 음악</p><div class="chips">${GENRES.filter(g => g.group === "inst").map(chip).join("")}</div></div>
+        <div class="intro-box vocal"><h3>성악곡</h3><p>사람의 목소리로 부르는 음악</p><div class="chips">${GENRES.filter(g => g.group === "vocal").map(chip).join("")}</div></div>
+      </div>
+      <p style="margin:0">각 장르마다 <b>설명 → 성부 다이어그램 → 대표곡 감상 → 확인 퀴즈</b> 순서로 진행해요. 퀴즈 두 문제를 모두 맞혀야 다음 장르로 넘어갈 수 있어요. 틀리면 다시 고를 수 있으니 걱정 말아요!</p>
+      <div class="nav"><span></span><button type="button" class="btn primary" id="nextBtn">시작하기: 독주 →</button></div>
+    </div>
+  </article>`;
+}
+
+function finalHTML() {
+  const rows = GENRES.map(g => `<tr><td class="k ${g.group}">${g.name}</td><td>${g.groupName}</td><td>${g.def.replace(" 형태입니다.", "")}</td><td>${g.pieces[0].composer.split(" (")[0]} · ${g.pieces[0].title}</td></tr>`).join("");
+  const answered = Object.keys(state.final).length;
+  const correct = Object.values(state.final).filter(v => v).length;
+  const qs = FINAL_QUIZ.map((q, qi) => {
+    const picked = state.final[qi];
+    const done = qi in state.final;
+    return `<div class="q" data-fq="${qi}"><div class="q-text">${qi + 1}. ${q.q}</div>
+      <div class="opts">${q.o.map((o, oi) => {
+        let cls = "";
+        if (done && oi === q.a) cls = "correct";
+        else if (done && state.finalPick[qi] === oi) cls = "wrong";
+        return `<button type="button" class="opt ${cls}" data-o="${oi}" ${done ? "disabled" : ""}>${String.fromCharCode(9312 + oi)} ${o}</button>`;
+      }).join("")}</div></div>`;
+  }).join("");
+  return `<article class="card">
+    <header class="card-head">
+      <div class="eyebrow" style="color:var(--muted)">마무리</div>
+      <h2>한눈에 정리하기</h2>
+      <p class="definition">중주↔중창은 <b>한 성부 한 사람</b>, 합주↔합창은 <b>한 성부 여러 사람</b>으로 짝지어 기억해요.</p>
+    </header>
+    <div class="card-body">
+      <div class="table-wrap"><table>
+        <thead><tr><th>연주 형태</th><th>구분</th><th>뜻</th><th>대표곡</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <section class="quiz">
+        <div class="quiz-head"><h3 class="section-title" style="margin:0">종합 퀴즈 · 이 장면은 어떤 연주 형태일까요?</h3><span>한 번만 고를 수 있어요</span></div>
+        ${qs}
+        <div class="compare" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+          <div class="score">${correct}<span style="font-size:24px;color:var(--muted)"> / ${FINAL_QUIZ.length}</span></div>
+          <div>${answered < FINAL_QUIZ.length ? `${FINAL_QUIZ.length - answered}문제 남았어요.` :
+            correct === FINAL_QUIZ.length ? "완벽해요! 모든 연주 형태를 구별할 수 있어요." :
+            correct >= 4 ? "잘했어요! 틀린 문제의 연주 형태를 왼쪽 목록에서 다시 살펴보세요." :
+            "왼쪽 목록에서 헷갈린 장르를 다시 복습해 보세요."}</div>
+        </div>
+      </section>
+      <div class="nav">
+        <button type="button" class="btn ghost" id="prevBtn">이전</button>
+        <button type="button" class="btn ghost" id="resetBtn">처음부터 다시</button>
+      </div>
+    </div>
+  </article>`;
+}
+
+function render() {
+  renderNav();
+  const step = STEPS[state.current];
+  let html;
+  if (step === "intro") html = introHTML();
+  else if (step === "final") html = finalHTML();
+  else html = genreHTML(GENRES[state.current - 1], state.current);
+  $("#main").innerHTML = html;
+  bind();
+}
+
+function bind() {
+  const next = $("#nextBtn"), prev = $("#prevBtn"), reset = $("#resetBtn");
+  if (next) next.addEventListener("click", () => go(state.current + 1));
+  if (prev) prev.addEventListener("click", () => go(state.current - 1));
+  if (reset) reset.addEventListener("click", () => {
+    state.done.clear(); state.answered = {}; state.final = {}; state.finalPick = {}; go(0);
+  });
+  const step = STEPS[state.current];
+  const g = GENRES.find(x => x.id === step);
+  if (g) {
+    document.querySelectorAll(".q").forEach(qEl => {
+      const qi = +qEl.dataset.q;
+      qEl.querySelectorAll(".opt").forEach(btn => btn.addEventListener("click", () => {
+        const oi = +btn.dataset.o;
+        const a = (state.answered[g.id] ||= {});
+        const rec = (a[qi] ||= { solved: false, wrong: [] });
+        if (oi === g.quiz[qi].a) rec.solved = true; else rec.wrong.push(oi);
+        if (g.quiz.every((_, i) => a[i] && a[i].solved)) state.done.add(g.id);
+        const y = window.scrollY;
+        render();
+        window.scrollTo(0, y);
+      }));
+    });
+  }
+  if (step === "final") {
+    document.querySelectorAll("[data-fq]").forEach(qEl => {
+      const qi = +qEl.dataset.fq;
+      qEl.querySelectorAll(".opt").forEach(btn => btn.addEventListener("click", () => {
+        const oi = +btn.dataset.o;
+        state.finalPick[qi] = oi;
+        state.final[qi] = oi === FINAL_QUIZ[qi].a;
+        const y = window.scrollY;
+        render();
+        window.scrollTo(0, y);
+      }));
+    });
+  }
+}
+
+function go(idx) {
+  if (idx < 0 || idx > unlockedIndex()) return;
+  state.current = idx;
+  render();
+  $("#main").scrollIntoView({ block: "start" });
+}
+
+state.finalPick = {};
+$("#teacherBtn").addEventListener("click", () => {
+  state.teacher = !state.teacher;
+  $("#teacherBtn").textContent = state.teacher ? "교사용: 순서대로 잠그기" : "교사용: 모든 단계 열기";
+  render();
+});
+render();
+</script>
+</body>
+</html>
