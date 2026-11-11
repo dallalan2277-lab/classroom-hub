@@ -82,6 +82,11 @@ main{max-width:880px;margin:0 auto;padding-block:24px 120px;padding-left:max(16p
 .part-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;border-bottom:2px solid var(--ink);padding-bottom:10px}
 .part-head .no{font-family:var(--f-mono);font-size:15px;color:var(--accent)}
 .part-head h2{font-size:26px;font-weight:800}
+/* 장마다 맨 위에 보이는 '보기' 낱말 (이미 쓴 낱말은 흐리게 줄 긋기) */
+.bank{display:flex;flex-wrap:wrap;gap:6px 8px;padding:12px 14px;border:1px dashed var(--line);border-radius:10px;background:var(--paper)}
+.bank b{width:100%;font-size:12px;letter-spacing:.12em;color:var(--muted)}
+.bank span{padding:1px 11px;border-radius:99px;border:1px solid var(--line);background:var(--sheet);font-size:15px;transition:opacity .2s}
+.bank span.used{opacity:.35;text-decoration:line-through}
 .part-head .meta{margin-left:auto;font-size:13px;color:var(--muted);letter-spacing:.04em}
 .part h3{font-size:17px;font-family:var(--f-body);font-weight:700;color:var(--accent);margin-top:6px}
 .part p{margin:0}
@@ -426,7 +431,7 @@ var CONFIG = {
         inp.setAttribute("autocorrect","off"); inp.spellcheck=false; inp.setAttribute("aria-label", pname+" 빈칸 "+n);
         inp.style.width = Math.max(4.5, acc[0].length*1.15+2)+"em";
         el.appendChild(inp);
-        items.push({key:key, label:pname+" "+num+" ("+acc[0]+")", type:"blank", el:inp, wrap:el, accept:acc});
+        items.push({key:key, label:pname+" "+num+" ("+acc[0]+")", type:"blank", el:inp, wrap:el, accept:acc, part:pi});
       } else if (el.tagName==="SELECT"){
         var a = el.getAttribute("data-a"); el.removeAttribute("data-a");
         el.id = key;
@@ -452,6 +457,30 @@ var CONFIG = {
   });
   var graded = items.filter(function(i){return i.type!=="free"});
 
+  /* ---------- 보기 (장마다 맨 위, 빈칸 정답 낱말을 섞어서) ---------- */
+  function hash(t){ var h=2166136261; for (var i=0;i<t.length;i++){ h^=t.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } return h; }
+  var banks = [];
+  $$(".part").forEach(function(part, pi){
+    var words = items.filter(function(i){ return i.type==="blank" && i.part===pi; }).map(function(i){ return i.accept[0]; });
+    if (!words.length) return;
+    words.sort(function(a,b){ return hash(a)%997 - hash(b)%997; });
+    var box = document.createElement("div");
+    box.className = "bank"; box.setAttribute("aria-label", "보기 낱말");
+    box.innerHTML = "<b>보기</b>";
+    words.forEach(function(w){ var sp=document.createElement("span"); sp.textContent=w; sp.setAttribute("data-w", norm(w)); box.appendChild(sp); });
+    var head = $(".part-head", part);
+    if (head) head.insertAdjacentElement("afterend", box); else part.insertBefore(box, part.firstChild);
+    banks.push({part:pi, box:box});
+  });
+  // 학생이 쓴 낱말과 같은 보기는 흐리게 (같은 낱말이 두 번 있으면 쓴 횟수만큼)
+  function markBank(){
+    banks.forEach(function(b){
+      var used = {};
+      items.forEach(function(i){ if (i.type==="blank" && i.part===b.part){ var v=norm(i.el.value); if (v) used[v]=(used[v]||0)+1; } });
+      $$("span", b.box).forEach(function(sp){ var w=sp.getAttribute("data-w"); var on = used[w]>0; if (on) used[w]--; sp.classList.toggle("used", on); });
+    });
+  }
+
   items.forEach(function(it){
     if (state.answers[it.key] != null) it.el.value = state.answers[it.key];
     it.el.addEventListener("input", onEdit); it.el.addEventListener("change", onEdit);
@@ -467,6 +496,7 @@ var CONFIG = {
     save(); progress();
   }
   function progress(){
+    markBank();
     var done = graded.filter(function(i){return String(i.el.value).trim()!==""}).length;
     $("#progText").textContent = "빈칸·고르기 "+done+" / "+graded.length;
     $("#progBar").style.width = (graded.length? done/graded.length*100 : 0)+"%";
@@ -565,7 +595,15 @@ var CONFIG = {
   });
 
   /* ---------- QR ---------- */
-  var sheetUrl = gasUrl || location.href.split("#")[0];
+  // 학생용 주소: 교사 모드(?교사·?teacher)·시험용(?hub=, ?v=) 표시는 빼고 QR로 만들어요.
+  function studentUrl(){
+    try {
+      var u = new URL(location.href); u.hash = "";
+      ["교사","teacher","hub","v"].forEach(function(k){ u.searchParams.delete(k); });
+      return u.toString();
+    } catch(e){ return location.origin + location.pathname; }
+  }
+  var sheetUrl = gasUrl || studentUrl();
   var urls = {sheet:sheetUrl, lesson:CONFIG.LESSON_URL}, qrMode = "sheet";
   function drawQR(el, text, size){
     el.innerHTML = "";
