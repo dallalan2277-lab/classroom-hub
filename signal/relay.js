@@ -5,7 +5,7 @@
 
   const get = (id) => document.getElementById(id);
   const ui = {
-    number: get('relay-number'), caption: get('relay-draw-caption'), draw: get('relay-draw'),
+    number: get('relay-number'), caption: get('relay-draw-caption'), draw: get('relay-draw'), redraw: get('relay-redraw'),
     roundLabel: get('relay-round-label'), roundNumber: get('relay-round-number'), roundTotal: get('relay-round-total'),
     progress: get('relay-round-progress'), locked: get('relay-locked'), question: get('relay-question'),
     lines: get('relay-lines'), answerHelp: get('relay-answer-help'), complete: get('relay-complete'),
@@ -151,6 +151,7 @@
       ? (available.length ? '먼저 번호를 뽑아 주세요.' : '번호를 다시 채워 주세요.')
       : `${selected}번 학생, 가사를 이어 주세요.`;
     ui.draw.disabled = phase !== 'waiting' || !available.length;
+    ui.redraw.disabled = phase !== 'question' || !available.length;
     ui.roundLabel.textContent = isComplete ? '1절 · 모든 구간 완료' : `1절 · ${round.label}`;
     ui.roundNumber.textContent = format(isComplete ? total : index + 1);
     ui.roundTotal.textContent = format(total);
@@ -190,6 +191,15 @@
     phase = 'question';
     renderState({ questionChanged: true });
     announce(`${selected}번입니다. ${index + 1}번째 가사 구간의 빈칸에 답해 주세요.`);
+  });
+  // 다시 뽑기: 정답 공개 전에만. 방금 번호는 뽑은 것으로 남기고(결석·자리 비움), 같은 가사 구간에서 다른 번호를 뽑는다.
+  ui.redraw.addEventListener('click', () => {
+    if (phase !== 'question' || !available.length || !window.crypto || typeof window.crypto.getRandomValues !== 'function') return;
+    const skipped = selected;
+    selected = available.splice(pickIndex(available.length), 1)[0];
+    drawn.push(selected);
+    renderState({ questionChanged: true });
+    announce(`${skipped}번 대신 ${selected}번입니다. 같은 가사 구간의 빈칸에 답해 주세요.`);
   });
   ui.reveal.addEventListener('click', () => {
     if (phase !== 'question') return;
