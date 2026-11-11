@@ -489,6 +489,8 @@ function dashboardHtml_(key) {
     ':root{--bg:#f5f6f3;--card:#fff;--ink:#1f2a24;--muted:#66726b;--line:#e2e7e3;--accent:#244b3a;--sel:#e8f0fb;--red:#b3261e;--redbg:#fde8e6;--green:#2e7d4a}' +
     'body{font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;margin:0;padding:16px;background:var(--bg);color:var(--ink)}' +
     'h1{font-size:20px;margin:0 0 12px}button{font:inherit;font-size:14px;padding:6px 12px;border:1px solid #c9d1cb;border-radius:8px;background:#fff;color:var(--ink);cursor:pointer}' +
+    'a.abtn{display:inline-block;font-size:14px;padding:6px 12px;border:1px solid var(--accent);border-radius:8px;background:var(--accent);color:#fff;text-decoration:none;cursor:pointer}a.abtn:hover{filter:brightness(1.15)}' +
+    '#aUrl{width:100%;box-sizing:border-box;font-size:12px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;margin-top:10px;color:var(--muted)}#aMsg{font-size:13px;min-height:1em;margin:8px 0 0;color:var(--accent)}' +
     'button:hover{background:#f0f2ef}button.danger{color:var(--red);border-color:#e9b7b2}button.icon{border:0;background:transparent;padding:4px 6px;color:var(--muted)}button.icon:hover{color:var(--red);background:var(--redbg)}' +
     '.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px;position:relative}.grow{flex:1}' +
     'select{font-size:15px;padding:6px 8px;border-radius:8px;border:1px solid #c9d1cb;max-width:100%}' +
@@ -523,7 +525,8 @@ function dashboardHtml_(key) {
     '<div class="row"><button id="cNo">취소</button><button id="cYes" class="danger">지우기</button></div></div></div>' +
     '<div class="veil" id="alertBox" hidden role="dialog" aria-modal="true" aria-labelledby="aTitle"><div class="box" style="text-align:center"><h2 id="aTitle">선생님 알림판</h2>' +
     '<p>휴대폰 카메라로 비추면 알림판이 열려요. 오래 자리를 비운 학생이 생기면 소리와 빨간 화면으로 알려 줘요. 이 QR에는 비밀 키가 있으니 학생에게 보여 주지 마세요.</p>' +
-    '<div id="qr" style="display:inline-block;margin:4px 0 12px"></div><div class="row" style="justify-content:center"><a id="alertLink" target="_blank" rel="noopener"><button>이 컴퓨터에서 열기</button></a><button id="aClose">닫기</button></div></div></div>' +
+    '<div id="qr" style="display:inline-block;margin:4px 0 12px"></div><div class="row" style="justify-content:center"><a id="alertLink" class="abtn" target="_blank" rel="noopener">이 컴퓨터에서 열기</a><button id="aCopy">주소 복사</button><button id="aClose">닫기</button></div>' +
+    '<p id="aMsg" role="status"></p><input id="aUrl" readonly aria-label="알림판 주소" hidden></div></div>' +
     '<div class="toast" id="toast" hidden role="status"><span id="tTxt"></span><button id="undo">되돌리기</button></div>' +
     '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script>' +
     'var KEY=' + JSON.stringify(key) + ',data=null,picked="",sel={},pending=null,undoRows=null,busy=false,toastTimer=null;' +
@@ -568,7 +571,15 @@ function dashboardHtml_(key) {
     '$("ws").onchange=function(){picked=this.value;sel={};draw()};$("today").onchange=function(){sel={};draw()};' +
     'var ALERT_URL="https://dallalan2277-lab.github.io/classroom-hub/teacher/#k="+encodeURIComponent(KEY);$("alertLink").href=ALERT_URL;' +
     '$("alertBtn").onclick=function(){$("alertBox").hidden=false;var q=$("qr");q.textContent="";if(window.QRCode)new QRCode(q,{text:ALERT_URL,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});else q.textContent="QR을 불러오지 못했어요. 아래 버튼을 쓰세요."};' +
-    '$("aClose").onclick=function(){$("alertBox").hidden=true};' +
+    '$("aClose").onclick=function(){$("alertBox").hidden=true;$("aMsg").textContent="";$("aUrl").hidden=true};' +
+    'function showUrl(){var u=$("aUrl");u.value=ALERT_URL;u.hidden=false;u.focus();u.select()}' +
+    'function copyUrl(done){var ok=function(){$("aMsg").textContent=done||"주소를 복사했어요. 새 탭 주소창에 붙여 넣어 주세요."};' +
+    'var old=function(){showUrl();var r=false;try{r=document.execCommand("copy")}catch(e){}$("aMsg").textContent=r?(done||"주소를 복사했어요. 새 탭 주소창에 붙여 넣어 주세요."):"아래 주소를 복사(Ctrl+C)해 새 탭 주소창에 붙여 넣어 주세요."};' +
+    'try{navigator.clipboard.writeText(ALERT_URL).then(ok,old)}catch(e){old()}}' +
+    '$("aCopy").onclick=function(){copyUrl()};' +
+    '$("alertLink").onclick=function(ev){var w=null;try{w=window.open(ALERT_URL,"_blank")}catch(e){}' +
+    'if(w){ev.preventDefault();try{w.opener=null}catch(e){}$("aMsg").textContent="새 탭에 알림판을 열었어요."}' +
+    'else{ev.preventDefault();copyUrl("새 탭이 막혀 주소를 복사했어요. 새 탭 주소창에 붙여 넣어 주세요.")}};' +
     'load();setInterval(load,10000);' +
     '</script></body></html>';
 }
