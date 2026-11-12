@@ -19,12 +19,13 @@
 | `signal/` | 신호등(이무진) 가창 수업 화면. **아직 허브 미연결**(첫 화면 카드 없음). 2026-11-11 아티팩트에서 그대로 옮김. 안의 `classroom.js`는 이 수업 전용(구조 카드 등)이라 허브 `../classroom.js`와 다른 파일 |
 | `world-dance/` | "춤을 세계 음악 속으로" 수업 화면(PPT 대신 쓰는 사이트, 1·2차시 9개 춤·리듬 실험실·종합 퀴즈). **아직 허브 미연결**(첫 화면 카드 없음). 2026-11-12 아티팩트에서 그대로 옮김. 선생님이 학습지와 수업 화면을 합칠 생각이 있음(`dance/` 빈칸 정답은 이 화면에 다 들어 있음) |
 | `dance-class/` | 수업 화면 + 학습지 합친 판 (ws `dance-class`). `world-dance/`를 바탕으로 만든 별도 버전(원본은 그대로 둠). 1차시 춤마다 춤 페이지 → 그 춤의 학습지(빈칸, `dance/`와 같은 16문항) 순서, 종합 퀴즈 수업용 6문항 답도 저장, 맨 끝 `#submit`에서 22점 채점·전송·확인 코드. 첫 화면에 학생용 QR, `?교사`면 기록 안 함. 학생은 영상이 페이지 안에서만 재생(새 창 = 자리 비움). 첫 화면 카드 있음(2026-11-12) |
+| `stage-class/` | 음악극 탐험대 수업 사이트 + `stage/` 학습지 합친 판 (ws `stage-class`). 수업 사이트 원본은 ChatGPT 호스팅(music-stage-lab-2026…chatgpt.site)에서 2026-11-12에 받아 옴(`content.js`·`app.js`·css·assets, 절대 경로를 상대 경로로). 장마다 바로 뒤에 그 장의 학습지(`index.html`의 `<template id="ws-parts">`, 클래스 앞에 `w-`) → 맨 끝 `#submit`에서 71문항 채점·전송·다시 제출 가능. 연결 코드는 `worksheet.js`(content.js 다음, app.js 앞에 실행)·`worksheet.css`, `app.js`는 몇 군데만 고침. 학생은 새 창 링크 숨김, 자리 비움 경고 때 영상 창 닫힘. 장르 확인 퀴즈 점수는 보내지 않음. 첫 화면 카드 있음 |
 | `teacher/` | 선생님 알림판 (`#k=키`로 열면 기기에 저장, 오래 이탈한 학생 소리·진동·작은 창) |
 | `index.html` | 학습지 모음 첫 화면 |
 | `test/` | `hub_harness.js`(가짜 시트로 Code.gs 시험), `mock_hub.py`(로컬 가짜 허브) |
 
 - 공개 주소: https://dallalan2277-lab.github.io/classroom-hub/ (GitHub Pages, main 브랜치 루트, `.nojekyll`)
-- 학생용: `/gugak/` · `/dance/` · `/stage/` · `/dance-class/`, 선생님: `/teacher/`
+- 학생용: `/gugak/` · `/dance/` · `/stage/` · `/dance-class/` · `/stage-class/`, 선생님: `/teacher/`
 - 허브 웹 앱 주소는 `classroom.js`의 `HUB_URL`에 있다(공개되어도 되는 주소).
 
 ## 정해 둔 것 (다시 묻지 말 것)
