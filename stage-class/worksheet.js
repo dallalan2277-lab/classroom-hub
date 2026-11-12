@@ -272,5 +272,34 @@
     if (m && m.open){ m.close(); var c = document.getElementById('modal-content'); if (c) c.innerHTML = ''; }
   });
 
+  /* ---------- 7) 교실 모드: 전체 화면(F11처럼 브라우저 창 없이) + 메뉴 접기 + 큰 글씨 ---------- */
+  var cls = {on:false, openedSide:false, madeLarge:false};
+  var clsBtn = document.createElement('button');
+  clsBtn.className = 'tool-button class-mode'; clsBtn.type = 'button';
+  clsBtn.setAttribute('aria-pressed', 'false'); clsBtn.title = '전체 화면 · 메뉴 접기 · 큰 글씨 (Esc로 끄기)';
+  var paintCls = function(){ clsBtn.innerHTML = '<span aria-hidden="true">⛶</span><span class="tool-label">' + (cls.on ? '교실 모드 끄기' : '교실 모드') + '</span>'; clsBtn.setAttribute('aria-pressed', String(cls.on)); };
+  paintCls();
+  var actions = document.querySelector('.top-actions');
+  if (actions) actions.insertBefore(clsBtn, actions.querySelector('.guide-button'));
+  var press = function(sel){ var b = document.querySelector(sel); if (b) b.click(); };
+  function setClass(on){
+    if (on === cls.on) return;
+    cls.on = on; paintCls();
+    if (on){
+      cls.openedSide = !document.body.classList.contains('sidebar-collapsed');
+      if (cls.openedSide) press('[data-action=sidebar-toggle]');
+      cls.madeLarge = !document.body.classList.contains('large');
+      if (cls.madeLarge) press('[data-action=large]');
+      try { var el = document.documentElement; if (!document.fullscreenElement && el.requestFullscreen){ var p = el.requestFullscreen(); if (p && p.catch) p.catch(function(){}); } } catch(e){}
+    } else {
+      if (cls.openedSide && document.body.classList.contains('sidebar-collapsed')) press('[data-action=sidebar-toggle]');
+      if (cls.madeLarge && document.body.classList.contains('large')) press('[data-action=large]');
+      try { if (document.fullscreenElement) document.exitFullscreen(); } catch(e){}
+    }
+  }
+  clsBtn.addEventListener('click', function(){ setClass(!cls.on); });
+  // Esc 등으로 전체 화면이 풀리면 교실 모드도 함께 꺼요
+  document.addEventListener('fullscreenchange', function(){ if (!document.fullscreenElement && cls.on) setClass(false); });
+
   window.StageWS = {html:html, mount:mount, startQR:startQR, drawModalQR:drawModalQR, url:SHARE_URL};
 })();
