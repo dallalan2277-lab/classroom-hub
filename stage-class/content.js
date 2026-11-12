@@ -658,10 +658,10 @@ window.lessonContent = {
       "range": "파이널 예고편 · 2분 24초",
       "image": "assets/odyssey-film.jpg",
       "posterTitle": "오디세이",
-      "posterSub": "트로이 목마 장면으로 연결 감상",
-      "desc": "트로이 목마가 등장하는 공식 예고편입니다. 고대 그리스 영웅 이야기를 영화의 소리와 연기로 표현하는 방식을 살펴봅니다.",
-      "question": "트로이 목마 장면의 긴장과 감정을 노래로 표현한다면 어떤 느낌일까요?",
-      "note": "오페라의 출발은 고대 그리스 비극을 되살리려는 시도입니다. 영화 「오디세이」는 서사시 『오디세이아』를 바탕으로 한 연결 감상 자료입니다. 예고편에서 트로이 목마 장면을 중심으로 살펴봅니다."
+      "posterSub": "파이널 예고편으로 연결 감상",
+      "desc": "한국 공식 파이널 예고편입니다. 고대 그리스 영웅 이야기를 영화의 소리와 연기로 표현하는 방식을 살펴봅니다.",
+      "question": "예고편 속 장면의 긴장과 감정을 노래로 표현한다면 어떤 느낌일까요?",
+      "note": "오페라의 출발은 고대 그리스 비극을 되살리려는 시도입니다. 영화 「오디세이」는 서사시 『오디세이아』를 바탕으로 한 연결 감상 자료입니다. 예고편에서 영웅의 모험과 위기 장면을 중심으로 살펴봅니다."
     }
   },
   "sources": [
@@ -817,7 +817,7 @@ window.lessonContent = {
     },
     {
       "id": "odyssey-trailer",
-      "title": "트로이 목마 장면이 포함된 오디세이 공식 예고편 안내",
+      "title": "오디세이 공식 예고편 안내",
       "org": "NBCUniversal",
       "url": "https://www.nbcuniversal.com/article/christopher-nolans-odyssey-unveils-new-trailer-first-film-shot-entirely-imax-cameras"
     }
