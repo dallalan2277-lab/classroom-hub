@@ -257,7 +257,7 @@
       '<div class="ws-qr-body"><div class="ws-qr-img" id="wsQrImg" aria-label="학생용 주소 QR 코드"></div><div class="ws-qr-side">' +
       '<p>학생은 QR 코드로 들어와 학번과 이름을 쓰고 시작해요. 화면을 벗어나면 자리 비움이 기록되고, 맨 끝 <b>제출하기</b>에서 점수가 선생님께 전송돼요.</p>' +
       '<code>' + esc(SHARE_URL) + '</code>' +
-      '<p class="ws-qr-hint">선생님 화면: 주소 끝에 <b>?교사</b>를 붙여 열면 학번을 묻지 않고, 자리 비움도 세지 않아요. (QR에는 학생용 주소만 들어가요)</p></div></div></details>';
+      '</div></div></details>';
   }
   function paintStartQR(){
     var d = document.getElementById('wsQr'); if (!d) return;
