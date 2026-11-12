@@ -9,7 +9,7 @@
  *  - data-title : 선생님 현황판에 보일 제목.
  *
  * 하는 일
- *  1) 처음 들어오면 학번·이름을 받아요(같은 기기에서는 다시 묻지 않아요).
+ *  1) 처음 들어오면 학년·반·번호(골라서 → 학번 10712 모양)와 이름을 받아요(같은 기기에서는 다시 묻지 않아요).
  *  2) 다른 탭·앱으로 가거나 창 밖을 3초 넘게 누르면 '자리 비움'을 허브로 보내고, 돌아오면 경고를 보여 줘요.
  *  3) 학습지가 Classroom.submit({...})을 부르면 결과를 허브로 보내요.
  *
@@ -121,6 +121,9 @@
     '.cr-card h2{margin:0 0 6px;font-size:19px}.cr-card p{margin:0 0 14px;font-size:14px;color:#55615a}' +
     '.cr-card label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}' +
     '.cr-card input{width:100%;box-sizing:border-box;font-size:16px;padding:10px 12px;border:1px solid #c9d1cb;border-radius:8px}' +
+    '.cr-card .cr-row{display:flex;gap:8px}' +
+    '.cr-card select{flex:1;min-width:0;box-sizing:border-box;font-size:16px;padding:10px 6px;border:1px solid #c9d1cb;border-radius:8px;background:#fff;color:#1f2a24}' +
+    '.cr-card .cr-num{margin:6px 0 0;font-size:13px;color:#244b3a;font-weight:700;min-height:1em}' +
     '.cr-card button{margin-top:16px;width:100%;font-size:16px;font-weight:700;padding:12px;border:0;border-radius:10px;background:#244b3a;color:#fff;cursor:pointer}' +
     '.cr-card .cr-err{color:#b3261e;font-size:13px;min-height:1em;margin:8px 0 0}' +
     '.cr-card.cr-warn h2{color:#b3261e}' +
@@ -174,26 +177,43 @@
     card.setAttribute('role', 'dialog'); card.setAttribute('aria-modal', 'true'); card.setAttribute('aria-labelledby', 'crTitle');
     var h = el('h2', null, TITLE || '학습지'); h.id = 'crTitle';
     card.appendChild(h);
-    card.appendChild(el('p', null, ONLINE ? '학번과 이름을 쓰면 시작해요. 학습 기록과 화면 이탈이 선생님께 전달돼요.'
-      : '학번과 이름을 쓰면 시작해요. (연습 모드: 선생님께 전송되지 않아요)'));
-    var l1 = el('label', null, '학번'), i1 = el('input'); i1.id = 'crNum'; l1.htmlFor = 'crNum';
-    i1.inputMode = 'numeric'; i1.autocomplete = 'off'; i1.placeholder = '예: 10712'; i1.maxLength = 10; i1.value = S.num;
+    card.appendChild(el('p', null, ONLINE ? '학년·반·번호를 고르고 이름을 쓰면 시작해요. 학습 기록과 화면 이탈이 선생님께 전달돼요.'
+      : '학년·반·번호를 고르고 이름을 쓰면 시작해요. (연습 모드: 선생님께 전송되지 않아요)'));
+    // 학번은 학년·반·번호를 골라서 만들어요. 1학년 7반 12번 → 10712 (학년 1자리 + 반 2자리 + 번호 2자리)
+    var l1 = el('label', null, '학번'); l1.htmlFor = 'crGrade';
+    var row = el('div', 'cr-row');
+    var pre = /^([1-3])(0[1-9])(0[1-9]|1\d|2[0-5])$/.exec(S.num) || [];
+    function pick(id, max, unit, label, val) {
+      var s = el('select'); s.id = id; s.setAttribute('aria-label', label);
+      var o = el('option', null, label); o.value = ''; s.appendChild(o);
+      for (var n = 1; n <= max; n++) { var op = el('option', null, n + unit); op.value = String(n); s.appendChild(op); }
+      if (val) s.value = String(Number(val));
+      return s;
+    }
+    var sg = pick('crGrade', 3, '학년', '학년', pre[1]), sc = pick('crClass', 9, '반', '반', pre[2]), sn = pick('crNo', 25, '번', '번호', pre[3]);
+    [sg, sc, sn].forEach(function (s) { row.appendChild(s); });
+    var shown = el('p', 'cr-num');
+    function numNow() { return sg.value && sc.value && sn.value ? sg.value + ('0' + sc.value).slice(-2) + ('0' + sn.value).slice(-2) : ''; }
+    function showNum() { var n = numNow(); shown.textContent = n ? sg.value + '학년 ' + sc.value + '반 ' + sn.value + '번 → 학번 ' + n : ''; }
+    [sg, sc, sn].forEach(function (s) { s.addEventListener('change', function () { showNum(); err.textContent = ''; }); });
     var l2 = el('label', null, '이름'), i2 = el('input'); i2.id = 'crName'; l2.htmlFor = 'crName';
     i2.autocomplete = 'off'; i2.maxLength = 20; i2.value = S.name;
     var err = el('p', 'cr-err'); err.setAttribute('role', 'alert');
     var btn = el('button', null, '시작하기'); btn.type = 'submit';
-    [l1, i1, l2, i2, err, btn].forEach(function (n) { card.appendChild(n); });
+    [l1, row, shown, l2, i2, err, btn].forEach(function (n) { card.appendChild(n); });
+    showNum();
     card.addEventListener('submit', function (ev) {
       ev.preventDefault();
-      var num = i1.value.replace(/\s/g, ''), name = i2.value.trim();
-      if (!/^\d{3,10}$/.test(num)) { err.textContent = '학번은 숫자로 써 주세요. (예: 10712)'; i1.focus(); return; }
+      var num = numNow(), name = i2.value.trim();
+      var miss = !sg.value ? sg : !sc.value ? sc : !sn.value ? sn : null;
+      if (miss) { err.textContent = (miss === sg ? '학년을' : miss === sc ? '반을' : '번호를') + ' 골라 주세요.'; miss.focus(); return; }
       if (!name) { err.textContent = '이름을 써 주세요.'; i2.focus(); return; }
       S.num = num; S.name = name; S.sid = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
       S.away = 0; S.awayAt = 0; S.attempt = 0; S.submitted = false; S.startAt = Date.now(); save();
       veil.remove(); done();
     });
     veil.appendChild(card); document.body.appendChild(veil);
-    setTimeout(function () { (S.num ? i2 : i1).focus(); }, 50);
+    setTimeout(function () { (numNow() ? i2 : sg).focus(); }, 50);
   }
 
   // ---- 자리 비움 감지 -------------------------------------------------------
