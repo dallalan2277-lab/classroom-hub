@@ -120,6 +120,20 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--vocal); outline
 .piece .listen { font-size: 15px; margin-top: 6px; }
 .piece .listen b { font-weight: 700; }
 
+/* 대표곡 영상: 누르기 전에는 썸네일만, 누르면 그 자리에서 유튜브 재생 */
+.video { position: relative; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: #000; margin: 8px 0 2px; }
+.video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.video-poster { position: absolute; inset: 0; width: 100%; border: 0; padding: 0; background: #000 center / cover no-repeat; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.video-poster::before { content: ""; position: absolute; inset: 0; background: rgba(0, 0, 0, .35); transition: background .15s; }
+.video-poster:hover::before { background: rgba(0, 0, 0, .15); }
+.video-poster > * { position: relative; }
+.video-poster .play { width: 58px; height: 58px; border-radius: 50%; background: rgba(255, 255, 255, .92); color: #1f2433; display: grid; place-items: center; font-size: 22px; padding-left: 4px; }
+.video-poster .label { font-weight: 700; font-size: 15px; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+.video-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: var(--muted); }
+.video-meta a { color: inherit; }
+.chapter { font-size: 13px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 99px; padding: 2px 10px; }
+.chapter:hover { border-color: var(--muted); }
+
 .compare { border-radius: 14px; padding: 14px 18px; font-size: 16px; background: var(--bg); border: 1px solid var(--line); }
 .compare b { font-weight: 700; }
 
@@ -200,8 +214,8 @@ const GENRES = [
     diagram: [{ v: "독주 악기", n: 1 }, { v: "피아노 반주", n: 1, acc: true }],
     diagramCap: "성부 1개를 1명이 연주 (+ 반주)",
     pieces: [
-      { main: true, title: "클라리넷 소나타 내림마장조, Op.167", composer: "생상스 (프랑스)", listen: "클라리넷 한 대가 노래하듯 가락을 이끌고 피아노가 받쳐 줍니다. 클라리넷의 부드러운 저음과 맑은 고음을 비교해 들어 보세요." },
-      { title: "무반주 첼로 모음곡 제1번 G장조", composer: "J. S. 바흐 (독일)", listen: "반주가 전혀 없는 <b>무반주 독주</b>의 대표곡. 첼로 한 대가 가락과 화음을 동시에 표현합니다." }
+      { main: true, yt: "X9uUsJy6lRo", ch: "KBS Classic FM (클라리넷 김한)", title: "클라리넷 소나타 내림마장조, Op.167", composer: "생상스 (프랑스)", listen: "클라리넷 한 대가 노래하듯 가락을 이끌고 피아노가 받쳐 줍니다. 클라리넷의 부드러운 저음과 맑은 고음을 비교해 들어 보세요." },
+      { yt: "1prweT95Mo0", ch: "요요마 (Yo-Yo Ma) 공식", title: "무반주 첼로 모음곡 제1번 G장조", composer: "J. S. 바흐 (독일)", listen: "반주가 전혀 없는 <b>무반주 독주</b>의 대표곡. 첼로 한 대가 가락과 화음을 동시에 표현합니다." }
     ],
     compare: "<b>독주와 독창의 차이</b> · 독주는 <b>악기</b>로, 독창은 <b>목소리</b>로 혼자 연주해요.",
     quiz: [
@@ -221,8 +235,8 @@ const GENRES = [
     diagram: [{ v: "바이올린 1", n: 1 }, { v: "바이올린 2", n: 1 }, { v: "비올라", n: 1 }, { v: "첼로", n: 1 }],
     diagramCap: "예) 현악 4중주 · 성부 4개, 성부마다 1명",
     pieces: [
-      { main: true, title: "피아노 5중주 A장조 '송어', D.667", composer: "슈베르트 (오스트리아)", listen: "피아노·바이올린·비올라·첼로·더블베이스의 5중주. 4악장에서 가곡 '송어'의 가락이 여러 악기로 변주되는 부분을 찾아보세요." },
-      { title: "현악 4중주 '황제', Op.76 No.3", composer: "하이든 (오스트리아)", listen: "현악 4중주의 대표곡. 2악장의 주제 가락이 네 악기를 차례로 옮겨 다니며 등장해요." }
+      { main: true, yt: "HIkZSU1CMnY", ch: "TomatoClassic", title: "피아노 5중주 A장조 '송어', D.667", composer: "슈베르트 (오스트리아)", listen: "피아노·바이올린·비올라·첼로·더블베이스의 5중주. 4악장에서 가곡 '송어'의 가락이 여러 악기로 변주되는 부분을 찾아보세요." },
+      { yt: "FWX2ozwjbyQ", ch: "TomatoClassic (아벨 콰르텟)", title: "현악 4중주 '황제', Op.76 No.3", composer: "하이든 (오스트리아)", listen: "현악 4중주의 대표곡. 2악장의 주제 가락이 네 악기를 차례로 옮겨 다니며 등장해요." }
     ],
     compare: "<b>중주와 합주의 차이</b> · 중주는 한 성부를 <b>한 사람</b>이, 합주는 한 성부를 <b>여러 사람</b>이 맡아요.",
     quiz: [
@@ -242,8 +256,8 @@ const GENRES = [
     diagram: [{ v: "바이올린 1", n: 14 }, { v: "바이올린 2", n: 12 }, { v: "비올라", n: 10 }, { v: "첼로", n: 8 }, { v: "관·타악기", n: 18 }],
     diagramCap: "예) 관현악 · 성부마다 여러 명",
     pieces: [
-      { main: true, title: "교향곡 제9번 '신세계로부터'", composer: "드보르자크 (체코)", listen: "관현악의 대표곡. 2악장에서 잉글리시 호른이 부르는 쓸쓸한 가락과, 4악장 금관 악기의 힘찬 주제를 비교해 보세요." },
-      { title: "현악 세레나데 C장조, Op.48", composer: "차이콥스키 (러시아)", listen: "현악기로만 연주하는 <b>현악 합주</b>. 관악기 없이도 풍성한 울림을 느낄 수 있어요." }
+      { main: true, yt: "jOofzffyDSA", start: 781, chapters: [{ label: "2악장", t: 781 }, { label: "4악장", t: 2046 }], ch: "hr-Sinfonieorchester (프랑크푸르트 방송 교향악단)", title: "교향곡 제9번 '신세계로부터'", composer: "드보르자크 (체코)", listen: "관현악의 대표곡. 2악장에서 잉글리시 호른이 부르는 쓸쓸한 가락과, 4악장 금관 악기의 힘찬 주제를 비교해 보세요." },
+      { yt: "VxZ8K4Y7NIg", chapters: [{ label: "1악장", t: 0 }, { label: "2악장 왈츠", t: 562 }], ch: "노르웨이 체임버 오케스트라", title: "현악 세레나데 C장조, Op.48", composer: "차이콥스키 (러시아)", listen: "현악기로만 연주하는 <b>현악 합주</b>. 관악기 없이도 풍성한 울림을 느낄 수 있어요." }
     ],
     compare: "<b>합주의 종류 구분</b> · 현악기만 → 현악 합주 / 관악기 중심 → 관악 합주 / 현·관·타악기 모두 → 관현악",
     quiz: [
@@ -262,8 +276,8 @@ const GENRES = [
     diagram: [{ v: "노래", n: 1 }, { v: "반주", n: 1, acc: true }],
     diagramCap: "성부 1개를 1명이 노래 (+ 반주)",
     pieces: [
-      { main: true, title: "예술가곡 '헌정' (가곡집 《미르테의 꽃》 중)", composer: "슈만 (독일)", listen: "슈만이 아내 클라라에게 결혼 선물로 바친 노래. 사랑을 고백하는 벅찬 감정을 피아노 반주가 어떻게 함께 표현하는지 들어 보세요." },
-      { title: "가곡 '마왕'", composer: "슈베르트 (독일)", listen: "한 명의 가수가 해설자·아버지·아들·마왕 네 인물을 목소리로 구별해 노래해요." }
+      { main: true, yt: "UXDz0aByZVc", ch: "MBC TV예술무대 (바리톤 길병민, 피아노 김정원)", title: "예술가곡 '헌정' (가곡집 《미르테의 꽃》 중)", composer: "슈만 (독일)", listen: "슈만이 아내 클라라에게 결혼 선물로 바친 노래. 사랑을 고백하는 벅찬 감정을 피아노 반주가 어떻게 함께 표현하는지 들어 보세요." },
+      { yt: "jBCbo3L91xc", ch: "Victenor빅테너 (한글 자막, 피셔디스카우)", title: "가곡 '마왕'", composer: "슈베르트 (독일)", listen: "한 명의 가수가 해설자·아버지·아들·마왕 네 인물을 목소리로 구별해 노래해요." }
     ],
     compare: "<b>독창과 제창의 차이</b> · 둘 다 가락은 하나지만, 독창은 <b>1명</b>, 제창은 <b>여러 명</b>이 불러요.",
     quiz: [
@@ -282,7 +296,7 @@ const GENRES = [
     diagram: [{ v: "가락 하나", n: 24 }],
     diagramCap: "성부 1개를 여러 명이 함께",
     pieces: [
-      { main: true, title: "애국가", composer: "안익태 작곡", listen: "졸업식·운동 경기 등에서 모두가 같은 가락으로 부르는 대표적인 제창곡이에요." },
+      { main: true, yt: "80CnMvm4lI4", ch: "대한민국 육군 (야구장 관중의 애국가)", title: "애국가", composer: "안익태 작곡", listen: "졸업식·운동 경기 등에서 모두가 같은 가락으로 부르는 대표적인 제창곡이에요." },
       { title: "교가 · 군가", composer: "학교 · 군대의 노래", listen: "우리 학교 교가를 떠올려 보세요. 전교생이 같은 가락을 부를 때 느껴지는 힘이 제창의 특징이에요." }
     ],
     compare: "<b>제창과 합창의 차이</b> · 제창은 모두 <b>같은 가락</b>, 합창은 <b>여러 성부</b>로 나누어 화음을 만들어요.",
@@ -302,8 +316,8 @@ const GENRES = [
     diagram: [{ v: "소프라노", n: 1 }, { v: "테너", n: 1 }, { v: "바리톤", n: 1 }],
     diagramCap: "예) 3중창 · 성부 3개, 성부마다 1명",
     pieces: [
-      { main: true, title: "오페라 《라 트라비아타》 중 '축배의 노래'", composer: "베르디 (이탈리아)", listen: "주인공 알프레도(테너)와 비올레타(소프라노)가 번갈아, 또 함께 부르는 2중창. 중간에 합창이 끼어드는 부분도 찾아보세요." },
-      { title: "오페라 《마술피리》 중 '파-파-파 2중창'", composer: "모차르트 (오스트리아)", listen: "파파게노와 파파게나가 '파-파-파'를 주고받는 재미있는 2중창이에요." }
+      { main: true, yt: "afhAqMeeQJk", ch: "메트로폴리탄 오페라 공식", title: "오페라 《라 트라비아타》 중 '축배의 노래'", composer: "베르디 (이탈리아)", listen: "주인공 알프레도(테너)와 비올레타(소프라노)가 번갈아, 또 함께 부르는 2중창. 중간에 합창이 끼어드는 부분도 찾아보세요." },
+      { yt: "9Q0ZDZB-AnM", ch: "영국 로열 오페라 공식", title: "오페라 《마술피리》 중 '파-파-파 2중창'", composer: "모차르트 (오스트리아)", listen: "파파게노와 파파게나가 '파-파-파'를 주고받는 재미있는 2중창이에요." }
     ],
     compare: "<b>중창과 중주는 짝꿍</b> · 한 성부를 한 사람이 맡는 것은 같고, 중창은 <b>목소리</b>, 중주는 <b>악기</b>예요.",
     quiz: [
@@ -323,8 +337,8 @@ const GENRES = [
     diagram: [{ v: "소프라노", n: 10 }, { v: "알토", n: 9 }, { v: "테너", n: 8 }, { v: "베이스", n: 8 }],
     diagramCap: "예) 혼성 4부 합창 · 성부마다 여러 명",
     pieces: [
-      { main: true, title: "오페라 《로엔그린》 중 '결혼 행진곡'", composer: "바그너 (독일)", listen: "결혼식에서 자주 듣는 바로 그 가락! 원래는 오페라 속 혼성 합창곡이에요. 여러 성부가 어우러지는 화음에 귀 기울여 보세요." },
-      { title: "오라토리오 《메시아》 중 '할렐루야'", composer: "헨델 (독일·영국)", listen: "4성부 혼성 합창이 '할렐루야'를 주고받다가 한꺼번에 터져 나오는 웅장함을 느껴 보세요." }
+      { main: true, yt: "FK_9ZS3DnAs", ch: "대구오페라하우스", title: "오페라 《로엔그린》 중 '결혼 행진곡'", composer: "바그너 (독일)", listen: "결혼식에서 자주 듣는 바로 그 가락! 원래는 오페라 속 혼성 합창곡이에요. 여러 성부가 어우러지는 화음에 귀 기울여 보세요." },
+      { yt: "IUZEtVbJT5c", ch: "Royal Choral Society", title: "오라토리오 《메시아》 중 '할렐루야'", composer: "헨델 (독일·영국)", listen: "4성부 혼성 합창이 '할렐루야'를 주고받다가 한꺼번에 터져 나오는 웅장함을 느껴 보세요." }
     ],
     compare: "<b>합창과 합주는 짝꿍</b> · 한 성부를 여러 사람이 맡는 것은 같고, 합창은 <b>목소리</b>, 합주는 <b>악기</b>예요.",
     quiz: [
@@ -343,7 +357,7 @@ const GENRES = [
     diagram: [{ v: "소프라노", n: 1 }, { v: "알토", n: 1 }, { v: "테너", n: 1 }, { v: "바리톤", n: 1 }, { v: "베이스", n: 1 }],
     diagramCap: "예) 5인 그룹 · 목소리만, 반주 없음",
     pieces: [
-      { main: true, title: "Walking Down The Street", composer: "리얼 그룹 (The Real Group, 스웨덴)", listen: "악기 소리처럼 들리는 부분도 모두 사람의 목소리예요. 베이스 가락과 리듬을 누가 어떻게 내는지 찾아 들어 보세요." }
+      { main: true, yt: "erUF0F4aJf8", ch: "리얼 그룹 서울 공연 (관객 촬영)", title: "Walking Down The Street", composer: "리얼 그룹 (The Real Group, 스웨덴)", listen: "악기 소리처럼 들리는 부분도 모두 사람의 목소리예요. 베이스 가락과 리듬을 누가 어떻게 내는지 찾아 들어 보세요." }
     ],
     compare: "<b>아카펠라 판별법</b> · 노래만 들리고 <b>반주 악기가 하나도 없다</b>면 아카펠라!",
     quiz: [
@@ -442,6 +456,7 @@ function genreHTML(g, idx) {
         <div class="pieces">${g.pieces.map(p => `<div class="piece ${p.main ? "main" : ""}">
           <div class="tag">${p.main ? "교과서 대표곡" : "함께 들어 볼 곡"}</div>
           <div class="title">${p.title}</div><div class="composer">${p.composer}</div>
+          ${videoHTML(p)}
           <div class="listen"><b>감상 포인트</b> · ${p.listen}</div></div>`).join("")}</div>
       </section>
       <div class="compare">${g.compare}</div>
@@ -456,6 +471,46 @@ function genreHTML(g, idx) {
       </div>
     </div>
   </article>`;
+}
+
+// 대표곡 영상 (p.yt = 유튜브 영상 ID, p.start = 시작 초, p.chapters = 악장 바로가기)
+const fmtTime = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+function videoHTML(p) {
+  if (!p.yt) return "";
+  const start = p.start || 0;
+  const chapters = (p.chapters || []).map(c =>
+    `<button type="button" class="chapter" data-start="${c.t}">${c.label} (${fmtTime(c.t)})</button>`).join("");
+  return `<div class="video" data-yt="${p.yt}" data-start="${start}">
+      <button type="button" class="video-poster" style="background-image:url('https://i.ytimg.com/vi/${p.yt}/hqdefault.jpg')" aria-label="${p.title} 영상 재생">
+        <span class="play" aria-hidden="true">▶</span><span class="label">영상 보기${start ? ` · ${fmtTime(start)}부터` : ""}</span>
+      </button>
+    </div>
+    <div class="video-meta">${chapters}<a href="https://www.youtube.com/watch?v=${p.yt}${start ? `&t=${start}s` : ""}" target="_blank" rel="noopener">YouTube에서 보기 ↗</a><span>영상: ${p.ch}</span></div>`;
+}
+function playVideo(box, start) {
+  const f = document.createElement("iframe");
+  f.src = `https://www.youtube-nocookie.com/embed/${box.dataset.yt}?start=${start}&autoplay=1&rel=0&playsinline=1`;
+  f.title = "대표곡 영상";
+  f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+  f.referrerPolicy = "strict-origin-when-cross-origin";
+  f.allowFullscreen = true;
+  // 한 번에 한 영상만: 다른 곳에서 재생 중이던 영상은 썸네일로 되돌린다
+  document.querySelectorAll(".video iframe").forEach(old => { if (old.parentElement !== box) resetVideo(old.parentElement); });
+  box.replaceChildren(f);
+}
+function resetVideo(box) {
+  const tmp = document.createElement("div");
+  tmp.innerHTML = box.dataset.poster;
+  box.replaceChildren(...tmp.childNodes);
+  box.querySelector(".video-poster").addEventListener("click", () => playVideo(box, +box.dataset.start));
+}
+function bindVideos() {
+  document.querySelectorAll(".video").forEach(box => {
+    box.dataset.poster = box.innerHTML;
+    box.querySelector(".video-poster").addEventListener("click", () => playVideo(box, +box.dataset.start));
+    box.nextElementSibling.querySelectorAll(".chapter").forEach(c =>
+      c.addEventListener("click", () => playVideo(box, +c.dataset.start)));
+  });
 }
 
 function introHTML() {
@@ -533,6 +588,7 @@ function render() {
   else html = genreHTML(GENRES[state.current - 1], state.current);
   $("#main").innerHTML = html;
   bind();
+  bindVideos();
 }
 
 function bind() {
@@ -553,9 +609,13 @@ function bind() {
         const rec = (a[qi] ||= { solved: false, wrong: [] });
         if (oi === g.quiz[qi].a) rec.solved = true; else rec.wrong.push(oi);
         if (g.quiz.every((_, i) => a[i] && a[i].solved)) state.done.add(g.id);
-        const y = window.scrollY;
-        render();
-        window.scrollTo(0, y);
+        // 퀴즈와 아래 버튼만 다시 그린다 (보고 있던 영상이 끊기지 않게)
+        renderNav();
+        const tmp = document.createElement("div");
+        tmp.innerHTML = genreHTML(g, state.current);
+        $("#main .quiz").replaceWith(tmp.querySelector(".quiz"));
+        $("#main .nav").replaceWith(tmp.querySelector(".nav"));
+        bind();
       }));
     });
   }
