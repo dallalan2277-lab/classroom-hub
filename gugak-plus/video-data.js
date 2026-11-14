@@ -36,6 +36,16 @@ window.PERFORMANCE_VIDEO = {
       "start": 598
     },
     {
+      "id": "21",
+      "name": "나발",
+      "start": 638
+    },
+    {
+      "id": "22",
+      "name": "나각",
+      "start": 638
+    },
+    {
       "id": "07",
       "name": "태평소",
       "start": 668
