@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f4ecdc">
+  <meta name="description" content="판소리와 창극을 감상하고 비교하는 중학교 음악 수업 화면과 학습지.">
+  <title>판소리와 창극 · 수업과 학습지</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+  <link rel="stylesheet" href="style.css?v=p3">
+  <!-- 학습지 허브: 학번·이름, 자리 비움 감지, 보내기, ?교사 모드. 다른 코드보다 먼저 실행되어야 해요 -->
+  <script src="../classroom.js" data-ws="pansori-class" data-title="판소리와 창극 · 수업과 학습지"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="content.js?v=p3" defer></script>
+  <script src="app.js?v=p3" defer></script>
+</head>
+<body>
+  <a class="skip" href="#view">본문으로 바로가기</a>
+  <header class="top">
+    <a class="brand" href="#start"><span class="brand-mark" aria-hidden="true">판</span><span>판소리와 창극<small>음악 수업 · 학습지</small></span></a>
+    <nav id="nav" aria-label="수업 순서"></nav>
+    <div class="tools">
+      <button type="button" id="btnBig" aria-pressed="false" title="글자 크게">가+</button>
+      <button type="button" id="btnFull" title="전체 화면">⛶</button>
+    </div>
+  </header>
+  <main id="view" tabindex="-1"></main>
+  <footer class="pager">
+    <button type="button" id="prev"><small>이전</small><b></b></button>
+    <span class="where" id="where"></span>
+    <button type="button" id="next"><small>다음</small><b></b></button>
+  </footer>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <noscript><p class="noscript">이 수업 화면과 학습지를 쓰려면 브라우저의 JavaScript를 켜 주세요.</p></noscript>
+</body>
+</html>
