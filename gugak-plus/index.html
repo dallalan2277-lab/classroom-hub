@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#173c32">
+  <meta name="description" content="국악기 분류부터 스물두 악기의 생김새와 연주법까지. 관찰하고 체크하며 완성하는 청소년 국악기 디지털 학습지.">
+  <title>소리탐구실 · 국악기 22 학습지</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="data.js" defer></script>
+  <script src="video-data.js" defer></script>
+  <script src="video.js" defer></script>
+  <script src="../classroom.js" data-ws="gugak-plus" data-title="국악기 학습지 · 소리탐구실 (개선판)" defer></script>
+  <script src="questions.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">본문으로 바로가기</a>
+  <aside class="sidebar" aria-label="학습 목차">
+    <a href="#home" class="brand"><span class="brand-symbol">♬</span><span>소리탐구실<small>국악기 22 · 디지털 학습지</small></span></a>
+    <div class="sidebar-course"><span class="tiny">나의 탐구 여정</span><div class="side-progress"><strong id="sidePercent">0%</strong><span id="sideCount">0 / 24단계</span></div><div class="progress-track"><i id="sideBar"></i></div><p>조금씩 알아가는 우리 악기</p></div>
+    <nav id="nav"></nav>
+    <div class="sidebar-bottom"><span class="small-leaf">✳</span><p>관찰하고, 발견하고,<br>나만의 말로 기억해요.</p><a href="https://gugak-instrument-quiz.kjw2277.chatgpt.site/" target="_blank" rel="noopener">소리탐정 퀴즈로 가기 ↗</a></div>
+  </aside>
+  <div class="page-shell">
+    <header class="topbar"><button class="menu-btn" id="menuBtn" aria-label="학습 목차 열기" aria-expanded="false">☰</button><span class="breadcrumb">청소년을 위한 국악 관현악 입문 <span>/</span> <strong id="sectionName">학습 안내</strong></span><div class="topbar-actions"><span class="save-status" id="saveStatus"><i></i> 이 브라우저에 저장</span></div></header>
+    <main id="main" tabindex="-1"></main>
+    <footer class="footer"><span>소리탐구실 <b>·</b> 우리 소리를 알아가는 첫걸음</span><button id="sourcesBtn">자료 출처 및 이용 안내 ↗</button></footer>
+  </div>
+  <dialog id="sourceDialog"><div class="dialog-head"><h2>자료 출처 및 이용 안내</h2><button class="icon-btn" id="closeSources" aria-label="닫기">×</button></div><div id="sourcesContent"></div></dialog>
+  <dialog id="resetDialog"><div class="dialog-head"><h2>학습 기록을 초기화할까요?</h2></div><p>이 브라우저에 저장된 체크, 메모, 복습 기록이 지워집니다. 필요한 기록은 먼저 내려받아 보관해 주세요.</p><div class="dialog-actions"><button class="btn secondary" id="cancelReset">취소</button><button class="btn danger" id="confirmReset">기록 초기화</button></div></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <section id="printSheet" aria-label="인쇄용 학습지"></section>
+</body>
+</html>
