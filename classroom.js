@@ -24,7 +24,7 @@
  *  Classroom.teacher          : 교사 모드인지 여부
  *  document 이벤트            : 'classroom:away'(자리 비움 생김), 'classroom:switch'(학생 바뀜 → 학습지 기록 지우기)
  *
- * 교사 모드: 학습지 주소 뒤에 ?교사 (또는 ?teacher)를 붙여 열어요. 예) …/gugak/?교사
+ * 교사 모드: 학습지 주소 뒤에 ?교사 (또는 ?teacher)를 붙여 열어요. 예) …/gugak/?교사  (…/gugak/#home?교사 처럼 # 뒤에 붙여도 돼요)
  *  - 학번·이름을 묻지 않고, 자리 비움을 세지 않고, 허브로 아무것도 보내지 않아요.
  *  - 제출하면 {ok:true, offline:true, teacher:true}가 돌아와 학습지가 채점·정답을 보여 줘요.
  *  - 이 기기의 학생 기록과 섞이지 않게, 교사 모드에서 쓰는 브라우저 저장은 'teacher:' 이름표를 붙여 따로 둬요.
@@ -52,6 +52,18 @@
   // ---- 교사 모드 (?교사 또는 ?teacher) ---------------------------------------
   var TEACHER = false;
   try { var tq = new URLSearchParams(location.search); TEACHER = tq.has('교사') || tq.has('teacher'); } catch (e) {}
+  // 주소 끝에 #home 같은 것이 있을 때 그 뒤에 ?교사를 붙여도(…/#home?교사) 교사 모드로 열고,
+  // 주소를 올바른 모양(…/?교사#home)으로 고쳐 둬요(새로고침해도 유지, 학습지의 # 길찾기가 안 헷갈리게).
+  try {
+    var hraw = location.hash, hdec = hraw; try { hdec = decodeURIComponent(hraw); } catch (e) {}
+    var hre = /[?&](교사|teacher)(?=$|[&=])(=[^&]*)?/;
+    if (!TEACHER && hre.test(hdec)) {
+      TEACHER = true;
+      var nh = hdec.replace(hre, '').replace(/[?&]$/, '').replace(/\?&/, '?');
+      var nu = new URL(location.href); nu.hash = nh.length > 1 ? nh : ''; nu.searchParams.set('교사', '');
+      history.replaceState(history.state, '', nu.pathname + nu.search.replace(/=(?=&|$)/g, '') + nu.hash);
+    }
+  } catch (e) {}
   if (TEACHER) {
     ONLINE = false;
     // 학습지들이 쓰는 localStorage 이름 앞에 'teacher:'를 붙여, 같은 기기의 학생 기록을 건드리지 않아요.
