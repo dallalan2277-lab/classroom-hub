@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#100f17">
+  <meta name="description" content="판소리 다섯 마당 이야기, 소리북 장단 실험실, 창극과 오늘의 판소리까지 감상하고 비교하는 중학교 음악 수업과 학습지 (개선판).">
+  <title>판소리와 창극 · 수업과 학습지 (개선판)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+  <link rel="stylesheet" href="style.css?v=pp1">
+  <!-- 학습지 허브: 학번·이름, 자리 비움 감지, 보내기, ?교사 모드. 다른 코드보다 먼저 실행되어야 해요 -->
+  <script src="../classroom.js" data-ws="pansori-plus" data-title="판소리와 창극 · 수업과 학습지 (개선판)"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="content.js?v=pp1" defer></script>
+  <script src="app.js?v=pp1" defer></script>
+</head>
+<body>
+  <a class="skip" href="#view">본문으로 바로가기</a>
+  <button type="button" id="burger" aria-label="메뉴 열기">☰ 메뉴</button>
+  <aside id="side" aria-label="수업 목차">
+    <a class="brand" href="#start">
+      <span class="brand-mark" aria-hidden="true">판</span>
+      <div>
+        <small>중학교 음악 · 우리 음악극 (2차시)</small>
+        <b>판소리와 창극</b>
+      </div>
+    </a>
+    <nav id="nav" aria-label="수업 순서"></nav>
+    <div class="tools">
+      <div class="tool-row">
+        <span>글자 크기</span>
+        <button type="button" class="mini" data-fs="-1" aria-label="글자 작게">가−</button>
+        <button type="button" class="mini" data-fs="1" aria-label="글자 크게">가+</button>
+      </div>
+      <div class="tool-row" id="vmRow">
+        <span>영상 재생</span>
+        <button type="button" class="mini" data-vm="link">유튜브 창</button>
+        <button type="button" class="mini" data-vm="embed">페이지 안</button>
+      </div>
+      <div class="tool-row">
+        <span>수업</span>
+        <button type="button" class="mini cls" id="classBtn">교실 모드 켜기</button>
+      </div>
+      <div class="tool-row">
+        <span>화면</span>
+        <button type="button" class="mini" id="fsBtn">전체 화면</button>
+        <button type="button" class="mini" id="hideSide">메뉴 숨기기</button>
+      </div>
+    </div>
+  </aside>
+  <main>
+    <div id="view" tabindex="-1"></div>
+    <footer class="pager">
+      <button type="button" id="prev"></button>
+      <div class="where" id="where"></div>
+      <button type="button" id="next"></button>
+    </footer>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <noscript><p class="noscript">이 수업 화면과 학습지를 쓰려면 브라우저의 JavaScript를 켜 주세요.</p></noscript>
+</body>
+</html>
