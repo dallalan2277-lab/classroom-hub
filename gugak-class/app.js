@@ -17,6 +17,10 @@
   var VST = {}; PV.scenes.forEach(function (s) { VST[s.id] = +s.start || 0; });
   var STARTS = PV.scenes.map(function (s) { return +s.start || 0; }).filter(function (v, k, a) { return a.indexOf(v) === k; }).sort(function (a, b) { return a - b; });
   function nextStart(st) { for (var k = 0; k < STARTS.length; k++) if (STARTS[k] > st) return STARTS[k]; return 0; }
+  // 해설 없이 그 악기 소리만 나오는 구간. 없으면 null(예전처럼 해설 시작부터 틀어요)
+  var VLS = {}; PV.scenes.forEach(function (s) {
+    var l = s.listen; if (l && l.length === 2 && +l[1] > +l[0]) VLS[s.id] = [+l[0], +l[1]];
+  });
   var FAMCH = { '관악기': 'wind', '현악기': 'strings', '타악기': 'perc' };
   function fam(f) { return INST.filter(function (x) { return x.family === f; }); }
 
@@ -185,7 +189,7 @@
   }
   function miniVid(x) {
     if (!(x.id in VST) || !PV.videoId) return '';
-    var st = VST[x.id], en = nextStart(st) || st + 30;
+    var ls = VLS[x.id], st = ls ? ls[0] : VST[x.id], en = ls ? ls[1] : (nextStart(st) || st + 30);
     return '<figure class="vid mini" data-yt="' + esc(PV.videoId) + '" data-start="' + st + '" data-end="' + en + '">' +
       '<button class="vid-play" type="button" aria-label="' + esc(x.name) + ' 소리 듣기 영상 재생"><span class="play" aria-hidden="true"></span>소리 듣기 · ' + mmss(st) + '부터</button>' +
       '<figcaption><small>' + esc(PV.credit || '') + '</small></figcaption></figure>';
@@ -246,8 +250,12 @@
   }
   var LGROUPS = ['11', '01', '16', '09', '05', '13', '03', '20', '08', '21+22', '14', '04', '12', '07', '17', '10', '02', '18+19', '06', '15'];
   function gInfo(g) {
-    var ids = g.split('+'), st = VST[ids[0]] || 0, nx = nextStart(st);
-    return { ids: ids, start: st, end: nx ? Math.min(st + 15, nx) : st + 15, family: (IBY[ids[0]] || {}).family || '' };
+    var ids = g.split('+'), fm = (IBY[ids[0]] || {}).family || '';
+    // 묶음 카드(나발+나각, 어+부)는 두 악기의 소리 구간을 이어서 틀어요
+    var ls = ids.map(function (id) { return VLS[id]; });
+    if (ls.every(Boolean)) return { ids: ids, start: Math.min.apply(null, ls.map(function (l) { return l[0]; })), end: Math.max.apply(null, ls.map(function (l) { return l[1]; })), family: fm };
+    var st = VST[ids[0]] || 0, nx = nextStart(st);
+    return { ids: ids, start: st, end: nx ? Math.min(st + 15, nx) : st + 15, family: fm };
   }
   function lnameHTML(g) {
     var gi = gInfo(g), pick = state.lg[g];
@@ -257,7 +265,7 @@
   }
   function listenHTML() {
     return sceneHTML({ img: 'madang-listen.webp', alt: '중학생 몇 명이 눈을 감고 멀리 무대에서 퍼져 오는 소리에 귀 기울여요', one: '화면을 가리고 소리만 들어요. 숨소리, 줄 떨림, 두드림 가운데 무엇이 들리나요?' },
-      '카드의 듣기를 누르면 영상의 그 부분이 15초쯤 나와요. 관·현·타 가운데 하나를 고른 뒤 악기 열기로 확인해요.') +
+      '카드의 듣기를 누르면 해설 없이 그 악기 소리만 짧게 나와요. 관·현·타 가운데 하나를 고른 뒤 악기 열기로 확인해요.') +
       '<div class="lv' + (coverOn ? ' covered' : '') + '" id="lv"><div class="lv-screen" id="lvScreen"><div class="lv-idle">카드의 듣기를 누르면 여기에서 소리가 나요.</div>' +
       '<div class="lv-cover" aria-hidden="true"><div class="wave"><i></i><i></i><i></i><i></i><i></i></div><b>소리 먼저 들어요</b><span>화면은 가려 두었어요.</span></div></div>' +
       '<div class="lv-bar"><button type="button" class="mini" id="lvCover" aria-pressed="' + coverOn + '">' + (coverOn ? '화면 가리기: 켬' : '화면 가리기: 끔') + '</button>' +
