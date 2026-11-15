@@ -1,0 +1,398 @@
+/* 판소리와 창극(개선판) — 화면 그리기·학습지 저장·채점·제출
+ * 내용(문구·문항·영상)은 content.js. classroom.js 가 이 파일보다 먼저 실행되어야 해요.
+ * 원본(../pansori-class/app.js)과 채점·저장·제출 방식은 같고, 화면 틀만 바뀌었어요(T008):
+ * 왼쪽 목차 · 아래 페이지 넘김 · 수업 모드 · 글자 크기 · 탭 · 글자 배치도.
+ */
+(function () {
+  'use strict';
+  var DATA = window.PANSORI, V = DATA.V, CH = DATA.CHAPTERS;
+  var CR = window.Classroom || null;
+  var TEACHER = !!(CR && CR.teacher);
+  var KEY = 'pansori-plus-v1', FS_KEY = 'pansori-plus-fs';
+  var SHARE_URL = 'https://dallalan2277-lab.github.io/classroom-hub/pansori-plus/';
+  var PAGES = [{ id: 'start', nav: '시작' }].concat(CH.map(function (c) { return { id: c.id, nav: c.nav, ch: c }; }), [{ id: 'submit', nav: '제출' }]);
+  var ALLQ = []; CH.forEach(function (c) { c.qs.forEach(function (q) { q.ch = c.id; ALLQ.push(q); }); });
+  var QBY = {}; ALLQ.forEach(function (q) { QBY[q.id] = q; });
+  var GRADED = ALLQ.filter(function (q) { return q.type !== 'text'; });
+  // 1차시는 split 이 붙은 장까지
+  var SPLIT = 0; CH.forEach(function (c, k) { if (c.split) SPLIT = k; });
+  function part(k) { return k <= SPLIT ? 1 : 2; }
+
+  var view = document.getElementById('view'), nav = document.getElementById('nav');
+  var root = document.documentElement, body = document.body;
+  var state, showAns = false, sending = false, lastPage = -1;
+
+  // 문항 구성이 바뀌면 이 값이 바뀌어요 → 예전 제출 점수는 지우고, 지금도 있는 문항의 답만 남겨요.
+  var QSIG = ALLQ.map(function (q) { return q.id; }).join(',');
+  var saveOk = true, saveWarned = false;
+  function fresh() { return { a: {}, done: null, qs: QSIG }; }
+  function load() {
+    try {
+      var s = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (s && s.a && typeof s.a === 'object') {
+        if (s.qs !== QSIG) {
+          var a = {}; Object.keys(s.a).forEach(function (k) { if (QBY[k]) a[k] = s.a[k]; });
+          s = { a: a, done: null, qs: QSIG };
+        }
+        return s;
+      }
+    } catch (e) {}
+    return fresh();
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); saveOk = true; }
+    catch (e) {
+      saveOk = false;
+      if (!saveWarned) { saveWarned = true; toast('이 기기에 답이 저장되지 않아요. 제출할 때까지 이 화면을 닫지 마세요.'); }
+      var w = document.getElementById('saveWarn'); if (w) w.hidden = false;
+    }
+  }
+  function answerSig() { return JSON.stringify(ALLQ.map(function (q) { return valText(q); })); }
+  state = load();
+  document.addEventListener('classroom:switch', function () { try { localStorage.removeItem(KEY); } catch (e) {} state = fresh(); lastPage = -1; route(); });
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function norm(s) { return String(s || '').toLowerCase().replace(/[\s.,!?'"()·~]/g, ''); }
+  function toast(msg) { var t = document.getElementById('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(function () { t.classList.remove('on'); }, 2600); }
+
+  /* ---------- 채점 ---------- */
+  function val(q) { var v = state.a[q.id]; return q.type === 'multi' ? (Array.isArray(v) ? v : []) : (typeof v === 'string' ? v : ''); }
+  function answered(q) { var v = val(q); return q.type === 'multi' ? v.length > 0 : v.trim() !== ''; }
+  function correct(q) {
+    var v = val(q);
+    if (q.type === 'blank') { var n = norm(v); return n !== '' && q.ans.some(function (a) { return norm(a) === n; }); }
+    if (q.type === 'multi') return v.slice().sort().join('|') === q.ans.slice().sort().join('|');
+    return v === q.ans;
+  }
+  function ansText(q) { return q.type === 'blank' ? q.ans[0] : q.type === 'multi' ? q.ans.join(', ') : q.ans; }
+  function valText(q) { var v = val(q); return q.type === 'multi' ? q.opts.filter(function (o) { return v.indexOf(o) >= 0; }).join(', ') : v.trim(); }
+  function marking() { return !!state.done || (TEACHER && showAns); }
+
+  /* ---------- 수업 화면 조각 ---------- */
+  function vidHTML(key, cap) {
+    var v = V[key]; if (!v) return '';
+    return '<figure class="vid" data-yt="' + esc(v.id) + '" data-start="' + (v.start || 0) + '" data-end="' + (v.end || 0) + '">' +
+      '<button class="vid-play" type="button" aria-label="' + esc(v.title) + ' 재생"><img alt="" loading="lazy" src="https://i.ytimg.com/vi/' + esc(v.id) + '/hqdefault.jpg"><span class="play" aria-hidden="true"></span></button>' +
+      '<figcaption><b>' + esc(v.title) + '</b><small>' + esc(v.by) + '</small>' + (cap ? '<em>' + esc(cap) + '</em>' : '') + '</figcaption></figure>';
+  }
+  function role(name, short, desc, cls) {
+    return '<div class="role ' + (cls || '') + '"><b>' + esc(name) + '</b><span>' + esc(short) + '</span><p>' + esc(desc) + '</p></div>';
+  }
+  // 막대 인형 그림 대신 글자로 그린 배치도(T008)
+  var STAGE = {
+    pansori:
+      '<figure class="plan plan-pan" aria-label="소리판 배치도: 청중이 둘러앉고, 돗자리 위에 소리꾼이 서고, 그 옆에 고수가 북 앞에 앉아요">' +
+        '<div class="ring">' + role('청중', '추임새로 함께', '소리에 어울리는 추임새를 알맞게 넣으며 관람해요.', 'r-aud') + '</div>' +
+        '<div class="mat">' +
+          role('소리꾼', '소리로 이야기 전달', '고수의 북 장단에 맞추어 소리로 이야기를 전달해요.', 'r-main') +
+          role('고수', '북 장단 + 추임새', '소리에 맞추어 북 장단을 치며 추임새로 흥을 돋워요.', 'r-side') +
+        '</div>' +
+        '<figcaption>소리판 · 돗자리 하나, 북 하나, 부채 하나</figcaption></figure>',
+    changgeuk:
+      '<figure class="plan plan-chang" aria-label="창극 무대 배치도: 무대 위에 여러 배우가 서고, 한쪽에 도창이 있고, 무대 앞에서 국악 관현악이 반주해요">' +
+        '<div class="boards">' +
+          role('배우', '배역을 나누어 연기', '여러 소리꾼이 저마다 한 인물을 맡아 노래하고 연기해요.', 'r-main') +
+          role('도창', '해설', '줄거리가 잘 이어지도록 해설을 맡아요. 늘 있는 것은 아니고, 두기도 해요.', 'r-side') +
+        '</div>' +
+        '<div class="pit">' + role('반주', '국악 관현악', '여러 국악기가 함께 반주해요.', 'r-aud') + '</div>' +
+        '<figcaption>창극 무대 · 배경과 의상, 여러 배우, 관현악</figcaption></figure>'
+  };
+  function storyPanel(key, k) {
+    var st = (DATA.STORIES || {})[key]; if (!st) return '';
+    return '<div class="tp" role="tabpanel" id="tp-' + esc(key) + '" aria-labelledby="tb-' + esc(key) + '"' + (k ? ' hidden' : '') + ' tabindex="0">' +
+      '<div class="tp-head"><p class="eyebrow">다섯 마당 · ' + (k + 1) + '</p><h3>' + esc(st.name) + '</h3><p class="who">' + esc(st.who) + '</p>' +
+      '<p class="one">' + esc(st.one) + '</p><p class="hook">' + esc(st.hook) + '</p></div>' +
+      '<div class="tp-body"><h4>줄거리</h4><p>' + esc(st.story) + '</p>' +
+      '<h4>주제</h4><ul>' + st.theme.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
+      '<h4>대표 대목은 어디쯤?</h4><p>' + st.scene + '</p>' +
+      (st.care ? '<p class="care"><b>함께 생각해요</b> ' + esc(st.care) + '</p>' : '') + '</div></div>';
+  }
+  function build(html) {
+    return html.replace(/\{(\w+):([^}]*)\}/g, function (_, kind, b) {
+      var p = b.split('|');
+      if (kind === 'term') return '<div><dt>' + esc(p[0]) + '</dt><dd><b>' + esc(p[1]) + '</b>' + esc(p[2]) + '</dd></div>';
+      if (kind === 'vid') return vidHTML(p[0], p[1]);
+      if (kind === 'stage') return STAGE[p[0]] || '';
+      if (kind === 'madang') return '<article class="md"><div class="md-text"><p class="eyebrow">' + esc(p[0]) + '</p><h4>' + esc(p[1]) + '</h4><p>' + esc(p[3]) + '</p>' +
+        '<div class="guess" role="group" aria-label="빠르기 짐작(점수 없음)"><span>짐작</span><button type="button" aria-pressed="false">느릴 것 같아요</button><button type="button" aria-pressed="false">빠를 것 같아요</button></div>' +
+        '<button type="button" class="jd reveal" data-a="' + esc(p[2]) + '" aria-pressed="false">장단은?</button></div>' + vidHTML(p[4]) + '</article>';
+      if (kind === 'tabs') {
+        return '<div class="tabs"><div class="tl" role="tablist" aria-label="다섯 마당">' + p.map(function (key, k) {
+          var st = (DATA.STORIES || {})[key]; if (!st) return '';
+          return '<button type="button" role="tab" id="tb-' + esc(key) + '" aria-controls="tp-' + esc(key) + '" aria-selected="' + (k ? 'false' : 'true') + '" tabindex="' + (k ? '-1' : '0') + '"><i>' + (k + 1) + '</i>' + esc(st.name) + '</button>';
+        }).join('') + '</div>' + p.map(storyPanel).join('') + '</div>';
+      }
+      if (kind === 'now') return '<article class="nw"><p class="eyebrow">' + esc(p[1]) + '</p>' + vidHTML(p[0]) + '</article>';
+      return '';
+    });
+  }
+
+  /* ---------- 학습지 문항 ---------- */
+  function qHTML(q, i) {
+    var v = val(q), m = marking() && q.ans !== undefined, ok = m && correct(q), h = '';
+    var name = 'q-' + q.id;
+    if (q.type === 'blank') h = '<input type="text" data-q="' + q.id + '" value="' + esc(v) + '" maxlength="20" autocomplete="off" aria-label="답 쓰기" placeholder="답 쓰기">';
+    else if (q.type === 'pick') h = '<select data-q="' + q.id + '" aria-label="고르기"><option value="">고르기</option>' + q.opts.map(function (o) { return '<option' + (o === v ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
+    else if (q.type === 'radio') h = '<div class="opts">' + q.opts.map(function (o) { return '<label><input type="radio" name="' + name + '" data-q="' + q.id + '" value="' + esc(o) + '"' + (o === v ? ' checked' : '') + '><span>' + esc(o) + '</span></label>'; }).join('') + '</div>';
+    else if (q.type === 'multi') h = '<div class="opts">' + q.opts.map(function (o) { return '<label><input type="checkbox" data-q="' + q.id + '" value="' + esc(o) + '"' + (v.indexOf(o) >= 0 ? ' checked' : '') + '><span>' + esc(o) + '</span></label>'; }).join('') + '</div>';
+    else if (q.type === 'text') h = '<textarea data-q="' + q.id + '" rows="3" maxlength="400" placeholder="' + esc(q.ph || '') + '" aria-label="생각 쓰기">' + esc(v) + '</textarea>';
+    var mark = m ? '<span class="mk ' + (ok ? 'ok' : 'no') + '">' + (ok ? '맞았어요' : '정답: ' + esc(ansText(q))) + '</span>' : '';
+    return (q.group ? '<h4 class="q-group">' + esc(q.group) + '</h4>' : '') +
+      '<div class="q q-' + q.type + (m ? (ok ? ' is-ok' : ' is-no') : '') + '" id="' + name + '"><p class="q-p"><i>' + i + '</i><span>' + q.prompt + '</span></p>' + h + mark + '</div>';
+  }
+  function sheetHTML(c) {
+    var n = c.qs.filter(answered).length;
+    return '<section class="sheet" id="sheet" aria-label="' + esc(c.title) + ' 학습지"><header><p class="eyebrow">학습지</p><h2>' + esc(c.title) + '</h2><span class="cnt" id="cnt">' + n + ' / ' + c.qs.length + '</span></header>' +
+      '<p class="warn" id="saveWarn"' + (saveOk ? ' hidden' : '') + '>이 기기에 답이 저장되지 않아요. 제출할 때까지 이 화면을 닫거나 새로고침하지 마세요.</p>' +
+      (TEACHER ? '<p class="t-note">교사 모드예요. 기록이 남지 않아요. <button type="button" class="mini" id="btnAns" aria-pressed="' + showAns + '">' + (showAns ? '정답 숨기기' : '정답 보기') + '</button></p>' : '') +
+      c.qs.map(function (q, i) { return qHTML(q, i + 1); }).join('') + '</section>';
+  }
+
+  /* ---------- 쪽 ---------- */
+  function startHTML() {
+    var row = function (c, k) { return '<li><a href="#' + c.id + '"><i>' + (k + 1) + '</i><b>' + esc(c.title) + '</b><small>' + esc(c.time) + ' · 학습지 ' + c.qs.length + '문항</small></a></li>'; };
+    return '<section class="hero"><p class="eyebrow">중학교 음악 · 우리 음악극</p><h1>판소리와 창극</h1>' +
+      '<p class="lead">한 사람이 끌고 가는 이야기, 여럿이 나누어 맡는 이야기. 두 음악극을 듣고 견주어 봐요.</p>' +
+      '<a class="go" href="#' + CH[0].id + '">수업 시작하기</a></section>' +
+      '<section class="wrap two intro"><div><h2>오늘 배울 것</h2><ul class="goals"><li>판소리와 창극을 감상하고 특징을 비교할 수 있어요.</li><li>전통과 현대의 다양한 판소리를 감상하고, 국악의 문화적 가치를 알 수 있어요.</li></ul>' +
+      '<p class="how">장마다 위쪽은 수업 화면, 아래쪽 밝은 종이는 학습지예요. 쓴 답은 이 기기에 저절로 저장되고, 영상은 이 화면 안에서 재생돼요.</p></div>' +
+      '<div><h2>오늘의 순서</h2><p class="part">1차시</p><ol class="flow">' + CH.slice(0, SPLIT + 1).map(function (c, k) { return row(c, k); }).join('') + '</ol>' +
+      '<p class="part">2차시</p><ol class="flow">' + CH.slice(SPLIT + 1).map(function (c, k) { return row(c, k + SPLIT + 1); }).join('') +
+      '<li><a href="#submit"><i></i><b>제출하기</b><small>채점하고 선생님께 보내기</small></a></li></ol></div></section>' +
+      (TEACHER ? '<p class="t-plan"><b>선생님 안내</b> 다섯 마당 이야기가 들어가 <b>2차시(45분×2)</b> 기준이에요. 첫째 시간은 <b>' + esc(CH[SPLIT].title) + '</b> 장까지 하고, 둘째 시간은 사랑가를 다시 짧게 들으며 시작해요. 학생 답은 각자 기기에 남으므로 둘째 시간에도 같은 기기·같은 브라우저로 들어오게 해 주세요. 제출은 마지막에 한 번 해요. 수업 모드 버튼을 누르면 목차가 숨고 글자가 커져요.</p>' : '') +
+      '<details class="more qr" id="qrBox"' + (TEACHER ? ' open' : '') + '><summary>학생용 QR 코드</summary><div class="qr-body"><div id="qrImg" aria-label="학생용 주소 QR 코드"></div><div><p>휴대폰·태블릿 카메라로 비추면 이 수업이 열려요. 학년·반·번호와 이름을 넣고 시작해요.</p><code>' + esc(SHARE_URL) + '</code></div></div></details>' +
+      '<details class="more src"><summary>영상과 자료 출처</summary><ul>' + Object.keys(V).map(function (k) { return '<li>' + esc(V[k].title) + ' — ' + esc(V[k].by) + ' (YouTube)</li>'; }).join('') +
+      '<li>내용: 중학교 음악 교과서 "판소리와 창극" 단원. 대목마다 붙인 장면 설명, 추임새의 예, 발림의 부채, 비교표의 일부 표현은 교과서에 없는 내용으로, 이 수업을 위해 덧붙였어요. 소리판·창극 무대 배치도는 이 수업을 위해 글자로 새로 그렸어요.</li>' +
+      '<li>다섯 마당 이야기(교과서 밖 내용): <a href="https://www.gugak.go.kr/ency/" target="_blank" rel="noopener">국립국악원 국악사전</a>, <a href="https://encykorea.aks.ac.kr/" target="_blank" rel="noopener">한국민족문화대백과사전</a>을 참고해 정리했어요.</li></ul></details>';
+  }
+  function chapterHTML(c, idx) {
+    return '<section class="lesson"><header class="ch-head"><p class="eyebrow">' + (idx + 1) + '장 · ' + esc(c.time) + ' · ' + part(idx) + '차시</p><h1>' + esc(c.title) + '</h1><p class="lead">' + esc(c.lead) + '</p></header>' +
+      build(c.lesson) + '</section>' + sheetHTML(c);
+  }
+  function result() {
+    var wrong = [], score = 0;
+    GRADED.forEach(function (q) { if (correct(q)) score++; else if (answered(q)) wrong.push(q.label); });
+    var answers = {}; ALLQ.forEach(function (q) { answers[q.label] = valText(q).slice(0, 400); });
+    return { score: score, total: GRADED.length, wrong: wrong, answers: answers };
+  }
+  function submitHTML() {
+    var left = ALLQ.filter(function (q) { return !answered(q); }), d = state.done;
+    var changed = d && d.sig && d.sig !== answerSig();
+    var rows = CH.map(function (c, k) {
+      var g = c.qs.filter(function (q) { return GRADED.indexOf(q) >= 0; }), n = c.qs.filter(answered).length;
+      return '<li><a href="#' + c.id + '?sheet"><i>' + (k + 1) + '</i><b>' + esc(c.title) + '</b><span>' + n + ' / ' + c.qs.length + ' 씀' + (d && g.length ? ' · ' + g.filter(correct).length + ' / ' + g.length + ' 맞음' : '') + '</span></a></li>';
+    }).join('');
+    return '<section class="lesson"><header class="ch-head"><p class="eyebrow">마무리</p><h1>제출하기</h1></header>' +
+      (d ? '<div class="score"><b>' + d.score + '</b><span>/ ' + d.total + '점</span><p>' + esc(d.msg || '') + '</p></div>' +
+           (changed ? '<p class="warn"><b>제출한 뒤에 답을 고쳤어요.</b> 위 점수는 예전 답의 점수예요. 고친 답은 <b>다시 제출해야</b> 선생님께 전해져요.</p>' : '') +
+           '<p class="lead">장마다 돌아가면 맞은 것과 정답을 볼 수 있어요. 고쳐서 다시 낼 수도 있어요.</p>'
+         : '<p class="lead">고르기 문항은 바로 채점되고, 생각을 쓴 글은 선생님께 그대로 전해져요.</p>') +
+      '<ul class="sum">' + rows + '</ul>' +
+      (left.length ? '<p class="warn">아직 안 쓴 문항이 <b>' + left.length + '개</b> 있어요. 위 목록에서 장을 눌러 채워 봐요.</p>' : '<p class="fine">모든 문항을 썼어요.</p>') +
+      '<button type="button" class="go" id="btnSubmit"' + (sending ? ' disabled' : '') + '>' + (sending ? '보내는 중…' : d ? '고친 답 다시 제출하기' : '채점하고 제출하기') + '</button></section>';
+  }
+  function doSubmit() {
+    if (sending) return;
+    var left = ALLQ.filter(function (q) { return !answered(q); }).length;
+    if (left && !window.confirm('안 쓴 문항이 ' + left + '개 있어요. 그래도 제출할까요?')) return;
+    var r = result(), sig = answerSig(); sending = true; route(true);
+    var finish = function (res) {
+      sending = false;
+      var msg = !res ? '이 기기에서만 채점했어요.' : res.teacher ? '교사 모드라 보내지 않고 채점만 했어요.' : res.ok && !res.offline ? '선생님께 보냈어요.' : res.ok ? '채점만 했어요. (허브에 연결되지 않았어요)' : '보내지 못했어요. 인터넷을 확인하고 다시 제출해 주세요.' + (res.error ? ' (' + res.error + ')' : '');
+      state.done = { score: r.score, total: r.total, msg: msg, at: Date.now(), sig: res && res.ok ? sig : '' };
+      save();
+      if (PAGES[cur()].id === 'submit') route(true); else { toast(msg); navHTML(cur()); }
+    };
+    if (!CR || !CR.submit) return finish(null);
+    Promise.resolve().then(function () { return CR.submit(r); }).then(finish, function (e) { finish({ ok: false, error: e && e.message }); });
+  }
+
+  /* ---------- 길찾기 ---------- */
+  function hashParts() { var h = location.hash.replace(/^#/, '').split('?'); return { id: h[0], sub: h[1] || '' }; }
+  function cur() { var id = hashParts().id; for (var i = 0; i < PAGES.length; i++) if (PAGES[i].id === id) return i; return 0; }
+  function navHTML(i) {
+    var link = function (x, k) {
+      var done = x.ch ? x.ch.qs.every(answered) : false, on = k === i;
+      var h = '<a href="#' + x.id + '"' + (on ? ' class="on" aria-current="page"' : '') + '><i>' + (x.ch ? k : '') + '</i><span>' + esc(x.nav) + '</span>' + (done ? '<em class="dot" title="학습지 다 씀"></em>' : '') + '</a>';
+      if (x.ch) {
+        var n = x.ch.qs.filter(answered).length;
+        h += '<a class="subl' + (on ? ' here' : '') + '" href="#' + x.id + '?sheet">학습지 <span>' + n + '/' + x.ch.qs.length + '</span></a>';
+      }
+      return h;
+    };
+    var grp = function (t, from, to) { var s = ''; for (var k = from; k <= to; k++) s += link(PAGES[k], k); return '<div class="grp"><p>' + t + '</p>' + s + '</div>'; };
+    nav.innerHTML = link(PAGES[0], 0) + grp('1차시', 1, SPLIT + 1) + grp('2차시', SPLIT + 2, PAGES.length - 2) + link(PAGES[PAGES.length - 1], PAGES.length - 1);
+  }
+  function route(keep) {
+    var i = cur(), p = PAGES[i];
+    view.innerHTML = p.id === 'start' ? startHTML() : p.id === 'submit' ? submitHTML() : chapterHTML(p.ch, i - 1);
+    navHTML(i);
+    var pv = document.getElementById('prev'), nx = document.getElementById('next');
+    pv.disabled = i === 0; nx.disabled = i === PAGES.length - 1;
+    pv.querySelector('b').textContent = i ? PAGES[i - 1].nav : ''; nx.querySelector('b').textContent = i < PAGES.length - 1 ? PAGES[i + 1].nav : '';
+    document.getElementById('where').textContent = (i + 1) + ' / ' + PAGES.length;
+    document.getElementById('pgBar').style.width = (i / (PAGES.length - 1) * 100) + '%';
+    document.title = (p.ch ? p.ch.title + ' · ' : '') + '판소리와 창극';
+    if (p.id === 'start') drawQR();
+    lastPage = i;
+    if (!keep) jump();
+  }
+  function jump() {
+    var s = hashParts().sub === 'sheet' && document.getElementById('sheet');
+    if (s) s.scrollIntoView({ block: 'start' }); else window.scrollTo(0, 0);
+  }
+  function go(d) { var i = cur() + d; if (i >= 0 && i < PAGES.length) location.hash = PAGES[i].id; }
+  window.addEventListener('hashchange', function () {
+    closeSide();
+    if (cur() === lastPage) { jump(); return; } // 같은 장 안에서 학습지로 이동할 때는 다시 그리지 않아요(영상·입력 유지)
+    stopVideos(); route(); view.focus({ preventScroll: true });
+  });
+
+  function drawQR() {
+    var d = document.getElementById('qrBox'), box = document.getElementById('qrImg'); if (!d || !box) return;
+    var draw = function () {
+      if (!d.open || box.firstChild) return;
+      if (typeof QRCode === 'undefined') { box.textContent = 'QR 코드를 불러오지 못했어요. 옆의 주소를 칠판에 적어 주세요.'; return; }
+      new QRCode(box, { text: SHARE_URL, width: 200, height: 200, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    };
+    d.addEventListener('toggle', draw); draw();
+  }
+
+  /* ---------- 입력 ---------- */
+  function refreshCount() {
+    var i = cur(), p = PAGES[i]; if (!p.ch) return;
+    var n = p.ch.qs.filter(answered).length;
+    var c = document.getElementById('cnt'); if (c) c.textContent = n + ' / ' + p.ch.qs.length;
+    var sl = nav.querySelector('.subl.here span'); if (sl) sl.textContent = n + '/' + p.ch.qs.length;
+    var a = nav.querySelector('a.on'); if (a) { var dot = a.querySelector('.dot'), all = n === p.ch.qs.length;
+      if (all && !dot) a.insertAdjacentHTML('beforeend', '<em class="dot" title="학습지 다 씀"></em>'); else if (!all && dot) dot.remove(); }
+  }
+  function onInput(e) {
+    var el = e.target, id = el.getAttribute && el.getAttribute('data-q'), q = id && QBY[id]; if (!q) return;
+    if (q.type === 'multi') state.a[id] = Array.prototype.map.call(view.querySelectorAll('input[data-q="' + id + '"]:checked'), function (x) { return x.value; });
+    else state.a[id] = el.value;
+    save(); refreshCount();
+  }
+  view.addEventListener('input', onInput);
+  view.addEventListener('change', function (e) {
+    onInput(e);
+    var id = e.target.getAttribute && e.target.getAttribute('data-q'), q = id && QBY[id];
+    if (q && marking() && q.type !== 'text') {
+      var box = document.getElementById('q-' + id), c = PAGES[cur()].ch;
+      if (box && c) { var t = document.createElement('div'); t.innerHTML = qHTML(q, c.qs.indexOf(q) + 1); box.replaceWith(t.querySelector('.q')); }
+    }
+  });
+  function stopVideos() {
+    Array.prototype.forEach.call(document.querySelectorAll('.vid.playing'), function (f) {
+      var fr = f.querySelector('iframe'); if (fr) fr.remove(); f.classList.remove('playing'); f.querySelector('.vid-play').hidden = false;
+    });
+  }
+  function selectTab(t, focus) {
+    var list = t.parentNode;
+    Array.prototype.forEach.call(list.querySelectorAll('[role=tab]'), function (b) {
+      var on = b === t; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1;
+      var pn = document.getElementById(b.getAttribute('aria-controls')); if (pn) pn.hidden = !on;
+    });
+    if (focus) t.focus();
+  }
+  view.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('button') : null; if (!t) return;
+    if (t.getAttribute('role') === 'tab') { selectTab(t); return; }
+    if (t.classList.contains('vid-play')) {
+      stopVideos();
+      var f = t.parentNode, id = f.getAttribute('data-yt'), st = +f.getAttribute('data-start') || 0, en = +f.getAttribute('data-end') || 0;
+      var fr = document.createElement('iframe');
+      fr.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(id) + '?autoplay=1&rel=0&playsinline=1' + (st ? '&start=' + st : '') + (en ? '&end=' + en : '');
+      fr.title = t.getAttribute('aria-label') || '영상'; fr.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen'; fr.allowFullscreen = true;
+      t.hidden = true; f.insertBefore(fr, f.firstChild); f.classList.add('playing'); return;
+    }
+    if (t.parentNode && t.parentNode.classList && t.parentNode.classList.contains('guess')) {
+      Array.prototype.forEach.call(t.parentNode.querySelectorAll('button'), function (b) { b.setAttribute('aria-pressed', String(b === t)); }); return;
+    }
+    if (t.classList.contains('reveal')) { var open = t.getAttribute('aria-pressed') !== 'true'; t.setAttribute('aria-pressed', String(open)); t.textContent = open ? t.getAttribute('data-a') : '장단은?'; return; }
+    if (t.id === 'btnAns') { showAns = !showAns; route(true); var s = document.getElementById('sheet'); if (s) s.scrollIntoView({ block: 'start' }); return; }
+    if (t.id === 'btnSubmit') doSubmit();
+  });
+  view.addEventListener('keydown', function (e) {
+    var t = e.target; if (!t || t.getAttribute('role') !== 'tab') return;
+    var tabs = Array.prototype.slice.call(t.parentNode.querySelectorAll('[role=tab]')), k = tabs.indexOf(t), n = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') n = (k + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') n = (k - 1 + tabs.length) % tabs.length;
+    else if (e.key === 'Home') n = 0; else if (e.key === 'End') n = tabs.length - 1;
+    if (n !== null) { e.preventDefault(); e.stopPropagation(); selectTab(tabs[n], true); }
+  });
+  document.addEventListener('classroom:away', stopVideos);
+
+  /* ---------- 틀: 목차·수업 모드·글자 크기 ---------- */
+  var side = document.getElementById('side'), burger = document.getElementById('burger'), scrim = document.getElementById('scrim');
+  var mq = window.matchMedia('(max-width: 820px)');
+  // 목차가 실제로 보이는지에 맞춰 키보드·스크린리더 접근과 aria-expanded를 맞춰요
+  function syncSide() {
+    var hidden = mq.matches ? !body.classList.contains('side-open') : body.classList.contains('side-closed');
+    side.inert = hidden; if (hidden) side.setAttribute('aria-hidden', 'true'); else side.removeAttribute('aria-hidden');
+    burger.setAttribute('aria-expanded', String(!hidden));
+  }
+  function closeSide() { body.classList.remove('side-open'); scrim.hidden = true; syncSide(); }
+  if (mq.addEventListener) mq.addEventListener('change', syncSide); else if (mq.addListener) mq.addListener(syncSide);
+  burger.addEventListener('click', function () {
+    if (!mq.matches && body.classList.contains('side-closed')) { body.classList.remove('side-closed'); syncSide(); return; }
+    var on = !body.classList.contains('side-open');
+    body.classList.toggle('side-open', on); scrim.hidden = !on; syncSide();
+    if (on) { var a = side.querySelector('a.on') || side.querySelector('a'); if (a) a.focus(); }
+  });
+  scrim.addEventListener('click', closeSide);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && body.classList.contains('side-open')) { closeSide(); burger.focus(); } });
+
+  var FS_MIN = 15, FS_MAX = 30, fs = 0, fsBeforeClass = 0;
+  try { fs = +localStorage.getItem(FS_KEY) || 0; } catch (e) {}
+  function setFs(v, keep) {
+    fs = Math.max(FS_MIN, Math.min(FS_MAX, v));
+    root.style.setProperty('--fs', fs + 'px');
+    if (!keep) { try { localStorage.setItem(FS_KEY, String(fs)); } catch (e) {} }
+  }
+  function baseFs() { return fs || parseFloat(getComputedStyle(root).fontSize) || 19; }
+  if (fs) setFs(fs, true);
+  document.getElementById('btnSmall').addEventListener('click', function () { setFs(baseFs() - 1); });
+  document.getElementById('btnBig').addEventListener('click', function () { setFs(baseFs() + 1); });
+
+  var btnClass = document.getElementById('btnClass'), classOn = false;
+  function setClass(on) {
+    classOn = on;
+    if (on) closeSide();
+    body.classList.toggle('class-mode', on); body.classList.toggle('side-closed', on);
+    btnClass.textContent = on ? '수업 모드 끄기' : '수업 모드 켜기'; btnClass.setAttribute('aria-pressed', String(on));
+    syncSide(); if (on) burger.focus();
+    if (on) {
+      fsBeforeClass = fs; setFs(Math.max(baseFs(), 24), true);
+      try { if (!document.fullscreenElement && root.requestFullscreen) root.requestFullscreen().catch(function () {}); } catch (e) {}
+    } else {
+      if (fsBeforeClass) setFs(fsBeforeClass, true); else { fs = 0; root.style.removeProperty('--fs'); }
+      try { if (document.fullscreenElement) Promise.resolve(document.exitFullscreen()).catch(function () {}); } catch (e) {}
+    }
+  }
+  btnClass.setAttribute('aria-pressed', 'false');
+  btnClass.addEventListener('click', function () { setClass(!classOn); });
+  document.getElementById('btnFull').addEventListener('click', function () {
+    var fail = function () { toast('이 기기에서는 전체 화면을 쓸 수 없어요.'); };
+    try { Promise.resolve(document.fullscreenElement ? document.exitFullscreen() : root.requestFullscreen()).catch(fail); } catch (e) { fail(); }
+  });
+
+  // 본문 바로가기: 주소(#view)를 바꾸면 첫 화면으로 가 버리니 초점만 옮겨요
+  document.querySelector('.skip').addEventListener('click', function (e) { e.preventDefault(); view.focus(); });
+  // 지금 주소와 같은 목차 링크를 다시 눌러도(예: 학습지) 그 자리로 이동하고 목차를 닫아요
+  nav.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('a') : null;
+    if (a && a.getAttribute('href') === location.hash) { e.preventDefault(); closeSide(); jump(); }
+  });
+  syncSide();
+
+  document.getElementById('prev').addEventListener('click', function () { go(-1); });
+  document.getElementById('next').addEventListener('click', function () { go(1); });
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|TEXTAREA|SELECT)$/.test((t && t.tagName) || '') || (t && t.getAttribute && t.getAttribute('role') === 'tab')) return;
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') go(1); else if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(-1);
+  });
+
+  route();
+})();
