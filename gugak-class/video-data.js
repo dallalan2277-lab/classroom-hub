@@ -25,7 +25,7 @@ window.PERFORMANCE_VIDEO = {
     { "id": "14", "name": "편경", "start": 1054, "listen": [1075, 1088] },
     { "id": "15", "name": "운라", "start": 1088, "listen": [1100, 1120] },
     { "id": "16", "name": "박", "start": 1123, "listen": [1133, 1137] },
-    { "id": "17", "name": "축", "start": 1137, "listen": [1148, 1157] },
+    { "id": "17", "name": "축", "start": 1137, "listen": [1148, 1156] },
     { "id": "18", "name": "어", "start": 1157, "listen": [1170, 1191] },
     { "id": "19", "name": "부", "start": 1157, "listen": [1194, 1210] },
     { "id": "20", "name": "장구", "start": 1210, "listen": [1218, 1238] }
