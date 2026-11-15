@@ -115,6 +115,20 @@ code{font-size:.75rem;word-break:break-all;background:var(--paper);padding:.2rem
 .vid figcaption em{font-style:normal;color:var(--red);margin-top:.15rem}
 .lesson>.vid{max-width:36rem;margin:1rem 0}
 
+/* 다섯 마당 이야기 카드 */
+.stories{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(min(16rem,100%),1fr));margin:.6rem 0 1.2rem}
+.story{background:var(--card);border:1px solid var(--line);border-left:6px solid var(--c);border-radius:6px 14px 14px 6px;padding:.8rem .9rem;display:grid;gap:.35rem;align-content:start}
+.story header{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap}
+.story header b{font-family:'Gowun Batang',serif;font-size:1.35rem;color:var(--c)}
+.story header small{font-size:.72rem;color:var(--muted)}
+.story .one{margin:0;font-size:.92rem}
+.story .hook{margin:0;font-size:.85rem;background:var(--paper2);border-radius:8px;padding:.35rem .55rem}
+.story details summary{font-size:.85rem;color:var(--c);margin-top:.2rem}
+.story details h4{font-family:'Noto Sans KR',sans-serif;font-size:.78rem;color:var(--muted);margin:.7rem 0 .15rem}
+.story details p,.story details li{font-size:.88rem;margin:0}
+.story details ul{margin:0;padding-left:1.1rem}
+.story .care{margin-top:.6rem!important;background:#fff6d9;border-radius:8px;padding:.4rem .55rem;font-size:.82rem!important}
+
 /* 다섯 마당 */
 .madang{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));margin:.6rem 0 1rem}
 .md{background:var(--card);border:1px solid var(--line);border-top:6px solid var(--c);border-radius:6px 6px 14px 14px;padding:.8rem;display:grid;gap:.35rem;align-content:start}
@@ -141,7 +155,7 @@ details.more .vid{max-width:36rem}
 .t-plan{background:#fff6d9;border:1px solid var(--yellow);border-radius:12px;padding:.7rem .9rem;font-size:.88rem;margin:1rem 0 0}
 .md h4{font-size:1rem}
 .md p{margin:0 0 .3rem;font-size:.85rem;color:var(--muted);min-height:2.9em}
-.c-chun{--c:var(--red)}.c-heung{--c:#a8760a}.c-su{--c:var(--blue)}.c-sim{--c:var(--green)}.c-jeok{--c:var(--navy)}
+.c-chun{--c:var(--red)}.c-heung{--c:#8a5f00}.c-su{--c:var(--blue)}.c-sim{--c:var(--green)}.c-jeok{--c:var(--navy)}
 .tempo{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin:.4rem 0;font-size:.8rem;color:var(--muted)}
 .tempo i{font-style:normal;font-weight:700;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.25rem .7rem;position:relative;margin-right:.9rem}
 .tempo i::after{content:'→';position:absolute;right:-1.05rem;color:var(--muted);font-weight:400}

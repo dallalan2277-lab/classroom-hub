@@ -98,6 +98,15 @@
       if (kind === 'stage') return STAGE[p[0]] || '';
       if (kind === 'madang') return '<article class="md ' + esc(p[5]) + '"><header><b>' + esc(p[0]) + '</b><button type="button" class="jd reveal" data-a="' + esc(p[2]) + '" aria-pressed="false">장단은?</button></header><h4>' + esc(p[1]) + '</h4><p>' + esc(p[3]) + '</p>' +
         '<div class="guess" role="group" aria-label="빠르기 짐작(점수 없음)"><span>짐작:</span><button type="button" aria-pressed="false">느릴 것 같아요</button><button type="button" aria-pressed="false">빠를 것 같아요</button></div>' + vidHTML(p[4]) + '</article>';
+      if (kind === 'story') {
+        var st = (DATA.STORIES || {})[p[0]]; if (!st) return '';
+        return '<article class="story ' + esc(st.c) + '"><header><b>' + esc(st.name) + '</b><small>' + esc(st.who) + '</small></header>' +
+          '<p class="one">' + esc(st.one) + '</p><p class="hook">✨ ' + esc(st.hook) + '</p>' +
+          '<details><summary>' + esc(st.name) + ' 이야기 더 보기</summary><h4>줄거리</h4><p>' + esc(st.story) + '</p>' +
+          '<h4>주제</h4><ul>' + st.theme.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
+          '<h4>대표 대목은 어디쯤?</h4><p>' + st.scene + '</p>' +
+          (st.care ? '<p class="care">💡 ' + esc(st.care) + '</p>' : '') + '</details></article>';
+      }
       if (kind === 'now') return '<article class="nw"><span class="from">' + esc(p[1]) + '</span>' + vidHTML(p[0]) + '</article>';
       return '';
     });
@@ -132,11 +141,12 @@
       '<a class="go" href="#' + CH[0].id + '">수업 시작하기 →</a></section>' +
       '<section class="flow"><h2>오늘의 순서</h2><ol>' + CH.map(function (c) { return '<li><a href="#' + c.id + '"><b>' + esc(c.title) + '</b><small>' + esc(c.time) + ' · 학습지 ' + c.qs.length + '문항</small></a></li>'; }).join('') +
       '<li><a href="#submit"><b>제출하기</b><small>채점하고 선생님께 보내기</small></a></li></ol>' +
-      (TEACHER ? '<p class="t-plan">👩‍🏫 <b>선생님 안내</b> 45분 1차시 기준이에요. 2차시로 나눌 때는 <b>' + esc(CH.filter(function (c) { return c.split; }).map(function (c) { return c.title; }).join(', ')) + '</b> 장 뒤에서 끊고, 둘째 시간은 사랑가를 다시 짧게 들으며 시작해요. 학생 답은 각자 기기에 남으므로 둘째 시간에도 같은 기기·같은 브라우저로 들어오게 해 주세요. 제출은 마지막에 한 번 해요.</p>' : '') +
+      (TEACHER ? '<p class="t-plan">👩‍🏫 <b>선생님 안내</b> 다섯 마당 이야기가 들어가 <b>2차시(45분×2)</b> 기준이에요. 첫째 시간은 <b>' + esc(CH.filter(function (c) { return c.split; }).map(function (c) { return c.title; }).join(', ')) + '</b> 장까지 하고, 둘째 시간은 사랑가를 다시 짧게 들으며 시작해요. 학생 답은 각자 기기에 남으므로 둘째 시간에도 같은 기기·같은 브라우저로 들어오게 해 주세요. 제출은 마지막에 한 번 해요.</p>' : '') +
       '<p class="how">장마다 위쪽은 <b>수업 화면</b>, 아래쪽은 <b>✎ 학습지</b>예요. 쓴 답은 이 기기에 저절로 저장돼요. 영상은 이 화면 안에서 재생돼요.</p></section>' +
       '<details class="qr" id="qrBox"' + (TEACHER ? ' open' : '') + '><summary>📱 학생용 QR 코드</summary><div class="qr-body"><div id="qrImg" aria-label="학생용 주소 QR 코드"></div><div><p>휴대폰·태블릿 카메라로 비추면 이 수업이 열려요. 학년·반·번호와 이름을 넣고 시작해요.</p><code>' + esc(SHARE_URL) + '</code></div></div></details>' +
       '<details class="src"><summary>영상과 자료 출처</summary><ul>' + Object.keys(V).map(function (k) { return '<li>' + esc(V[k].title) + ' — ' + esc(V[k].by) + ' (YouTube)</li>'; }).join('') +
-      '<li>내용: 중학교 음악 교과서 "판소리와 창극" 단원. 대목마다 붙인 장면 설명, 추임새의 예, 발림의 부채, 비교표의 일부 표현은 교과서에 없는 내용으로, 이 수업을 위해 덧붙였어요. 그림은 이 수업을 위해 새로 그린 단순 그림이에요.</li></ul></details>';
+      '<li>내용: 중학교 음악 교과서 "판소리와 창극" 단원. 대목마다 붙인 장면 설명, 추임새의 예, 발림의 부채, 비교표의 일부 표현은 교과서에 없는 내용으로, 이 수업을 위해 덧붙였어요. 그림은 이 수업을 위해 새로 그린 단순 그림이에요.</li>' +
+      '<li>다섯 마당 이야기 카드(교과서 밖 내용): <a href="https://www.gugak.go.kr/ency/" target="_blank" rel="noopener">국립국악원 국악사전</a>, <a href="https://encykorea.aks.ac.kr/" target="_blank" rel="noopener">한국민족문화대백과사전</a>을 참고해 정리했어요.</li></ul></details>';
   }
   function chapterHTML(c, idx) {
     return '<section class="lesson"><p class="eyebrow">' + (idx + 1) + ' / ' + CH.length + ' · ' + esc(c.time) + '</p><h1>' + esc(c.title) + '</h1><p class="lead">' + esc(c.lead) + '</p>' + build(c.lesson) + '</section>' + sheetHTML(c);
