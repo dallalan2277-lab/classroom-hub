@@ -139,7 +139,7 @@ document.addEventListener('click',event=>{
  if(b.dataset.timer){timer.seconds=Number(b.dataset.timer);timer.running=false;clearInterval(timerHandle);paintTimer();return;}
  const action=b.dataset.action;
  if(action==='sidebar-toggle'){state.sidebarCollapsed=!state.sidebarCollapsed;applySidebarState();if(!state.sidebarCollapsed)drawNav();persist();return;}
- if(action==='class-qr'){openModal('음악극 수업 QR',`<div class="qr-presentation"><p>휴대폰·태블릿 카메라로 스캔하세요.</p><div class="ws-qr-modal" id="wsQrModal" role="img" aria-label="음악극 탐험대 학생용 QR코드"></div><h3>음악극 탐험대</h3><a href="${CLASS_URL}" target="_blank" rel="noopener noreferrer">${CLASS_URL.replace('https://','')}</a><button class="primary green" data-action="close-modal">수업 화면으로 ${icon('arrow')}</button></div>`);window.StageWS&&window.StageWS.drawModalQR();return;}
+ if(action==='class-qr'){if(window.QrDock)window.QrDock.toggle();return;}
  if(action==='close-modal'){closeModal();return;}
  if(action==='guide'){openGuide();return;}
  if(action==='sources'){openSources();return;}

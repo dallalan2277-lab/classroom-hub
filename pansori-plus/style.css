@@ -66,9 +66,6 @@ body.side-closed #burger { display: block; }
   body.side-open #side { transform: none; box-shadow: 0 0 40px rgba(0, 0, 0, .5); }
   main { margin-left: 0; }
   #burger { display: block; }
-  #view { padding-top: 56px; }
-  /* 위쪽 띠: 목차 버튼·이름 칩이 글 위에 떠 보이지 않게 */
-  body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 20; background: rgba(20, 17, 14, .92); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
 }
 /* 목차가 겹쳐 열려 있을 때는 버튼이 목차 제목을 가리지 않게 숨겨요(바깥을 누르거나 Esc로 닫기) */
 body.side-open #burger { display: none; }
