@@ -140,4 +140,58 @@ assert.strictEqual(run('doGet')({parameter: {dash: 'nope', format: 'json'}}).ok,
 const html = run('doGet')({parameter: {dash: key}}).h;
 const inline = html.match(/<script>([\s\S]*)<\/script>/)[1];
 new vm.Script(inline);
+// 6) 신호 순서·재전송·제출 상태 지키기 (2026-11-18)
+{
+  const T = sec => new Date(Date.UTC(2026, 10, 18, 1, 0, sec)).toISOString();
+  const b2 = {v: 1, ws: 'order-test', title: '순서 시험', sid: 'q1', num: '10705', name: '가나다', away: 0};
+  const row = () => statusRows().find(r => r[0] === 'order-test' && r[2] === '10705');
+  const full = () => sheets['현황'].getRange(1, 1, sheets['현황'].getLastRow(), 9).getDisplayValues();
+  const logCount = () => logRows().length;
+  assert.deepStrictEqual(post({...b2, t: T(1), type: 'start'}), {ok: true});
+  // 복귀(3초)가 자리 비움(2초)보다 먼저 도착
+  post({...b2, t: T(3), type: 'back', away: 1, data: {seconds: 1}});
+  let n = logCount();
+  assert.deepStrictEqual(post({...b2, t: T(2), type: 'away', away: 1, data: {reason: 'hidden'}}), {ok: true});
+  assert.strictEqual(row()[4], '풀이 중', 'late away must not overwrite back');
+  assert.strictEqual(logCount(), n + 1, 'late away still logged');
+  assert(/늦게 도착/.test(logRows()[logRows().length - 1][6]));
+  // 같은 신호 재전송 → 한 번만 기록
+  n = logCount();
+  assert.deepStrictEqual(post({...b2, t: T(3), type: 'back', away: 1, data: {seconds: 1}}), {ok: true, dup: true});
+  assert.strictEqual(logCount(), n, 'duplicate not logged');
+  // 제출 뒤 자리 비움·복귀 → '제출함' 유지, 이탈 횟수는 늘어남
+  post({...b2, t: T(4), type: 'submit', away: 1, data: {score: 5, total: 6, minutes: 3, attempt: 1, wrong: [], answers: {}}});
+  post({...b2, t: T(5), type: 'away', away: 2, data: {reason: 'blur'}});
+  assert.strictEqual(row()[4], '제출함'); assert.strictEqual(row()[5], '2'); assert.strictEqual(row()[7], '5');
+  post({...b2, t: T(6), type: 'back', away: 2, data: {seconds: 4}});
+  assert.strictEqual(row()[4], '제출함');
+  // 다른 세션(다른 기기·새 로그인)은 기기 시각이 더 이르더라도 반영
+  post({...b2, sid: 'q2', t: T(0), type: 'start'});
+  assert.strictEqual(row()[4], '풀이 중');
+  assert.strictEqual(full()[0][8], '마지막 신호(순서 확인용)');
+  // 예전 시트(머리글 8칸·순서 칸 비어 있음)도 그대로 동작, setup 다시 실행 가능
+  sheets['현황']._cells.forEach(r => { if (r) r[8] = ''; });
+  assert.deepStrictEqual(post({...b2, sid: 'q2', t: T(1), type: 'away', away: 1, data: {reason: 'hidden'}}), {ok: true});
+  assert.strictEqual(row()[4], '자리 비움');
+  assert.strictEqual(full()[0][8], '마지막 신호(순서 확인용)', 'header filled in lazily');
+  sheets['현황']._cells[0][8] = '';
+  run('setup()');
+  // 예전 현황판이 준 8칸짜리 되돌리기 줄도 받아들임
+  const del = run('dashboardDelete')(key, 'order-test', [{num: '10705', name: '가나다'}], false);
+  assert.strictEqual(run('dashboardRestore')(key, del.removed.map(r => r.slice(0, 8))).restored, 1);
+  // 다시 제출: 나중 제출(7초)이 먼저 도착하면 늦게 온 앞 제출(6.5초 → 6초로 표기)이 점수를 덮지 않음
+  const b3 = {...b2, sid: 'q3', num: '10706'};
+  const row3 = () => statusRows().find(r => r[0] === 'order-test' && r[2] === '10706');
+  post({...b3, t: T(5), type: 'start'});
+  post({...b3, t: T(7), type: 'submit', away: 0, data: {score: 6, total: 6, minutes: 3, attempt: 2, wrong: [], answers: {}}});
+  post({...b3, t: T(6), type: 'submit', away: 0, data: {score: 2, total: 6, minutes: 2, attempt: 1, wrong: [], answers: {}}});
+  assert.strictEqual(row3()[4], '제출함'); assert.strictEqual(row3()[7], '6', 'newer score kept');
+  assert.strictEqual(sheets['제출'].getLastRow(), 4, 'both submissions logged');
+  // 칸이 8개뿐인 현황 시트도 저장·조회됨
+  const fake = {getMaxColumns: () => 8, insertColumnsAfter: (_, n) => { fake.added = n; }};
+  run('ensureColumns_')(fake, 9); assert.strictEqual(fake.added, 1);
+  // 머리글이 너무 짧은(다른 자료) 시트는 setup이 거절
+  sheets['현황']._cells[0].splice(5);
+  assert.throws(() => run('setup()'), /머리글/);
+}
 console.log('hub harness: all checks passed');

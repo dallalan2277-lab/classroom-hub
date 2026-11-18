@@ -25,7 +25,7 @@ const PROP_TEACHER_KEY_ = 'HUB_TEACHER_KEY';
 const HEADERS_LOG_ = ['서버시각', '학습지', '학번', '이름', '종류', '누적 이탈', '세부', '세션'];
 const HEADERS_SUBMIT_ = ['서버시각', '학습지', '학번', '이름', '점수', '만점', '이탈 횟수',
   '걸린 시간(분)', '제출 차수', '틀린 문항', '답안(JSON)', '세션'];
-const HEADERS_STATUS_ = ['학습지', '제목', '학번', '이름', '상태', '누적 이탈', '마지막 소식 시각', '점수'];
+const HEADERS_STATUS_ = ['학습지', '제목', '학번', '이름', '상태', '누적 이탈', '마지막 소식 시각', '점수', '마지막 신호(순서 확인용)'];
 
 // ---------------------------------------------------------------------------
 // 설치
@@ -43,13 +43,16 @@ function setup() {
     const specs = [
       [SHEET_LOG, HEADERS_LOG_, [160, 140, 80, 90, 70, 80, 220, 260]],
       [SHEET_SUBMIT, HEADERS_SUBMIT_, [160, 140, 80, 90, 60, 60, 80, 100, 80, 200, 420, 260]],
-      [SHEET_STATUS, HEADERS_STATUS_, [140, 200, 80, 90, 90, 80, 160, 60]]
+      [SHEET_STATUS, HEADERS_STATUS_, [140, 200, 80, 90, 90, 80, 160, 60, 260]]
     ];
     specs.forEach(function (spec) {
       const sheet = book.getSheetByName(spec[0]);
       if (sheet && sheet.getLastRow() > 0) {
+        // 나중에 뒤쪽에 새 칸을 더한 경우(예전 시트는 그 칸이 비어 있음)도 받아들여요.
         const header = sheet.getRange(1, 1, 1, spec[1].length).getDisplayValues()[0];
-        if (header.join('\t') !== spec[1].join('\t')) {
+        while (header.length && header[header.length - 1] === '') header.pop();
+        const shortest = spec[1].length - (spec[0] === SHEET_STATUS ? 1 : 0);
+        if (header.length < shortest || header.join('\t') !== spec[1].slice(0, header.length).join('\t')) {
           throw new Error(spec[0] + ' 시트의 머리글이 달라요. 다른 자료가 있는 시트인지 확인하세요.');
         }
       }
@@ -167,17 +170,21 @@ function handle_(contents) {
     }
 
     serverTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+    // 같은 신호를 다시 받았거나(재전송) 더 나중 신호보다 늦게 도착했는지 먼저 봐요.
+    const current = findStatus_(status, request);
+    const order = eventOrder_(current.row, request);
+    if (order === 'dup') return {ok: true, dup: true};
     sendAlert = Boolean(ALERT_EMAIL) && request.type === 'away' && request.away === ALERT_AT &&
       !hasAlertRecord_(log, request);
     const details = eventDetails_(request);
     appendRow_(log, [serverTime, request.ws, request.num, request.name, details.kind,
-      request.away, details.text, request.sid]);
+      request.away, details.text + (order === 'late' ? ' (늦게 도착해 현황에는 반영 안 함)' : ''), request.sid]);
     if (request.type === 'submit') {
       const d = request.data;
       appendRow_(submissions, [serverTime, request.ws, request.num, request.name, d.score, d.total,
         request.away, d.minutes, d.attempt, d.wrong.join(', '), request.answersJson, request.sid]);
     }
-    upsertStatus_(status, request, serverTime);
+    if (order !== 'late' || request.type === 'submit') writeStatus_(status, current, request, serverTime, order);
     SpreadsheetApp.flush();
   } catch (error) {
     console.error('학습지 기록 실패: ' + error.message);
@@ -311,19 +318,62 @@ function hasAlertRecord_(sheet, request) {
   });
 }
 
-// (학습지, 학번, 이름)이 같은 행을 갱신하고, 없으면 새로 만들어요.
-function upsertStatus_(sheet, request, serverTime) {
-  const count = sheet.getLastRow() - 1;
-  const rows = count > 0 ? sheet.getRange(2, 1, count, HEADERS_STATUS_.length).getDisplayValues() : [];
+// (학습지, 학번, 이름)이 같은 현황 줄을 찾아요. 머리글 줄도 같은 호출로 읽어 '마지막 신호' 칸 머리글이 비었는지 봐요.
+function findStatus_(sheet, request) {
+  ensureColumns_(sheet, HEADERS_STATUS_.length);
+  const last = sheet.getLastRow();
+  const all = last > 0 ? sheet.getRange(1, 1, last, HEADERS_STATUS_.length).getDisplayValues() : [];
+  const headerMissing = all.length > 0 && all[0][HEADERS_STATUS_.length - 1] === '';
+  const rows = all.slice(1);
   const index = rows.findIndex(function (row) {
     return row[0] === request.ws && row[2] === request.num && row[3] === request.name;
   });
-  const rowNumber = index < 0 ? sheet.getLastRow() + 1 : index + 2;
-  const state = request.type === 'away' ? '자리 비움' : request.type === 'submit' ? '제출함' : '풀이 중';
-  const previousScore = index < 0 || rows[index][7] === '' ? '' : Number(rows[index][7]);
+  return {index: index, row: index < 0 ? null : rows[index], lastRow: last, headerMissing: headerMissing};
+}
+
+// 마지막 신호 칸: "세션 기기시각 종류". 같은 세션(같은 기기·같은 로그인)의 신호끼리만 순서를 비교해요.
+//  'dup'  같은 신호를 또 받음(재전송) → 아무것도 쓰지 않음
+//  'late' 이미 반영한 신호보다 먼저 생긴 신호가 늦게 도착 → 기록에는 남기고 현황은 그대로
+//  'new'  그 밖
+function eventOrder_(row, request) {
+  if (!row) return 'new';
+  const mark = String(row[HEADERS_STATUS_.length - 1] || '').split(' ');
+  if (mark.length !== 3 || mark[0] !== request.sid) return 'new';
+  const before = Date.parse(mark[1]);
+  const now = Date.parse(request.t);
+  if (!Number.isFinite(before) || !Number.isFinite(now)) return 'new';
+  if (now === before && mark[2] === request.type) return 'dup';
+  return now < before ? 'late' : 'new';
+}
+
+// 현황 줄을 갱신하고, 없으면 새로 만들어요.
+// 이미 제출한 학생은 이탈·복귀가 와도 '제출함'을 지켜요(이탈 횟수만 늘어요).
+function writeStatus_(sheet, current, request, serverTime, order) {
+  if (current.headerMissing) {
+    sheet.getRange(1, HEADERS_STATUS_.length, 1, 1).setValues([[HEADERS_STATUS_[HEADERS_STATUS_.length - 1]]]);
+  }
+  const prev = current.row;
+  const rowNumber = current.index < 0 ? Math.max(current.lastRow, 1) + 1 : current.index + 2;
+  let state = request.type === 'away' ? '자리 비움' : request.type === 'submit' ? '제출함' : '풀이 중';
+  if (prev && prev[4] === '제출함' && (request.type === 'away' || request.type === 'back')) state = '제출함';
+  const previousScore = !prev || prev[7] === '' ? '' : Number(prev[7]);
   const score = request.type === 'submit' ? request.data.score : request.type === 'start' ? '' : previousScore;
-  const title = request.title || (index < 0 ? '' : rows[index][1]);
-  writeRow_(sheet, rowNumber, [request.ws, title, request.num, request.name, state, request.away, serverTime, score]);
+  const title = request.title || (prev ? prev[1] : '');
+  if (order === 'late') {
+    // 늦게 도착한 제출: 이미 '제출함'이면(더 나중 제출이 먼저 왔을 수 있음) 그대로 두고,
+    // 아니면 상태와 점수만 반영하고 나머지는 더 나중 신호 그대로 둬요.
+    if (prev[4] === '제출함') return;
+    writeRow_(sheet, rowNumber, [prev[0], title, prev[2], prev[3], '제출함',
+      /^\d+$/.test(prev[5]) ? Number(prev[5]) : prev[5], prev[6], score, prev[8]]);
+    return;
+  }
+  writeRow_(sheet, rowNumber, [request.ws, title, request.num, request.name, state, request.away, serverTime, score,
+    request.sid + ' ' + request.t + ' ' + request.type]);
+}
+
+// 시트 칸이 모자라면(예전에 칸을 줄여 둔 시트) 늘려요. 읽기 전에 불러야 범위 오류가 안 나요.
+function ensureColumns_(sheet, n) {
+  if (sheet.getMaxColumns() < n) sheet.insertColumnsAfter(sheet.getMaxColumns(), n - sheet.getMaxColumns());
 }
 
 function appendRow_(sheet, values) {
@@ -336,6 +386,7 @@ function writeRow_(sheet, rowNumber, values) {
     sheet.insertRowsAfter(sheet.getMaxRows(), Math.max(100, rowNumber - sheet.getMaxRows()));
     refreshRules_(sheet);
   }
+  ensureColumns_(sheet, values.length);
   const range = sheet.getRange(rowNumber, 1, 1, values.length);
   range.setNumberFormats([values.map(function (v) { return typeof v === 'number' ? '0' : '@'; })]);
   range.setValues([values.map(safeCell_)]);
@@ -387,6 +438,7 @@ function dashboardData(key) {
   const book = openBook_();
   if (!book) throw new Error('먼저 setup을 실행하세요.');
   const sheet = book.getSheetByName(SHEET_STATUS);
+  if (sheet) ensureColumns_(sheet, HEADERS_STATUS_.length);
   const count = sheet ? sheet.getLastRow() - 1 : 0;
   const rows = count > 0 ? sheet.getRange(2, 1, count, HEADERS_STATUS_.length).getDisplayValues() : [];
   return {
@@ -448,11 +500,13 @@ function dashboardRestore(key, rows) {
     });
     let restored = 0;
     rows.forEach(function (r) {
+      // 예전 현황판(8칸)에서 지운 줄도 되돌릴 수 있게 8칸이면 빈 칸을 하나 붙여요.
+      if (Array.isArray(r) && r.length === HEADERS_STATUS_.length - 1) r = r.concat(['']);
       if (!Array.isArray(r) || r.length !== HEADERS_STATUS_.length) return;
       const v = r.map(function (x) { return String(x == null ? '' : x).slice(0, 200); });
       if (!/^[a-z0-9-]{1,40}$/.test(v[0]) || existing[v[0] + '\u0000' + v[2] + '\u0000' + v[3]]) return;
       writeRow_(sheet, sheet.getLastRow() + 1, [v[0], v[1], v[2], v[3], v[4],
-        /^\d+$/.test(v[5]) ? Number(v[5]) : v[5], v[6], /^\d+$/.test(v[7]) ? Number(v[7]) : v[7]]);
+        /^\d+$/.test(v[5]) ? Number(v[5]) : v[5], v[6], /^\d+$/.test(v[7]) ? Number(v[7]) : v[7], v[8]]);
       restored++;
     });
     SpreadsheetApp.flush();

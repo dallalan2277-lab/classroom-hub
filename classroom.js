@@ -11,6 +11,8 @@
  * 하는 일
  *  1) 처음 들어오면 학년·반·번호(골라서 → 학번 10712 모양)와 이름을 받아요(같은 기기에서는 다시 묻지 않아요).
  *  2) 다른 탭·앱으로 가거나 창 밖을 3초 넘게 누르면 '자리 비움'을 허브로 보내고, 돌아오면 경고를 보여 줘요.
+ *     학습지 화면으로 돌아와 창을 누르거나 만지면 '복귀'는 저절로 보내요(경고 창 버튼을 안 눌러도 돼요).
+ *     시작·자리 비움·복귀 신호는 차례대로 보내고, 실패하면 저장해 두었다가 다시 보내요.
  *  3) 학습지가 Classroom.submit({...})을 부르면 결과를 허브로 보내요.
  *
  * 학습지 코드에서 쓰는 것
@@ -92,39 +94,58 @@
     return JSON.stringify({v: 1, ws: WS, title: TITLE, type: type, sid: S.sid, num: S.num, name: S.name,
       t: new Date().toISOString(), away: S.away, data: data || {}});
   }
-  function post(text) {
-    return fetch(HUB, {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: text})
-      .then(function (r) { return r.json(); });
+  function post(text, signal) {
+    var opt = {method: 'POST', headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: text};
+    if (signal) opt.signal = signal;
+    return fetch(HUB, opt).then(function (r) { return r.json(); });
   }
-  // 화면이 가려지는 순간에는 sendBeacon(페이지가 숨겨져도 끝까지 보내짐)을 써요.
+  // 화면이 가려지는 순간에는 sendBeacon(페이지가 숨겨져도 끝까지 보내짐)으로 먼저 보내요.
+  // 서버 답을 알 수 없으니 같은 신호를 대기열에도 넣어 두고, 돌아오면 다시 보내요(허브가 같은 신호는 한 번만 기록해요).
   function beacon(text) {
     try { if (navigator.sendBeacon && navigator.sendBeacon(HUB, new Blob([text], {type: 'text/plain;charset=utf-8'}))) return; } catch (e) {}
     try { fetch(HUB, {method: 'POST', mode: 'no-cors', keepalive: true, headers: {'Content-Type': 'text/plain;charset=utf-8'}, body: text}); } catch (e) {}
   }
-  // 실패한 신호는 저장해 두었다가 다음 전송 때 다시 보내요(제출은 따로 결과를 알려요).
-  var flushing = false;
+  // 시작·자리 비움·복귀는 대기열에 넣고 맨 앞부터 하나씩 보내요(도착 순서가 뒤바뀌지 않게).
+  // 실패하면 15~20초 뒤 저절로 다시 보내요.
+  var flushing = false, flushTimer = null;
+  function later(ms) {
+    clearTimeout(flushTimer);
+    flushTimer = setTimeout(function () { flushTimer = null; flush(); }, ms);
+  }
   function flush() {
-    if (flushing || !ONLINE || !S.queue.length || !navigator.onLine) return;
+    if (flushing || !ONLINE || !S.queue.length) return;
+    if (document.hidden) return; // 숨겨진 동안은 sendBeacon이 맡고, 돌아오면 이어서 보내요.
+    if (navigator.onLine === false) { later(15000); return; }
     flushing = true;
-    var item = S.queue[0];
-    post(item).then(function (r) {
-      flushing = false;
-      // 보낸 그 항목이 아직 맨 앞에 있을 때만 지워요.
-      if (r && r.ok || r && r.error && !/잠시 후/.test(r.error)) { if (S.queue[0] === item) S.queue.shift(); save(); flush(); }
-      else setTimeout(flush, 15000);
-    }).catch(function () { flushing = false; setTimeout(flush, 15000); });
+    var item = S.queue[0], done = false;
+    var finish = function (r) {
+      if (done) return; done = true; flushing = false;
+      // 받아들여졌거나, 다시 보내도 소용없는 거절(형식 오류 등)이면 대기열에서 빼요.
+      if (r && (r.ok || r.error && !/잠시 후/.test(r.error))) {
+        if (r && !r.ok) console.warn('[classroom]', r.error);
+        var i = S.queue.indexOf(item); if (i >= 0) S.queue.splice(i, 1);
+        save(); flush();
+      } else later(15000 + Math.floor(Math.random() * 5000));
+    };
+    // 답이 오래 안 오면 실패로 보고 나중에 다시 보내요(같은 신호가 두 번 가도 허브가 한 번만 기록해요).
+    var ctl = null; try { ctl = new AbortController(); } catch (e) {}
+    var guard = setTimeout(function () { try { if (ctl) ctl.abort(); } catch (e) {} finish(null); }, 25000);
+    post(item, ctl && ctl.signal).then(function (r) { clearTimeout(guard); finish(r); }, function () { clearTimeout(guard); finish(null); });
   }
   function send(type, data, useBeacon) {
     if (!ONLINE) return;
     var text = body(type, data);
-    if (useBeacon) { beacon(text); return; }
-    post(text).then(function (r) {
-      if (!r || !r.ok) { if (r && r.error && !/잠시 후/.test(r.error)) console.warn('[classroom]', r.error); else queue(text); }
-      else flush();
-    }).catch(function () { queue(text); });
+    queue(text);
+    if (useBeacon && document.hidden) beacon(text);
+    flush();
   }
-  function queue(text) { if (S.queue.length < 30) S.queue.push(text); save(); }
+  function queue(text) {
+    S.queue.push(text);
+    if (S.queue.length > 30) S.queue.splice(0, S.queue.length - 30); // 너무 많이 쌓이면 오래된 것부터 버려요.
+    save();
+  }
   window.addEventListener('online', flush);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) flush(); });
 
   // ---- 화면 ----------------------------------------------------------------
   var css = '' +
@@ -229,41 +250,63 @@
   }
 
   // ---- 자리 비움 감지 -------------------------------------------------------
-  var warnOpen = false, blurTimer = null, tracking = false;
-  function markAway(reason) {
-    if (!tracking || warnOpen) return;
-    warnOpen = true; S.away++; S.awayAt = Date.now(); save(); renderChip();
-    try { document.dispatchEvent(new CustomEvent('classroom:away', {detail: {away: S.away}})); } catch (e) {}
-    send('away', {reason: reason}, true);
+  // S.awayAt: 자리를 비운 시각(아직 복귀를 보내지 않았으면 0이 아님). 복귀를 보내야 다음 자리 비움을 새로 세요.
+  var warn = null, blurTimer = null, tracking = false;
+  function warnText() {
+    return '지금까지 자리 비움 ' + S.away + '회가 기록되었어요' + (ONLINE ? ' (선생님께 전송됨)' : '') +
+      '. 학습을 마칠 때까지 이 화면에 머물러 주세요.';
+  }
+  function showWarn() {
+    if (warn) { warn.msg.textContent = warnText(); return; }
     var veil = el('div', 'cr-veil'), card = el('div', 'cr-card cr-warn');
     card.setAttribute('role', 'alertdialog'); card.setAttribute('aria-modal', 'true');
     card.appendChild(el('h2', null, '학습지 화면을 벗어났어요'));
-    card.appendChild(el('p', null, '지금까지 자리 비움 ' + S.away + '회가 기록되었어요' + (ONLINE ? ' (선생님께 전송됨)' : '') +
-      '. 학습을 마칠 때까지 이 화면에 머물러 주세요.'));
+    var msg = el('p', null, warnText()); card.appendChild(msg);
     var btn = el('button', null, '학습지로 돌아가기'); btn.type = 'button';
-    btn.addEventListener('click', function () {
-      veil.remove(); warnOpen = false;
-      if (S.awayAt) { send('back', {seconds: Math.max(0, Math.round((Date.now() - S.awayAt) / 1000))}); S.awayAt = 0; save(); }
-    });
+    btn.addEventListener('click', function () { veil.remove(); warn = null; markBack(); });
     card.appendChild(btn); veil.appendChild(card); document.body.appendChild(veil);
+    warn = {veil: veil, msg: msg};
     setTimeout(function () { btn.focus(); }, 50);
   }
+  function markAway(reason) {
+    if (!tracking || S.awayAt) return;
+    S.away++; S.awayAt = Date.now(); save(); renderChip();
+    try { document.dispatchEvent(new CustomEvent('classroom:away', {detail: {away: S.away}})); } catch (e) {}
+    send('away', {reason: reason}, true);
+    showWarn();
+  }
+  // 학습지로 돌아왔어요: 복귀를 보내요(경고 창은 학생이 닫을 때까지 남겨 둬요).
+  function markBack() {
+    if (!tracking || !S.awayAt) return;
+    var sec = Math.max(0, Math.round((Date.now() - S.awayAt) / 1000));
+    S.awayAt = 0; save();
+    send('back', {seconds: sec});
+  }
+  // 화면이 보이고 이 창에 초점이 있으면 돌아온 거예요. (화면 나누기로 옆 앱에 초점이 있으면 아직 아니에요.)
+  function backIfFocused() { if (!document.hidden && document.hasFocus()) markBack(); }
   // 새로고침·페이지 닫기는 자리 비움으로 세지 않아요.
   var leaving = false;
   window.addEventListener('pagehide', function () { leaving = true; });
   window.addEventListener('beforeunload', function () { leaving = true; });
   window.addEventListener('pageshow', function () { leaving = false; });
-  document.addEventListener('visibilitychange', function () { if (document.hidden && !leaving) markAway('hidden'); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { if (!leaving) markAway('hidden'); return; }
+    backIfFocused(); setTimeout(backIfFocused, 700);
+  });
   window.addEventListener('blur', function () {
     clearTimeout(blurTimer);
     blurTimer = setTimeout(function () {
       // 학습지 안의 영상(유튜브 등)을 누른 것은 이탈이 아니에요.
       var a = document.activeElement;
-      if (a && a.tagName === 'IFRAME') return;
+      if (leaving || a && a.tagName === 'IFRAME') return;
       if (!document.hasFocus() && !document.hidden) markAway('blur');
     }, 3000);
   });
-  window.addEventListener('focus', function () { clearTimeout(blurTimer); });
+  window.addEventListener('focus', function () { clearTimeout(blurTimer); backIfFocused(); });
+  // 학습지 화면을 직접 누르거나 키를 쓰면 확실히 돌아온 거예요.
+  ['pointerdown', 'touchstart', 'keydown'].forEach(function (t) {
+    window.addEventListener(t, function () { if (!document.hidden) markBack(); }, {capture: true, passive: true});
+  });
 
   // ---- 시작 ----------------------------------------------------------------
   var resolveReady;
@@ -289,7 +332,8 @@
       };
       if (data.score > data.total) data.total = data.score;
       if (TEACHER) { S.attempt = data.attempt; S.submitted = true; return Promise.resolve({ok: true, offline: true, teacher: true}); }
-      var finish = function () { S.attempt = data.attempt; S.submitted = true; S.awayAt = 0; save(); renderChip(); };
+      // 자리 비움 중이면(제출 답을 기다리다 나감) 복귀는 돌아왔을 때 따로 보내요.
+      var finish = function () { S.attempt = data.attempt; S.submitted = true; save(); renderChip(); };
       if (!ONLINE) { finish(); return Promise.resolve({ok: true, offline: true}); }
       return post(body('submit', data)).then(function (r) {
         if (r && r.ok) { finish(); flush(); return {ok: true}; }
@@ -306,7 +350,7 @@
     if (isNew) send('start');
     else {
       // 자리를 비운 채 새로고침했다면, 돌아온 것으로 알려요.
-      if (S.awayAt) { send('back', {seconds: Math.max(0, Math.round((Date.now() - S.awayAt) / 1000))}); S.awayAt = 0; save(); }
+      markBack();
       flush();
     }
     resolveReady({num: S.num, name: S.name});

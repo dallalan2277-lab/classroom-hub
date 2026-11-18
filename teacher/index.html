@@ -140,6 +140,7 @@ document.addEventListener('visibilitychange', keepAwake);
 $('startBtn').onclick = function () {
   try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) {}
   started = true; $('startCard').hidden = true; keepAwake(); beep(1);
+  setTimeout(evaluate, 600); // 시작 전부터 오래 비운 학생이 있으면 바로 알려요.
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
   render();
 };
@@ -173,14 +174,17 @@ function awayRows() {
   var now = parseTime(data.nowFull) + (Date.now() - receivedAt);
   return rowsToday().filter(function (r) { return r.state === '자리 비움'; }).map(function (r) {
     var sec = Math.max(0, Math.round((now - parseTime(r.last)) / 1000));
-    return {r: r, sec: isNaN(sec) ? 0 : sec, id: r.ws + '|' + r.num + '|' + r.name + '|' + r.away};
+    // 같은 학생이라도 자리를 비운 시각이 다르면 새 경고예요(다른 날·다른 로그인에서 횟수가 같아도 놓치지 않게).
+    return {r: r, sec: isNaN(sec) ? 0 : sec, id: r.ws + '|' + r.num + '|' + r.name + '|' + r.last};
   }).sort(function (a, b) { return b.sec - a.sec; });
 }
 function fmt(sec) { return sec < 60 ? sec + '초' : Math.floor(sec / 60) + '분 ' + (sec % 60) + '초'; }
 function evaluate() {
+  // '알림 시작'을 누르기 전에는 울린 것으로 표시하지 않아요(누르면 바로 울려요).
+  if (!started) return;
   var fresh = [];
   awayRows().forEach(function (a) { if (a.sec >= settings.threshold && !fired[a.id]) { fired[a.id] = 1; fresh.push(a); } });
-  if (!fresh.length || !started) return;
+  if (!fresh.length) return;
   beep(3);
   if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]);
   $('status').classList.remove('flash'); void $('status').offsetWidth; $('status').classList.add('flash');
