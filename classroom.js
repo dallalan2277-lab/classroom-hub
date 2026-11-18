@@ -221,7 +221,7 @@
     // 학번은 학년·반·번호를 골라서 만들어요. 1학년 7반 12번 → 10712 (학년 1자리 + 반 2자리 + 번호 2자리)
     var l1 = el('label', null, '학번'); l1.htmlFor = 'crGrade';
     var row = el('div', 'cr-row');
-    var pre = /^([1-3])(0[1-9])(0[1-9]|1\d|2[0-5])$/.exec(S.num) || [];
+    var pre = /^([1-3])(0[1-9])(0[1-9]|[12]\d|30)$/.exec(S.num) || [];
     function pick(id, max, unit, label, val) {
       var s = el('select'); s.id = id; s.setAttribute('aria-label', label);
       var o = el('option', null, label); o.value = ''; s.appendChild(o);
@@ -229,7 +229,7 @@
       if (val) s.value = String(Number(val));
       return s;
     }
-    var sg = pick('crGrade', 3, '학년', '학년', pre[1]), sc = pick('crClass', 9, '반', '반', pre[2]), sn = pick('crNo', 25, '번', '번호', pre[3]);
+    var sg = pick('crGrade', 3, '학년', '학년', pre[1]), sc = pick('crClass', 9, '반', '반', pre[2]), sn = pick('crNo', 30, '번', '번호', pre[3]);
     [sg, sc, sn].forEach(function (s) { row.appendChild(s); });
     var shown = el('p', 'cr-num');
     function numNow() { return sg.value && sc.value && sn.value ? sg.value + ('0' + sc.value).slice(-2) + ('0' + sn.value).slice(-2) : ''; }

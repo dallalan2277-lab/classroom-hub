@@ -469,8 +469,8 @@ function rosterData_(book) {
   return sheet.getRange(2, 1, Math.min(count, 2000), 2).getDisplayValues().map(function (r) {
     return {num: String(r[0]).replace(/[,\s]/g, ''), name: String(r[1]).trim().slice(0, 20)};
   }).filter(function (r) {
-    // 로그인 창에서 고를 수 있는 학번(1~3학년, 1~9반, 1~25번)만 받아요.
-    if (!/^[1-3]0[1-9](0[1-9]|1\d|2[0-5])$/.test(r.num) || seen[r.num]) return false;
+    // 로그인 창에서 고를 수 있는 학번(1~3학년, 1~9반, 1~30번)만 받아요.
+    if (!/^[1-3]0[1-9](0[1-9]|[12]\d|30)$/.test(r.num) || seen[r.num]) return false;
     seen[r.num] = true;
     return true;
   });
@@ -646,7 +646,7 @@ function dashboardHtml_(key) {
     'function drawCls(){var have={};data.rows.forEach(function(r){if(r.ws===picked&&clsOf(r.num))have[clsOf(r.num)]=1});(data.roster||[]).forEach(function(r){have[clsOf(r.num)]=1});' +
     'if(cls)have[cls]=1;var s=$("cls");s.textContent="";var o=document.createElement("option");o.value="";o.textContent="모든 반";s.appendChild(o);' +
     'Object.keys(have).sort().forEach(function(c){var o=document.createElement("option");o.value=c;o.textContent=clsName(c);if(c===cls)o.selected=true;s.appendChild(o)})}' +
-    'function seatN(){var n=Number(ls("hub:n:"+cls));return n>=1&&n<=25?n:25}' +
+    'function seatN(){var n=Number(ls("hub:n:"+cls));return n>=1&&n<=30?n:25}' +
     'function drawSeats(cur){var seat=view==="seat";$("seats").hidden=!seat;$("listWrap").hidden=seat;$("vList").className=seat?"":"on";$("vSeat").className=seat?"on":"";' +
     'var ros=cls?(data.roster||[]).filter(function(r){return clsOf(r.num)===cls}):[];$("seatNWrap").hidden=!seat||!cls||ros.length>0;$("noneBox").hidden=!seat||!cls;' +
     'if(!seat)return;var box=$("seats");box.textContent="";' +
@@ -687,7 +687,7 @@ function dashboardHtml_(key) {
     '$("ws").onchange=function(){picked=this.value;sel={};draw()};$("today").onchange=function(){sel={};draw()};' +
     '$("cls").onchange=function(){cls=this.value;ls("hub:cls",cls);sel={};fillN();draw()};' +
     '$("vList").onclick=function(){view="list";ls("hub:view",view);draw()};$("vSeat").onclick=function(){view="seat";ls("hub:view",view);draw()};' +
-    'function fillN(){var s=$("seatN");if(!s.options.length)for(var i=1;i<=25;i++){var o=document.createElement("option");o.value=String(i);o.textContent=i+"명";s.appendChild(o)}s.value=String(seatN())}fillN();' +
+    'function fillN(){var s=$("seatN");if(!s.options.length)for(var i=1;i<=30;i++){var o=document.createElement("option");o.value=String(i);o.textContent=i+"명";s.appendChild(o)}s.value=String(seatN())}fillN();' +
     '$("seatN").onchange=function(){ls("hub:n:"+cls,this.value);draw()};' +
     'var ALERT_URL="https://dallalan2277-lab.github.io/classroom-hub/teacher/#k="+encodeURIComponent(KEY);$("alertLink").href=ALERT_URL;' +
     '$("alertBtn").onclick=function(){$("alertBox").hidden=false;var q=$("qr");q.textContent="";if(window.QRCode)new QRCode(q,{text:ALERT_URL,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});else q.textContent="QR을 불러오지 못했어요. 아래 버튼을 쓰세요."};' +
