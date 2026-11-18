@@ -18,6 +18,7 @@ const ALERT_AT = 3;            // 한 학생이 한 학습지에서 이 횟수�
 const SHEET_LOG = '기록';      // 모든 신호(시작·이탈·복귀·제출)를 쌓는 시트
 const SHEET_SUBMIT = '제출';   // 제출 결과를 쌓는 시트
 const SHEET_STATUS = '현황';   // 학습지·학번·이름별 최신 상태
+const SHEET_ROSTER = '명단';   // (선택) A열 학번(10712 모양), B열 이름. 있으면 현황판 자리표에 이름과 '안 온 학생'을 보여 줘요.
 
 // 아래는 내부용이에요.
 const PROP_SHEET_ID_ = 'HUB_SPREADSHEET_ID';
@@ -69,6 +70,12 @@ function setup() {
       spec[2].forEach(function (width, index) { sheet.setColumnWidth(index + 1, width); });
       refreshRules_(sheet);
     });
+    // 명단 탭은 없을 때만 머리글과 함께 만들어요(선생님이 채운 명단은 건드리지 않아요).
+    if (!book.getSheetByName(SHEET_ROSTER)) {
+      const roster = book.insertSheet(SHEET_ROSTER);
+      roster.getRange(1, 1, 1, 2).setValues([['학번', '이름']]).setBackground('#1f4e78').setFontColor('#ffffff').setFontWeight('bold');
+      roster.setFrozenRows(1);
+    }
     SpreadsheetApp.flush();
     const props = PropertiesService.getScriptProperties();
     props.setProperty(PROP_SHEET_ID_, book.getId());
@@ -122,7 +129,7 @@ function doGet(e) {
   // 선생님 알림판(GitHub Pages)이 5초마다 읽어 가는 JSON
   if (p.dash && p.format === 'json') {
     if (!checkKey_(p.dash)) return json_({ok: false, error: '현황판 키가 올바르지 않아요.'});
-    try { const d = dashboardData(p.dash); d.ok = true; return json_(d); }
+    try { const d = dashboardData(p.dash, true); d.ok = true; return json_(d); }
     catch (error) { return json_({ok: false, error: error.message}); }
   }
   if (p.dash && checkKey_(p.dash)) {
@@ -433,7 +440,8 @@ function checkKey_(key) {
 }
 
 // 현황판이 10초마다 불러요. 현황 시트의 모든 행을 돌려줘요.
-function dashboardData(key) {
+// noRoster: 알림판(5초마다)은 명단이 필요 없어 읽지 않아요.
+function dashboardData(key, noRoster) {
   if (!checkKey_(key)) throw new Error('현황판 주소가 올바르지 않아요.');
   const book = openBook_();
   if (!book) throw new Error('먼저 setup을 실행하세요.');
@@ -447,8 +455,25 @@ function dashboardData(key) {
     nowFull: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss'),
     rows: rows.filter(function (r) { return r[0] !== ''; }).map(function (r) {
       return {ws: r[0], title: r[1], num: r[2], name: r[3], state: r[4], away: r[5], last: r[6], score: r[7]};
-    })
+    }),
+    roster: noRoster === true ? [] : rosterData_(book)
   };
+}
+
+// 명단 탭(있으면)의 학번·이름. 학번은 10712 모양(학년 1자리·반 2자리·번호 2자리)만 받아요.
+function rosterData_(book) {
+  const sheet = book.getSheetByName(SHEET_ROSTER);
+  const count = sheet ? sheet.getLastRow() - 1 : 0;
+  if (count < 1) return [];
+  const seen = {};
+  return sheet.getRange(2, 1, Math.min(count, 2000), 2).getDisplayValues().map(function (r) {
+    return {num: String(r[0]).replace(/[,\s]/g, ''), name: String(r[1]).trim().slice(0, 20)};
+  }).filter(function (r) {
+    // 로그인 창에서 고를 수 있는 학번(1~3학년, 1~9반, 1~25번)만 받아요.
+    if (!/^[1-3]0[1-9](0[1-9]|1\d|2[0-5])$/.test(r.num) || seen[r.num]) return false;
+    seen[r.num] = true;
+    return true;
+  });
 }
 
 // 현황판의 '지우기'. people = [{num, name}] (학습지 ws 안에서).
@@ -562,17 +587,30 @@ function dashboardHtml_(key) {
     '.box label{display:block;font-size:14px;margin-bottom:16px}.box .row{display:flex;gap:8px;justify-content:flex-end}' +
     '.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#1f2a24;color:#fff;border-radius:10px;padding:10px 14px;display:flex;gap:14px;align-items:center;font-size:14px;z-index:9}' +
     '.toast button{background:transparent;color:#cfe8d8;border-color:#55705f}' +
+    '.seg{display:inline-flex;border:1px solid #c9d1cb;border-radius:8px;overflow:hidden}.seg button{border:0;border-radius:0;padding:6px 12px}.seg button.on{background:var(--accent);color:#fff}' +
+    '.seats{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}' +
+    '.seat{border:1px solid #cfe0d5;background:#fff;border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.4;min-height:64px}' +
+    '.seat .no{font-weight:700;font-size:15px}.seat .nm{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.seat .st{display:block;font-size:12px;color:var(--muted)}' +
+    '.seat.none{background:#eef0ed;border:1px dashed #b9c2bc;color:#7d8882}.seat.none .st{color:#7d8882;font-weight:700}' +
+    '.seat.away{background:var(--redbg);border-color:#e9b7b2}.seat.away .st{color:var(--red);font-weight:700}' +
+    '.seat.done{background:#e6f4ea;border-color:#b5dcc1}.seat.done .st{color:var(--green);font-weight:700}' +
+    '.seat .warn{display:block;font-size:11px;color:#9a5b00;font-weight:700}.seathelp{font-size:13px;color:var(--muted);padding:16px;background:#fff;border-radius:10px}' +
+    '.sum .gray b{color:#7d8882}' +
     '</style></head><body><h1>학습지 현황판</h1>' +
-    '<div class="bar"><select id="ws" aria-label="학습지"></select><label><input type="checkbox" id="today" checked> 오늘만 보기</label>' +
+    '<div class="bar"><select id="ws" aria-label="학습지"></select><select id="cls" aria-label="반"><option value="">모든 반</option></select>' +
+    '<span class="seg" role="group" aria-label="보기"><button id="vList" type="button">목록</button><button id="vSeat" type="button">자리표</button></span>' +
+    '<label id="seatNWrap" hidden>인원 <select id="seatN" aria-label="반 인원"></select></label>' +
+    '<label><input type="checkbox" id="today" checked> 오늘만 보기</label>' +
     '<span class="muted" id="stamp">불러오는 중…</span><span class="grow"></span>' +
     '<button id="alertBtn">알림판 열기</button><button id="moreBtn" aria-haspopup="true" aria-expanded="false">정리 ▾</button>' +
     '<div class="menu" id="menu" hidden role="menu">' +
     '<button data-bulk="old" role="menuitem">오늘 이전 줄 지우기</button>' +
     '<button data-bulk="test" role="menuitem">시험용 학생(00000) 지우기</button>' +
     '<button data-bulk="all" class="danger" role="menuitem">이 학습지 현황 모두 지우기</button></div></div>' +
-    '<div class="sum"><div>접속<b id="nAll">0</b></div><div class="red">자리 비움<b id="nAway">0</b></div><div class="green">제출<b id="nDone">0</b></div></div>' +
+    '<div class="sum"><div>접속<b id="nAll">0</b></div><div class="red">자리 비움<b id="nAway">0</b></div><div class="green">제출<b id="nDone">0</b></div><div class="gray" id="noneBox" hidden>안 옴<b id="nNone">0</b></div></div>' +
     '<div class="selbar" id="selbar" hidden><span id="selTxt"></span><span class="grow"></span><button id="selClear">선택 해제</button><button id="selDel" class="danger">현황에서 지우기</button></div>' +
-    '<div class="wrap"><table><thead><tr><th><input type="checkbox" id="all" aria-label="모두 선택"></th><th>학번</th><th>이름</th><th>상태</th><th>이탈</th><th>마지막 소식</th><th>점수</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>' +
+    '<div class="seats" id="seats" hidden></div>' +
+    '<div class="wrap" id="listWrap"><table><thead><tr><th><input type="checkbox" id="all" aria-label="모두 선택"></th><th>학번</th><th>이름</th><th>상태</th><th>이탈</th><th>마지막 소식</th><th>점수</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>' +
     '<div class="veil" id="confirm" hidden role="dialog" aria-modal="true" aria-labelledby="cTitle"><div class="box"><h2 id="cTitle"></h2>' +
     '<p>현황판에서만 사라져요. 시트의 기록·제출 탭에는 그대로 남아요. 지금 접속 중인 학생은 다음 신호를 보내면 다시 나타나요.</p>' +
     '<label><input type="checkbox" id="hard"> 기록·제출 탭에서도 완전히 지우기 <span style="color:var(--red)">(되돌릴 수 없어요)</span></label>' +
@@ -583,15 +621,19 @@ function dashboardHtml_(key) {
     '<p id="aMsg" role="status"></p><input id="aUrl" readonly aria-label="알림판 주소" hidden></div></div>' +
     '<div class="toast" id="toast" hidden role="status"><span id="tTxt"></span><button id="undo">되돌리기</button></div>' +
     '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script>' +
-    'var KEY=' + JSON.stringify(key) + ',data=null,picked="",sel={},pending=null,undoRows=null,busy=false,toastTimer=null;' +
+    'var KEY=' + JSON.stringify(key) + ',data=null,picked="",cls="",view="list",sel={},pending=null,undoRows=null,busy=false,toastTimer=null;' +
+    'var MEM={};function ls(k,v){if(v!==undefined)MEM[k]=v;try{if(v===undefined)return localStorage.getItem(k)||MEM[k]||null;localStorage.setItem(k,v)}catch(e){return MEM[k]||null}}' +
+    'view=ls("hub:view")==="seat"?"seat":"list";cls=ls("hub:cls")||"";' +
+    'function clsOf(n){return /^[1-3][0-9]{4}$/.test(n)?n.slice(0,3):""}' +
+    'function clsName(c){return c.charAt(0)+"학년 "+Number(c.slice(1))+"반"}' +
     'function $(i){return document.getElementById(i)}' +
     'function pk(r){return r.num+"\\u0000"+r.name}' +
     'function td(t,c){var e=document.createElement("td");e.textContent=t;if(c)e.className=c;return e}' +
     'function visible(){if(!data)return[];var today=$("today").checked;return data.rows.filter(function(r){return !today||r.last.slice(0,10)===data.today})}' +
-    'function current(){return visible().filter(function(r){return r.ws===picked}).sort(function(a,b){return a.num.localeCompare(b.num,"ko",{numeric:true})})}' +
-    'function draw(){if(!data)return;var rows=visible(),seen={},opts=[];rows.forEach(function(r){if(!seen[r.ws]){seen[r.ws]={r:r,last:r.last};opts.push(r)}else if(r.last>seen[r.ws].last)seen[r.ws].last=r.last});' +
+    'function current(){return visible().filter(function(r){return r.ws===picked&&(!cls||clsOf(r.num)===cls)}).sort(function(a,b){return a.num.localeCompare(b.num,"ko",{numeric:true})})}' +
+    'function draw(){if(!data)return;var rows=data.rows,seen={},opts=[];rows.forEach(function(r){if(!seen[r.ws]){seen[r.ws]={r:r,last:r.last};opts.push(r)}else if(r.last>seen[r.ws].last)seen[r.ws].last=r.last});' +
     'opts.sort(function(a,b){return seen[b.ws].last.localeCompare(seen[a.ws].last)});if(!seen[picked])picked=opts.length?opts[0].ws:"";var s=$("ws");s.textContent="";' +
-    'opts.forEach(function(r){var o=document.createElement("option");o.value=r.ws;o.textContent=r.title||r.ws;if(r.ws===picked)o.selected=true;s.appendChild(o)});' +
+    'opts.forEach(function(r){var o=document.createElement("option");o.value=r.ws;o.textContent=r.title||r.ws;if(r.ws===picked)o.selected=true;s.appendChild(o)});drawCls();' +
     'var cur=current(),keep={};cur.forEach(function(r){if(sel[pk(r)])keep[pk(r)]=1});sel=keep;' +
     'var tb=$("tb");tb.textContent="";var na=0,nd=0;' +
     'cur.forEach(function(r){var tr=document.createElement("tr"),k=pk(r);if(r.state==="자리 비움"){tr.className="away";na++}else if(r.state==="제출함"){tr.className="done";nd++}if(sel[k])tr.className+=" sel";' +
@@ -600,8 +642,28 @@ function dashboardHtml_(key) {
     'var d=document.createElement("td"),b=document.createElement("button");b.className="icon";b.textContent="지우기";b.setAttribute("aria-label",r.name+" 지우기");b.onclick=function(){ask([r],r.name+"("+r.num+") 학생을 지울까요?")};d.appendChild(b);tr.appendChild(d);tb.appendChild(tr)});' +
     'if(!cur.length){var tr=document.createElement("tr"),c=td("아직 들어온 학생이 없어요.");c.colSpan=8;tr.appendChild(c);tb.appendChild(tr)}' +
     'var n=Object.keys(sel).length;$("selbar").hidden=!n;$("selTxt").textContent=n+"명 선택됨";$("all").checked=n>0&&n===cur.length;' +
-    '$("nAll").textContent=cur.length;$("nAway").textContent=na;$("nDone").textContent=nd;$("stamp").textContent="마지막 갱신 "+data.now+" · 10초마다 자동 갱신"}' +
-    'function load(){if(busy)return;google.script.run.withSuccessHandler(function(d){if(busy)return;data=d;draw()}).withFailureHandler(function(e){$("stamp").textContent="불러오기 실패: "+e.message}).dashboardData(KEY)}' +
+    '$("nAll").textContent=cur.length;$("nAway").textContent=na;$("nDone").textContent=nd;$("stamp").textContent="마지막 갱신 "+data.now+" · 10초마다 자동 갱신";drawSeats(cur)}' +
+    'function drawCls(){var have={};data.rows.forEach(function(r){if(r.ws===picked&&clsOf(r.num))have[clsOf(r.num)]=1});(data.roster||[]).forEach(function(r){have[clsOf(r.num)]=1});' +
+    'if(cls)have[cls]=1;var s=$("cls");s.textContent="";var o=document.createElement("option");o.value="";o.textContent="모든 반";s.appendChild(o);' +
+    'Object.keys(have).sort().forEach(function(c){var o=document.createElement("option");o.value=c;o.textContent=clsName(c);if(c===cls)o.selected=true;s.appendChild(o)})}' +
+    'function seatN(){var n=Number(ls("hub:n:"+cls));return n>=1&&n<=25?n:25}' +
+    'function drawSeats(cur){var seat=view==="seat";$("seats").hidden=!seat;$("listWrap").hidden=seat;$("vList").className=seat?"":"on";$("vSeat").className=seat?"on":"";' +
+    'var ros=cls?(data.roster||[]).filter(function(r){return clsOf(r.num)===cls}):[];$("seatNWrap").hidden=!seat||!cls||ros.length>0;$("noneBox").hidden=!seat||!cls;' +
+    'if(!seat)return;var box=$("seats");box.textContent="";' +
+    'if(!cls){var h=document.createElement("div");h.className="seathelp";h.textContent="위에서 반을 고르면 번호마다 들어왔는지 보여 줘요. (구글 시트 명단 탭에 학번·이름을 적어 두면 이름도 나와요.)";box.appendChild(h);return}' +
+    'var rn={},nos={},by={};ros.forEach(function(r){var k=Number(r.num.slice(3));rn[k]=r.name;nos[k]=1});' +
+    'var lim=ros.length?0:seatN();if(!ros.length)for(var i=1;i<=lim;i++)nos[i]=1;cur.forEach(function(r){var k=Number(r.num.slice(3));if(k<1)return;nos[k]=1;(by[k]=by[k]||[]).push(r)});' +
+    'var none=0;Object.keys(nos).map(Number).sort(function(a,b){return a-b}).forEach(function(k){var rows=(by[k]||[]).slice().sort(function(a,b){return b.last.localeCompare(a.last)}),r=rows[0],d=document.createElement("div");' +
+    'var inRos=Object.prototype.hasOwnProperty.call(rn,k),nameOk=!r||!inRos||!rn[k]||rows.some(function(x){return x.name===rn[k]});' +
+    'var st=!r?"none":r.state==="자리 비움"?"away":r.state==="제출함"?"done":"on";if(!r||!nameOk)none++;d.className="seat "+st;' +
+    'var no=document.createElement("span");no.className="no";no.textContent=k+"번";d.appendChild(no);' +
+    'var nm=document.createElement("span");nm.className="nm";nm.textContent=r?rows.map(function(x){return x.name}).join(", "):(rn[k]||"");d.appendChild(nm);' +
+    'var t=document.createElement("span");t.className="st";t.textContent=!r?"안 옴":r.state+(Number(r.away)>0?" · 이탈 "+r.away:"")+(r.state==="제출함"&&r.score!==""?" · "+r.score+"점":"");d.appendChild(t);' +
+    'var ws=[];if(rows.length>1)ws.push("이름이 "+rows.length+"개예요");if(r&&!nameOk)ws.push("명단: "+rn[k]+" (안 옴으로 셈)");else if(r&&rn[k]&&rows.some(function(x){return x.name!==rn[k]}))ws.push("명단: "+rn[k]);' +
+    'if(r&&ros.length&&!inRos)ws.push("명단에 없는 번호");if(r&&lim&&k>lim)ws.push("인원 밖 번호");' +
+    'ws.forEach(function(w){var e=document.createElement("span");e.className="warn";e.textContent=w;d.appendChild(e)});d.title=k+"번 "+nm.textContent+" "+t.textContent;box.appendChild(d)});' +
+    '$("nNone").textContent=none}' +
+    'var loading=false;function load(){if(busy||loading)return;loading=true;google.script.run.withSuccessHandler(function(d){loading=false;if(busy)return;data=d;draw()}).withFailureHandler(function(e){loading=false;$("stamp").textContent="불러오기 실패: "+e.message}).dashboardData(KEY)}' +
     'function ask(people,title){if(!people.length){toast("지울 학생이 없어요.",false);return}pending=people;$("cTitle").textContent=title;$("hard").checked=false;$("menu").hidden=true;$("moreBtn").setAttribute("aria-expanded","false");$("confirm").hidden=false;$("cNo").focus()}' +
     'function toast(t,canUndo){$("tTxt").textContent=t;$("undo").hidden=!canUndo;$("toast").hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(function(){$("toast").hidden=true;undoRows=null},10000)}' +
     '$("cNo").onclick=function(){$("confirm").hidden=true;pending=null};' +
@@ -623,6 +685,10 @@ function dashboardHtml_(key) {
     'var people=k==="old"?all.filter(function(r){return r.last.slice(0,10)<data.today}):k==="test"?all.filter(function(r){return r.num==="00000"}):all;' +
     'ask(people,k==="all"?"「"+t+"」 현황 "+people.length+"명을 모두 지울까요?":k==="old"?"오늘 이전 "+people.length+"명을 지울까요?":"시험용 학생 "+people.length+"명을 지울까요?")}});' +
     '$("ws").onchange=function(){picked=this.value;sel={};draw()};$("today").onchange=function(){sel={};draw()};' +
+    '$("cls").onchange=function(){cls=this.value;ls("hub:cls",cls);sel={};fillN();draw()};' +
+    '$("vList").onclick=function(){view="list";ls("hub:view",view);draw()};$("vSeat").onclick=function(){view="seat";ls("hub:view",view);draw()};' +
+    'function fillN(){var s=$("seatN");if(!s.options.length)for(var i=1;i<=25;i++){var o=document.createElement("option");o.value=String(i);o.textContent=i+"명";s.appendChild(o)}s.value=String(seatN())}fillN();' +
+    '$("seatN").onchange=function(){ls("hub:n:"+cls,this.value);draw()};' +
     'var ALERT_URL="https://dallalan2277-lab.github.io/classroom-hub/teacher/#k="+encodeURIComponent(KEY);$("alertLink").href=ALERT_URL;' +
     '$("alertBtn").onclick=function(){$("alertBox").hidden=false;var q=$("qr");q.textContent="";if(window.QRCode)new QRCode(q,{text:ALERT_URL,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});else q.textContent="QR을 불러오지 못했어요. 아래 버튼을 쓰세요."};' +
     '$("aClose").onclick=function(){$("alertBox").hidden=true;$("aMsg").textContent="";$("aUrl").hidden=true};' +

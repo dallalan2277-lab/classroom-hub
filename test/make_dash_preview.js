@@ -13,7 +13,9 @@ var FAKE={today:'2026-11-10',now:'10:45:00',rows:[
  {ws:'gugak-instruments',title:'국악기 학습지',num:'10701',name:'김하늘',state:'제출함',away:'0',last:'2026-11-10 10:42:00',score:'11'},
  {ws:'gugak-instruments',title:'국악기 학습지',num:'10702',name:'이바다',state:'풀이 중',away:'1',last:'2026-11-10 10:44:00',score:''},
  {ws:'gugak-instruments',title:'국악기 학습지',num:'10703',name:'<b>박구름</b>',state:'자리 비움',away:'3',last:'2026-11-10 10:45:00',score:''},
- {ws:'dance-1',title:'춤 학습지',num:'10704',name:'최별',state:'제출함',away:'0',last:'2026-11-10 09:41:00',score:'13'}]};
+ {ws:'dance-1',title:'춤 학습지',num:'10704',name:'최별',state:'제출함',away:'0',last:'2026-11-10 09:41:00',score:'13'},
+ {ws:'gugak-instruments',title:'국악기 학습지',num:'10706',name:'한솔',state:'풀이 중',away:'0',last:'2026-11-10 10:44:30',score:''},{ws:'gugak-instruments',title:'국악기 학습지',num:'10706',name:'한솔이',state:'풀이 중',away:'0',last:'2026-11-10 10:40:00',score:''},{ws:'gugak-instruments',title:'국악기 학습지',num:'10812',name:'오늘',state:'풀이 중',away:'0',last:'2026-11-10 10:44:00',score:''}],
+ roster:[{num:'10701',name:'김하늘'},{num:'10702',name:'이바다'},{num:'10703',name:'박구름'},{num:'10704',name:'최별'},{num:'10705',name:'정바람'},{num:'10706',name:'한솔'}]};
 window.CALLS=[];
 function runner(){var ok=function(){},fail=function(){};var r={withSuccessHandler:function(f){ok=f;return r},withFailureHandler:function(f){fail=f;return r},
  dashboardData:function(){var d=JSON.parse(JSON.stringify(FAKE));setTimeout(function(){ok(d)},10)},

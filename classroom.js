@@ -9,7 +9,9 @@
  *  - data-title : 선생님 현황판에 보일 제목.
  *
  * 하는 일
- *  1) 처음 들어오면 학년·반·번호(골라서 → 학번 10712 모양)와 이름을 받아요(같은 기기에서는 다시 묻지 않아요).
+ *  1) 처음 들어오면 학년·반·번호(골라서 → 학번 10712 모양)와 이름을 받아요.
+ *     같은 기기에서 다시 열면 그대로 이어 가되, 날짜가 바뀌었거나 40분 넘게 쓰지 않았으면 "○○○ 학생 맞나요?"를 물어요
+ *     (공용 태블릿을 다른 학생이 이어 쓰는 경우 대비). 날짜가 바뀐 경우에는 오늘 시작으로 다시 알려요.
  *  2) 다른 탭·앱으로 가거나 창 밖을 3초 넘게 누르면 '자리 비움'을 허브로 보내고, 돌아오면 경고를 보여 줘요.
  *     학습지 화면으로 돌아와 창을 누르거나 만지면 '복귀'는 저절로 보내요(경고 창 버튼을 안 눌러도 돼요).
  *     시작·자리 비움·복귀 신호는 차례대로 보내고, 실패하면 저장해 두었다가 다시 보내요.
@@ -84,10 +86,12 @@
   }
 
   // ---- 저장 ----------------------------------------------------------------
-  var S = {num: '', name: '', sid: '', away: 0, awayAt: 0, startAt: 0, attempt: 0, submitted: false, queue: []};
+  var S = {num: '', name: '', sid: '', away: 0, awayAt: 0, startAt: 0, seenAt: 0, attempt: 0, submitted: false, queue: []};
   try { var saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved && typeof saved === 'object') for (var k in S) if (k in saved) S[k] = saved[k]; } catch (e) {}
   if (!Array.isArray(S.queue)) S.queue = [];
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  function save() { S.seenAt = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  // 본인 확인 창에 답하기 전에는 저장하지 않아요(답 없이 새로고침해도 다시 물어보게).
+  window.addEventListener('pagehide', function () { if (tracking) save(); });
 
   // ---- 전송 ----------------------------------------------------------------
   function body(type, data) {
@@ -160,6 +164,8 @@
     '.cr-card button{margin-top:16px;width:100%;font-size:16px;font-weight:700;padding:12px;border:0;border-radius:10px;background:#244b3a;color:#fff;cursor:pointer}' +
     '.cr-card .cr-err{color:#b3261e;font-size:13px;min-height:1em;margin:8px 0 0}' +
     '.cr-card.cr-warn h2{color:#b3261e}' +
+    '.cr-card .cr-who{font-size:18px;font-weight:700;color:#1f2a24;margin:4px 0 4px}' +
+    '.cr-card button.cr-sub{margin-top:8px;background:#fff;color:#244b3a;border:1px solid #c9d1cb;font-weight:600}' +
     '.cr-chip{position:fixed;left:12px;bottom:12px;z-index:2147482999;background:#fff;border:1px solid #d5dbd6;border-radius:999px;padding:6px 12px;font-size:12px;color:#33413a;box-shadow:0 4px 14px rgba(0,0,0,.08);cursor:pointer;font-family:inherit}' +
     '.cr-chip b{font-weight:700}.cr-chip .cr-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#3a9a5b;margin-right:6px;vertical-align:1px}' +
     '.cr-chip.cr-off .cr-dot{background:#c48a1a}.cr-chip .cr-away{color:#b3261e;font-weight:700}' +
@@ -249,6 +255,33 @@
     setTimeout(function () { (numNow() ? i2 : sg).focus(); }, 50);
   }
 
+  // 저장된 학생으로 다시 열 때 본인인지 확인해요. yes(isNewDay) / no → 다른 학생으로 바꾸기
+  var IDLE_ASK = 40 * 60000;
+  function dayOf(ms) { var d = new Date(ms); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  function needConfirm() {
+    var last = S.seenAt || S.startAt || 0;
+    if (!last) return {ask: true, newDay: true};
+    var now = Date.now(), newDay = dayOf(last) !== dayOf(now);
+    // 기기 시계가 뒤로 바뀌어 저장 시각이 미래인 경우도 물어봐요.
+    return {ask: newDay || now - last >= IDLE_ASK || last > now + 60000, newDay: newDay || last > now + 60000};
+  }
+  function confirmDialog(done) {
+    var veil = el('div', 'cr-veil'), card = el('div', 'cr-card');
+    card.setAttribute('role', 'dialog'); card.setAttribute('aria-modal', 'true'); card.setAttribute('aria-labelledby', 'crTitle');
+    var h = el('h2', null, TITLE || '학습지'); h.id = 'crTitle'; card.appendChild(h);
+    card.appendChild(el('p', null, '이 기기에 저장된 학생이에요. 본인이 맞나요?'));
+    var m = /^([1-3])(\d{2})(\d{2})$/.exec(S.num);
+    var who = el('p', 'cr-who', (m ? m[1] + '학년 ' + Number(m[2]) + '반 ' + Number(m[3]) + '번 ' : S.num + ' ') + S.name);
+    card.appendChild(who);
+    var yes = el('button', null, '네, 저예요'); yes.type = 'button';
+    var no = el('button', 'cr-sub', '아니에요 (다른 학생으로 시작)'); no.type = 'button';
+    yes.addEventListener('click', function () { veil.remove(); done(); });
+    no.addEventListener('click', function () { switchStudent(); });
+    card.appendChild(yes); card.appendChild(no);
+    veil.appendChild(card); document.body.appendChild(veil);
+    setTimeout(function () { yes.focus(); }, 50);
+  }
+
   // ---- 자리 비움 감지 -------------------------------------------------------
   // S.awayAt: 자리를 비운 시각(아직 복귀를 보내지 않았으면 0이 아님). 복귀를 보내야 다음 자리 비움을 새로 세요.
   var warn = null, blurTimer = null, tracking = false;
@@ -288,7 +321,11 @@
   var leaving = false;
   window.addEventListener('pagehide', function () { leaving = true; });
   window.addEventListener('beforeunload', function () { leaving = true; });
-  window.addEventListener('pageshow', function () { leaving = false; });
+  window.addEventListener('pageshow', function (e) {
+    leaving = false;
+    // 뒤로 가기로 예전 화면이 그대로 돌아왔는데 오래 지났으면 처음부터 다시 열어 본인 확인을 해요.
+    if (e && e.persisted && tracking && needConfirm().ask) location.reload();
+  });
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) { if (!leaving) markAway('hidden'); return; }
     backIfFocused(); setTimeout(backIfFocused, 700);
@@ -319,7 +356,7 @@
     switchStudent: switchStudent,
     submit: function (result) {
       result = result || {};
-      if (!S.num) return Promise.resolve({ok: false, error: '학번과 이름을 먼저 입력해 주세요.'});
+      if (!S.num || !tracking && !TEACHER) return Promise.resolve({ok: false, error: '학번과 이름을 먼저 확인해 주세요.'});
       var answers = {};
       Object.keys(result.answers || {}).slice(0, 200).forEach(function (k) { answers[String(k).slice(0, 40)] = String(result.answers[k] == null ? '' : result.answers[k]).slice(0, 2000); });
       var data = {
@@ -363,7 +400,18 @@
       renderChip(); resolveReady({num: S.num, name: S.name});
       return;
     }
-    if (S.num && S.name && S.sid) begin(false);
+    if (S.num && S.name && S.sid) {
+      var c = needConfirm();
+      if (!c.ask) begin(false);
+      else confirmDialog(function () {
+        // 창을 띄운 채 자정을 넘겼을 수 있어 누를 때 다시 따져요.
+        if (!c.newDay && !needConfirm().newDay) { begin(false); return; }
+        // 다른 날: 새 수업으로 시작해요(자리 비움 횟수는 새로 세고, 현황판 '오늘'에 다시 나타나요). 어제 남은 자리 비움은 버려요.
+        S.sid = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+        S.away = 0; S.awayAt = 0; S.startAt = Date.now(); save();
+        begin(true);
+      });
+    }
     else loginDialog(function () { begin(true); });
   }
   if (document.body) boot(); else document.addEventListener('DOMContentLoaded', boot);

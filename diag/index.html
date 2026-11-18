@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>이탈 감지 진단</title>
+<style>
+:root{--bg:#f5f6f3;--card:#fff;--ink:#1f2a24;--muted:#66726b;--line:#dfe5e0;--accent:#244b3a;--red:#b3261e;--redbg:#fde8e6;--amber:#8a5a00;--amberbg:#fff3d6;--green:#2e7d4a;--greenbg:#e6f4ea}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.5}
+main{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:21px;margin:4px 0 6px}
+h2{font-size:16px;margin:0 0 8px}
+p{margin:0 0 10px}
+.muted{color:var(--muted);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+button,input{font:inherit;font-size:15px}
+button{padding:9px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#live{position:sticky;top:0;z-index:5;border-radius:14px;padding:12px 14px;margin-bottom:12px;background:var(--greenbg);color:var(--green);border:1px solid #b5dcc1}
+#live.warn{background:var(--amberbg);color:var(--amber);border-color:#ecd39a}
+#live.bad{background:var(--redbg);color:var(--red);border-color:#e9b7b2}
+#live b{font-size:18px}
+#live .vals{font-size:13px;color:var(--ink);margin-top:4px;font-variant-numeric:tabular-nums}
+#stepNow{font-weight:700}
+ol.steps{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+ol.steps li{display:flex;gap:10px;align-items:flex-start;padding:8px;border:1px solid var(--line);border-radius:10px}
+ol.steps li.on{border-color:var(--accent);background:#eef5f0}
+ol.steps li button{flex:none;min-width:64px}
+ol.steps .t{font-weight:700}
+ol.steps .d{font-size:13px;color:var(--muted)}
+.video{position:relative;width:100%;max-width:520px;aspect-ratio:16/9;background:#000;border-radius:10px;overflow:hidden}
+.video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+#log{font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre-wrap;max-height:320px;overflow:auto;background:#1b221e;color:#dfe9e3;border-radius:10px;padding:10px;margin:8px 0 0}
+#copyBox{width:100%;height:120px;font-size:12px;margin-top:8px}
+.counts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.counts span{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:13px}
+</style>
+</head>
+<body>
+<main>
+  <h1>이탈 감지 진단</h1>
+  <p class="muted">학생 태블릿에서 화면 분할·팝업 창·영상 등을 할 때 브라우저가 어떤 신호를 주는지 기록해요.
+    <b>허브로 아무것도 보내지 않고</b>, 기록은 이 기기에만 남아요. 이름·학번은 묻지 않아요.
+    다 끝나면 맨 아래 <b>기록 복사</b>를 눌러 Claude에게 붙여 주세요.</p>
+
+  <div id="live" role="status" aria-live="polite">
+    <b id="liveBig">학습지에 있음</b>
+    <div class="vals" id="liveVals">-</div>
+    <div class="vals">지금 단계: <span id="stepNow">시작 전</span></div>
+  </div>
+
+  <section class="card">
+    <h2>시험 순서</h2>
+    <p class="muted">각 단계의 <b>시작</b> 버튼을 <b>먼저</b> 누른 다음 그 동작을 하세요. (동작을 한 뒤에 기록하려고 화면을 누르면 결과가 섞여요.)
+      브라우저마다(크롬, 삼성 인터넷) 따로 한 번씩 해 주세요.</p>
+    <ol class="steps" id="steps"></ol>
+  </section>
+
+  <section class="card">
+    <h2>시험용 영상</h2>
+    <div class="video"><iframe src="https://www.youtube.com/embed/WPCVPGVmHcA?playsinline=1&rel=0" title="시험용 영상" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div>
+    <div class="row" style="margin-top:10px">
+      <button id="confirmBtn" type="button">확인 창 띄우기</button>
+      <input id="typeBox" placeholder="여기를 눌러 키보드 열기" aria-label="키보드 시험 칸" style="flex:1;min-width:160px;padding:9px 12px;border:1px solid var(--line);border-radius:10px">
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>기록</h2>
+    <div class="row">
+      <button class="primary" id="copyBtn" type="button">기록 복사</button>
+      <button id="clearBtn" type="button">기록 지우기</button>
+      <span class="muted" id="copyMsg" role="status"></span>
+    </div>
+    <div class="counts" id="counts"></div>
+    <textarea id="copyBox" readonly hidden aria-label="복사할 기록"></textarea>
+    <div id="log" aria-label="최근 기록"></div>
+  </section>
+</main>
+
+<script>
+'use strict';
+(function () {
+  var STORE = 'diag:log:v1', MAX = 3000;
+  var STEPS = [
+    ['기준', '학습지 본문(빈 곳)을 몇 번 누르고 5초 기다리기'],
+    ['영상 감상', '영상 재생을 누르고 20초 그대로 보기 → 본문 누르기'],
+    ['영상 전체 화면', '영상 전체 화면 켜기 → 10초 → 끄기'],
+    ['확인 창', '"확인 창 띄우기" 누르고 5초 뒤 닫기'],
+    ['키보드·회전', '입력 칸 눌러 키보드 열기 → 닫기 → 화면 돌리기 → 되돌리기'],
+    ['새로고침', '브라우저 새로고침 누르기 (기록은 이어져요)'],
+    ['화면 분할 시작', '화면 분할로 다른 앱을 옆에 열기 → 아무것도 누르지 말고 5초'],
+    ['옆 앱 사용', '옆 앱을 눌러 10초 쓰기 → 학습지 본문 누르기'],
+    ['영상 뒤 옆 앱', '영상을 누른 뒤 → 옆 앱 눌러 10초 → 학습지 본문 누르기'],
+    ['화면 분할 끝', '분할을 끝내고 학습지만 전체로 → 본문 누르기'],
+    ['팝업 창', '다른 앱을 팝업(떠 있는) 창으로 학습지 위에 열고 10초 쓰기 → 닫고 본문 누르기'],
+    ['다른 탭', '브라우저에서 새 탭으로 갔다가 10초 뒤 돌아오기'],
+    ['홈 화면', '홈 버튼으로 나갔다가 10초 뒤 돌아오기'],
+    ['화면 잠금', '전원 버튼으로 잠그고 10초 뒤 풀기'],
+    ['알림창', '위에서 알림창 내려 5초 → 올리기']
+  ];
+  var t0 = Date.now(), log = [], step = '';
+  try { var old = JSON.parse(localStorage.getItem(STORE) || 'null'); if (old && Array.isArray(old.log)) { log = old.log; step = old.step || ''; } } catch (e) {}
+  function save() { try { localStorage.setItem(STORE, JSON.stringify({log: log.slice(-MAX), step: step})); } catch (e) {} }
+  function $(id) { return document.getElementById(id); }
+
+  // ---- 지금 상태 ----
+  function snap() {
+    var a = document.activeElement, vv = window.visualViewport, sw = screen.availWidth || screen.width || 1;
+    return {
+      vis: document.visibilityState, foc: document.hasFocus() ? 1 : 0, act: a ? a.tagName : '-',
+      w: window.innerWidth, h: window.innerHeight, aw: screen.availWidth, ah: screen.availHeight,
+      sw: screen.width, sh: screen.height, ow: window.outerWidth, oh: window.outerHeight,
+      vw: vv ? Math.round(vv.width) : null, vh: vv ? Math.round(vv.height) : null, vs: vv ? Math.round(vv.scale * 100) / 100 : null,
+      r: Math.round(window.innerWidth / sw * 100) / 100,
+      o: (screen.orientation && screen.orientation.type) || (window.innerWidth > window.innerHeight ? 'landscape' : 'portrait')
+    };
+  }
+  function short(s) { return s.vis.charAt(0) + ' foc=' + s.foc + ' act=' + s.act + ' w=' + s.w + '/' + s.aw + '(' + s.r + ') h=' + s.h + ' vv=' + s.vw + 'x' + s.vh + '@' + s.vs; }
+
+  var lastLine = 0;
+  function add(kind, extra) {
+    var s = snap(), sec = ((Date.now() - t0) / 1000).toFixed(1);
+    var e = {at: Date.now(), k: kind, step: step, s: s};
+    if (extra) e.x = extra;
+    log.push(e); if (log.length > MAX) log.splice(0, log.length - MAX);
+    save(); drawLog(); drawCounts();
+  }
+  function line(e, base) {
+    var t = ((e.at - base) / 1000).toFixed(1);
+    return '+' + t + 's [' + (e.step || '-') + '] ' + e.k + (e.x ? ' ' + JSON.stringify(e.x) : '') + ' | ' + short(e.s);
+  }
+  function drawLog() {
+    var base = log.length ? log[0].at : Date.now();
+    $('log').textContent = log.slice(-60).map(function (e) { return line(e, base); }).reverse().join('\n');
+  }
+  function drawCounts() {
+    var c = {};
+    log.forEach(function (e) { if (/^판정:/.test(e.k)) c[e.k] = (c[e.k] || 0) + 1; });
+    var box = $('counts'); box.textContent = '';
+    Object.keys(c).forEach(function (k) { var sp = document.createElement('span'); sp.textContent = k.replace('판정:', '') + ' ' + c[k] + '회'; box.appendChild(sp); });
+  }
+
+  // ---- 시험 단계 ----
+  var ol = $('steps');
+  STEPS.forEach(function (st, i) {
+    var li = document.createElement('li');
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = '시작';
+    var d = document.createElement('div');
+    var t = document.createElement('div'); t.className = 't'; t.textContent = (i + 1) + '. ' + st[0];
+    var dd = document.createElement('div'); dd.className = 'd'; dd.textContent = st[1];
+    d.appendChild(t); d.appendChild(dd); li.appendChild(b); li.appendChild(d); ol.appendChild(li);
+    b.addEventListener('click', function () { step = (i + 1) + '.' + st[0]; add('단계 시작'); drawSteps(); });
+  });
+  function drawSteps() {
+    Array.prototype.forEach.call(ol.children, function (li, i) { li.className = step.indexOf((i + 1) + '.') === 0 ? 'on' : ''; });
+    $('stepNow').textContent = step || '시작 전';
+  }
+
+  // ---- 지금 학습지 허브(classroom.js)가 어떻게 판정할지 흉내 ----
+  // 1) 숨겨지면(새로고침·닫기 제외) 이탈  2) 창 blur 3초 뒤 초점 없고 보이면 이탈(영상 iframe 이면 제외)
+  // 후보 A) 영상 iframe 에 초점이 있는 동안 1초마다 hasFocus 를 봐서 3번 연속 false
+  // 후보 B) 창 폭이 화면의 80% 미만(좁아짐)
+  var leaving = false, blurTimer = null, away = false, candA = 0, narrow = false;
+  function judge(kind, why) { add('판정:' + kind, why ? {why: why} : null); }
+  window.addEventListener('pagehide', function (e) { leaving = true; add('pagehide', {persisted: !!e.persisted}); });
+  window.addEventListener('beforeunload', function () { leaving = true; add('beforeunload'); });
+  window.addEventListener('pageshow', function (e) { leaving = false; add('pageshow', {persisted: !!e.persisted}); });
+  document.addEventListener('visibilitychange', function () {
+    add('visibilitychange');
+    if (document.hidden && !leaving && !away) { away = true; judge('현재코드 이탈', 'hidden'); }
+  });
+  window.addEventListener('blur', function () {
+    add('window.blur');
+    clearTimeout(blurTimer);
+    blurTimer = setTimeout(function () {
+      var a = document.activeElement;
+      if (leaving || a && a.tagName === 'IFRAME') { add('blur 3초: 영상이라 넘어감'); return; }
+      if (!document.hasFocus() && !document.hidden && !away) { away = true; judge('현재코드 이탈', 'blur'); }
+    }, 3000);
+  });
+  window.addEventListener('focus', function () { add('window.focus'); clearTimeout(blurTimer); backCheck(); });
+  function backCheck() { if (away && !document.hidden && document.hasFocus()) { away = false; judge('현재코드 복귀'); } }
+  ['pointerdown', 'keydown'].forEach(function (t) {
+    window.addEventListener(t, function (ev) {
+      add(t, t === 'pointerdown' ? {type: ev.pointerType} : null);
+      if (away && !document.hidden) { away = false; judge('현재코드 복귀', t); }
+    }, {capture: true, passive: true});
+  });
+  document.addEventListener('focusin', function (ev) { add('focusin', {to: ev.target && ev.target.tagName}); }, true);
+  window.addEventListener('resize', function () { add('resize'); });
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', function () { add('visualViewport.resize'); });
+  window.addEventListener('orientationchange', function () { add('orientationchange'); });
+  document.addEventListener('fullscreenchange', function () { add('fullscreenchange', {on: !!document.fullscreenElement}); });
+  document.addEventListener('webkitfullscreenchange', function () { add('webkitfullscreenchange'); });
+  document.addEventListener('freeze', function () { add('freeze'); });
+  document.addEventListener('resume', function () { add('resume'); });
+  window.addEventListener('online', function () { add('online'); });
+  window.addEventListener('offline', function () { add('offline'); });
+  var scrollT = 0;
+  window.addEventListener('scroll', function () { if (Date.now() - scrollT > 2000) { scrollT = Date.now(); add('scroll'); } }, {passive: true});
+
+  $('confirmBtn').addEventListener('click', function () {
+    add('확인 창 열기'); var r = window.confirm('시험용 확인 창이에요. 5초쯤 뒤에 닫아 주세요.'); add('확인 창 닫힘', {ok: r});
+  });
+
+  // ---- 1초마다 상태 비교 (바뀔 때만 기록, 서버 전송 없음) ----
+  var prev = null, lastTick = Date.now(), maxGap = 0;
+  setInterval(function () {
+    var now = Date.now(), gap = now - lastTick; lastTick = now;
+    if (gap > 2500) add('타이머 공백', {ms: gap});
+    if (gap > maxGap) maxGap = gap;
+    var s = snap(), key = s.vis + s.foc + s.act + s.w + 'x' + s.h;
+    if (prev !== null && key !== prev) add('상태 바뀜');
+    prev = key;
+    // 후보 A
+    if (s.act === 'IFRAME' && s.vis === 'visible' && !s.foc) { candA++; if (candA === 3) judge('후보A 영상뒤 초점없음 3초'); }
+    else { if (candA >= 3) judge('후보A 끝'); candA = 0; }
+    // 후보 B
+    var nw = s.r < 0.8;
+    if (nw !== narrow) { narrow = nw; judge(nw ? '후보B 창 좁아짐' : '후보B 창 넓어짐', {r: s.r}); }
+    drawLive(s);
+  }, 1000);
+
+  function drawLive(s) {
+    var big, cls;
+    if (away) { big = '현재 코드 기준: 이탈'; cls = 'bad'; }
+    else if (candA >= 3) { big = '후보A: 영상 뒤 초점 없음'; cls = 'warn'; }
+    else if (!s.foc && s.vis === 'visible') { big = '보이지만 초점 없음'; cls = 'warn'; }
+    else if (narrow) { big = '학습지 창이 좁아짐'; cls = 'warn'; }
+    else { big = '학습지에 있음'; cls = ''; }
+    $('live').className = cls; $('liveBig').textContent = big;
+    $('liveVals').textContent = short(s) + ' · 가장 긴 타이머 공백 ' + maxGap + 'ms';
+  }
+
+  // ---- 복사 ----
+  function report() {
+    var base = log.length ? log[0].at : Date.now(), s = snap();
+    var head = ['# 이탈 감지 진단 기록', '기기: ' + navigator.userAgent, '터치 지점: ' + navigator.maxTouchPoints + ' · 배율: ' + window.devicePixelRatio +
+      ' · 화면 ' + s.sw + 'x' + s.sh + ' (가용 ' + s.aw + 'x' + s.ah + ')', '기록 ' + log.length + '줄', ''];
+    return head.concat(log.map(function (e) { return line(e, base); })).join('\n');
+  }
+  $('copyBtn').addEventListener('click', function () {
+    var text = report(), msg = $('copyMsg');
+    var fallback = function () { var b = $('copyBox'); b.hidden = false; b.value = text; b.focus(); b.select(); var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+      msg.textContent = ok ? '복사했어요.' : '아래 칸을 길게 눌러 전체 선택 후 복사해 주세요.'; };
+    try { navigator.clipboard.writeText(text).then(function () { msg.textContent = '복사했어요. (' + log.length + '줄)'; }, fallback); } catch (e) { fallback(); }
+  });
+  $('clearBtn').addEventListener('click', function () {
+    if (!window.confirm('이 기기의 진단 기록을 지울까요?')) return;
+    log = []; step = ''; save(); drawLog(); drawCounts(); drawSteps(); add('기록 시작');
+  });
+
+  add('페이지 열림');
+  drawSteps(); drawLog(); drawCounts(); drawLive(snap());
+})();
+</script>
+</body>
+</html>

@@ -194,4 +194,13 @@ new vm.Script(inline);
   sheets['현황']._cells[0].splice(5);
   assert.throws(() => run('setup()'), /머리글/);
 }
+// 7) 명단 탭(선택): setup이 머리글과 함께 만들고, 형식이 맞는 학번만 현황판에 줌
+assert(sheets['명단'], 'roster tab created');
+assert.strictEqual(JSON.stringify(run('dashboardData')(key).roster), '[]');
+sheets['명단'].getRange(2, 1, 5, 2).setValues([['10701', '가람'], ['10702 ', ' 나래 '], ['10701', '중복'], ['1070', '짧음'], ['40101', '학년틀림']]);
+assert.strictEqual(JSON.stringify(run('dashboardData')(key).roster), JSON.stringify([{num: '10701', name: '가람'}, {num: '10702', name: '나래'}]));
+sheets['명단'].getRange(1, 1, 1, 2).setValues([['내 학번', '내 이름']]);
+sheets['현황'].getRange(1, 1, 1, 9).setValues([run('HEADERS_STATUS_')]);
+run('setup()');
+assert.strictEqual(sheets['명단'].getRange(1, 1, 1, 2).getDisplayValues()[0][0], '내 학번', 'setup never overwrites roster');
 console.log('hub harness: all checks passed');
