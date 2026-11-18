@@ -204,4 +204,20 @@ sheets['명단'].getRange(1, 1, 1, 2).setValues([['내 학번', '내 이름']]);
 sheets['현황'].getRange(1, 1, 1, 9).setValues([run('HEADERS_STATUS_')]);
 run('setup()');
 assert.strictEqual(sheets['명단'].getRange(1, 1, 1, 2).getDisplayValues()[0][0], '내 학번', 'setup never overwrites roster');
+// 8) 창이 작아져서 생긴 자리 비움(small): 현황 '자리 비움' + 현황판 small 표시, 복귀하면 표시 없어짐
+{
+  const T = sec => new Date(Date.UTC(2026, 10, 18, 4, 0, sec)).toISOString();
+  const b4 = {v: 1, ws: 'small-test', title: '창 시험', sid: 'w1', num: '10709', name: '창', away: 0};
+  const pick = () => run('dashboardData')(key).rows.find(r => r.ws === 'small-test');
+  post({...b4, t: T(1), type: 'start'});
+  assert.deepStrictEqual(post({...b4, t: T(2), type: 'away', away: 1, data: {reason: 'small'}}), {ok: true});
+  assert.strictEqual(pick().state, '자리 비움'); assert.strictEqual(pick().small, 1);
+  assert(/창 작아짐/.test(logRows()[logRows().length - 1][6]));
+  assert.deepStrictEqual(post({...b4, t: T(2), type: 'away', away: 1, data: {reason: 'small'}}), {ok: true, dup: true}, 'small resend is dup');
+  post({...b4, t: T(9), type: 'back', away: 1, data: {seconds: 7}});
+  assert.strictEqual(pick().state, '풀이 중'); assert.strictEqual(pick().small, 0);
+  post({...b4, t: T(10), type: 'away', away: 2, data: {reason: 'hidden'}});
+  assert.strictEqual(pick().small, 0, 'hidden away is plain red');
+  assert.strictEqual(post({...b4, t: T(11), type: 'away', away: 3, data: {reason: 'zzz'}}).ok, false);
+}
 console.log('hub harness: all checks passed');

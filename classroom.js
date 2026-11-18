@@ -14,6 +14,8 @@
  *     (공용 태블릿을 다른 학생이 이어 쓰는 경우 대비). 날짜가 바뀐 경우에는 오늘 시작으로 다시 알려요.
  *  2) 다른 탭·앱으로 가거나 창 밖을 3초 넘게 누르면 '자리 비움'을 허브로 보내고, 돌아오면 경고를 보여 줘요.
  *     학습지 화면으로 돌아와 창을 누르거나 만지면 '복귀'는 저절로 보내요(경고 창 버튼을 안 눌러도 돼요).
+ *     화면 분할·팝업 창으로 학습지 창이 평소보다 많이 작아진 채 5초가 지나도 '자리 비움'으로 보내고(사유 small),
+ *     창이 다시 커지면 복귀를 보내요. 학생 경고 창 문구는 다른 이탈과 같아요(선생님 화면에서만 색이 달라요).
  *     시작·자리 비움·복귀 신호는 차례대로 보내고, 실패하면 저장해 두었다가 다시 보내요.
  *  3) 학습지가 Classroom.submit({...})을 부르면 결과를 허브로 보내요.
  *
@@ -86,9 +88,10 @@
   }
 
   // ---- 저장 ----------------------------------------------------------------
-  var S = {num: '', name: '', sid: '', away: 0, awayAt: 0, startAt: 0, seenAt: 0, attempt: 0, submitted: false, queue: []};
+  var S = {num: '', name: '', sid: '', away: 0, awayAt: 0, awayWhy: '', startAt: 0, seenAt: 0, attempt: 0, submitted: false, queue: [], big: {}};
   try { var saved = JSON.parse(localStorage.getItem(KEY) || 'null'); if (saved && typeof saved === 'object') for (var k in S) if (k in saved) S[k] = saved[k]; } catch (e) {}
   if (!Array.isArray(S.queue)) S.queue = [];
+  if (!S.big || typeof S.big !== 'object') S.big = {};
   function save() { S.seenAt = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
   // 본인 확인 창에 답하기 전에는 저장하지 않아요(답 없이 새로고침해도 다시 물어보게).
   window.addEventListener('pagehide', function () { if (tracking) save(); });
@@ -178,7 +181,7 @@
   // 다른 학생으로 바꿔요. 학습지는 'classroom:switch' 신호를 받아 자기 기록을 지워요.
   function switchStudent() {
     try { document.dispatchEvent(new CustomEvent('classroom:switch')); } catch (e) {}
-    S.num = ''; S.name = ''; S.sid = ''; S.away = 0; S.awayAt = 0; S.attempt = 0; S.submitted = false; save(); location.reload();
+    S.num = ''; S.name = ''; S.sid = ''; S.away = 0; S.awayAt = 0; S.awayWhy = ''; S.attempt = 0; S.submitted = false; save(); location.reload();
   }
   var chip;
   function renderChip() {
@@ -248,7 +251,7 @@
       if (miss) { err.textContent = (miss === sg ? '학년을' : miss === sc ? '반을' : '번호를') + ' 골라 주세요.'; miss.focus(); return; }
       if (!name) { err.textContent = '이름을 써 주세요.'; i2.focus(); return; }
       S.num = num; S.name = name; S.sid = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
-      S.away = 0; S.awayAt = 0; S.attempt = 0; S.submitted = false; S.startAt = Date.now(); save();
+      S.away = 0; S.awayAt = 0; S.awayWhy = ''; S.attempt = 0; S.submitted = false; S.startAt = Date.now(); save();
       veil.remove(); done();
     });
     veil.appendChild(card); document.body.appendChild(veil);
@@ -303,18 +306,61 @@
   }
   function markAway(reason) {
     if (!tracking || S.awayAt) return;
-    S.away++; S.awayAt = Date.now(); save(); renderChip();
+    S.away++; S.awayAt = Date.now(); S.awayWhy = reason; save(); renderChip();
     try { document.dispatchEvent(new CustomEvent('classroom:away', {detail: {away: S.away}})); } catch (e) {}
     send('away', {reason: reason}, true);
     showWarn();
   }
   // 학습지로 돌아왔어요: 복귀를 보내요(경고 창은 학생이 닫을 때까지 남겨 둬요).
+  // 창이 작아서 생긴 자리 비움은 창이 다시 커져야 복귀예요(작은 창을 만지는 것만으로는 아니에요).
   function markBack() {
     if (!tracking || !S.awayAt) return;
+    if (isSmall()) {
+      // 최근 앱 화면을 거쳐 분할로 들어오면 먼저 '숨김' 이탈이 생겨요. 창이 작은 채로 돌아왔으면 복귀가 아니라
+      // 같은 자리 비움을 '작은 창'으로 바꿔 알려요(횟수는 늘리지 않아요).
+      if (S.awayWhy !== 'small') { S.awayWhy = 'small'; save(); send('away', {reason: 'small'}); }
+      return;
+    }
     var sec = Math.max(0, Math.round((Date.now() - S.awayAt) / 1000));
-    S.awayAt = 0; save();
+    S.awayAt = 0; S.awayWhy = ''; save();
     send('back', {seconds: sec});
   }
+
+  // ---- 창 크기 (화면 분할·팝업) -----------------------------------------------
+  // 갤럭시 실측(2026-11-18): 분할·팝업이 자리 잡은 뒤에는 blur·숨김 신호가 없고 창 크기만 평소의 40~56%로 줄어요.
+  // 가로·세로 방향마다 지금까지 본 가장 큰 창 넓이를 기억해 두고(이 기기에 저장), 그 65% 미만이면 '작은 창'이에요.
+  // 키보드는 창 크기(innerHeight)를 줄이지 않고, 주소창이 숨거나 나타나는 차이는 85% 정도라 걸리지 않아요.
+  var SMALL_RATIO = 0.65, SMALL_WAIT = 5000, smallSince = 0;
+  // 방향은 창 모양이 아니라 기기 화면 방향으로 봐요(위아래 분할 창은 가로로 넓적해서 창 모양으로는 헷갈려요).
+  function orient() {
+    var t = screen.orientation && screen.orientation.type;
+    if (t) return /^portrait/.test(t) ? 'P' : 'L';
+    if (typeof window.orientation === 'number') return Math.abs(window.orientation) === 90 ? 'L' : 'P';
+    return screen.width > screen.height ? 'L' : 'P';
+  }
+  function isFull() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  // 실제 화면 점(물리 픽셀) 기준 넓이: 화면·글자 크기 배율을 바꿔도 같은 창이면 같은 값이에요.
+  function area() { var d = window.devicePixelRatio || 1; return window.innerWidth * d * window.innerHeight * d; }
+  function typing() { var a = document.activeElement; return !!(a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable)); }
+  function isSmall() {
+    var big = Number(S.big[orient()]) || 0, now = area();
+    return big > 0 && now > 0 && now < big * SMALL_RATIO;
+  }
+  function sizeCheck() {
+    // 숨김·전체 화면 영상·글자 입력(키보드) 중에는 재지 않아요.
+    if (!tracking || document.hidden || isFull() || typing()) { smallSince = 0; return; }
+    var o = orient(), now = area();
+    if (now > (Number(S.big[o]) || 0)) { S.big[o] = now; save(); }
+    if (!isSmall()) {
+      smallSince = 0;
+      if (S.awayAt && S.awayWhy === 'small') markBack();
+      return;
+    }
+    if (!smallSince) smallSince = Date.now();
+    else if (Date.now() - smallSince >= SMALL_WAIT && !S.awayAt) markAway('small');
+  }
+  window.addEventListener('resize', function () { setTimeout(sizeCheck, 300); });
+  setInterval(sizeCheck, 1000);
   // 화면이 보이고 이 창에 초점이 있으면 돌아온 거예요. (화면 나누기로 옆 앱에 초점이 있으면 아직 아니에요.)
   function backIfFocused() { if (!document.hidden && document.hasFocus()) markBack(); }
   // 새로고침·페이지 닫기는 자리 비움으로 세지 않아요.
@@ -408,7 +454,7 @@
         if (!c.newDay && !needConfirm().newDay) { begin(false); return; }
         // 다른 날: 새 수업으로 시작해요(자리 비움 횟수는 새로 세고, 현황판 '오늘'에 다시 나타나요). 어제 남은 자리 비움은 버려요.
         S.sid = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
-        S.away = 0; S.awayAt = 0; S.startAt = Date.now(); save();
+        S.away = 0; S.awayAt = 0; S.awayWhy = ''; S.startAt = Date.now(); save();
         begin(true);
       });
     }

@@ -163,8 +163,8 @@ ol.steps .d{font-size:13px;color:var(--muted)}
   // ---- 지금 학습지 허브(classroom.js)가 어떻게 판정할지 흉내 ----
   // 1) 숨겨지면(새로고침·닫기 제외) 이탈  2) 창 blur 3초 뒤 초점 없고 보이면 이탈(영상 iframe 이면 제외)
   // 후보 A) 영상 iframe 에 초점이 있는 동안 1초마다 hasFocus 를 봐서 3번 연속 false
-  // 후보 B) 창 폭이 화면의 80% 미만(좁아짐)
-  var leaving = false, blurTimer = null, away = false, candA = 0, narrow = false;
+  // 후보 B) 창 넓이가 같은 방향에서 본 가장 큰 넓이의 65% 미만으로 5초(2026-11-18 실측 뒤 학습지 허브에 넣은 규칙)
+  var leaving = false, blurTimer = null, away = false, candA = 0, narrow = false, big = {}, smallSince = 0;
   function judge(kind, why) { add('판정:' + kind, why ? {why: why} : null); }
   window.addEventListener('pagehide', function (e) { leaving = true; add('pagehide', {persisted: !!e.persisted}); });
   window.addEventListener('beforeunload', function () { leaving = true; add('beforeunload'); });
@@ -219,9 +219,14 @@ ol.steps .d{font-size:13px;color:var(--muted)}
     // 후보 A
     if (s.act === 'IFRAME' && s.vis === 'visible' && !s.foc) { candA++; if (candA === 3) judge('후보A 영상뒤 초점없음 3초'); }
     else { if (candA >= 3) judge('후보A 끝'); candA = 0; }
-    // 후보 B
-    var nw = s.r < 0.8;
-    if (nw !== narrow) { narrow = nw; judge(nw ? '후보B 창 좁아짐' : '후보B 창 넓어짐', {r: s.r}); }
+    // 후보 B (창 넓이)
+    var o = /^portrait/.test(s.o) ? 'P' : 'L', dpr = window.devicePixelRatio || 1, area = s.w * dpr * s.h * dpr, full = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    if (!full && s.vis === 'visible' && area > (big[o] || 0)) big[o] = area;
+    var small = !full && s.vis === 'visible' && big[o] > 0 && area < big[o] * 0.65;
+    if (small && !smallSince) smallSince = now;
+    if (!small) smallSince = 0;
+    var nw = small && now - smallSince >= 5000;
+    if (nw !== narrow) { narrow = nw; judge(nw ? '후보B 창 작아짐 5초' : '후보B 창 다시 커짐', {area: area, big: big[o]}); }
     drawLive(s);
   }, 1000);
 
@@ -230,7 +235,7 @@ ol.steps .d{font-size:13px;color:var(--muted)}
     if (away) { big = '현재 코드 기준: 이탈'; cls = 'bad'; }
     else if (candA >= 3) { big = '후보A: 영상 뒤 초점 없음'; cls = 'warn'; }
     else if (!s.foc && s.vis === 'visible') { big = '보이지만 초점 없음'; cls = 'warn'; }
-    else if (narrow) { big = '학습지 창이 좁아짐'; cls = 'warn'; }
+    else if (narrow) { big = '학습지 창이 작아짐 (새 규칙: 자리 비움)'; cls = 'warn'; }
     else { big = '학습지에 있음'; cls = ''; }
     $('live').className = cls; $('liveBig').textContent = big;
     $('liveVals').textContent = short(s) + ' · 가장 긴 타이머 공백 ' + maxGap + 'ms';

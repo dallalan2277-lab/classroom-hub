@@ -33,6 +33,8 @@ select,input{padding:7px 10px;border:1px solid var(--line);border-radius:10px;ba
 .list .t{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700}
 .list .ws{font-size:12px;color:var(--muted)}
 li.long{color:var(--red)}
+li.small,li.small .t{color:#b35c00}
+@media (prefers-color-scheme:dark){li.small,li.small .t{color:#ffb86b}}
 .stats{display:flex;gap:8px;margin-bottom:12px}
 .stats div{flex:1;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:13px;color:var(--muted)}
 .stats b{display:block;font-size:20px;color:var(--ink)}
@@ -195,7 +197,9 @@ function evaluate() {
 
 // ---- 화면 ----
 function li(a, long) {
-  var el = document.createElement('li'); if (long) el.className = 'long';
+  // 창이 작아져서(화면 분할·팝업 의심) 생긴 자리 비움은 주황색이에요.
+  var el = document.createElement('li'); el.className = (long ? 'long' : '') + (a.r.small ? ' small' : '');
+  if (a.r.small) el.title = '창이 작아짐(화면 분할·팝업 의심)';
   var n = document.createElement('span'); n.textContent = a.r.num + ' ' + a.r.name;
   var w = document.createElement('span'); w.className = 'ws'; w.textContent = a.r.title || a.r.ws;
   var t = document.createElement('span'); t.className = 't'; t.textContent = fmt(a.sec);

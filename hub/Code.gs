@@ -265,7 +265,7 @@ function parseRequest_(contents) {
   const data = isObject_(input.data) ? input.data : null;
   if (!data) throw new Error('data 객체가 필요해요.');
   if (type === 'away') {
-    if (data.reason !== 'hidden' && data.reason !== 'blur') throw new Error('이탈 사유는 hidden 또는 blur여야 해요.');
+    if (['hidden', 'blur', 'small'].indexOf(data.reason) < 0) throw new Error('이탈 사유는 hidden, blur, small 중 하나여야 해요.');
     request.data = {reason: data.reason};
   } else if (type === 'back') {
     request.data = {seconds: integer_(data.seconds, 'seconds', 0)};
@@ -309,7 +309,8 @@ function isObject_(value) {
 function eventDetails_(request) {
   if (request.type === 'start') return {kind: '시작', text: request.title};
   if (request.type === 'away') {
-    return {kind: '이탈', text: request.data.reason === 'hidden' ? '다른 탭·앱으로 이동' : '창 밖 클릭 3초 이상'};
+    return {kind: '이탈', text: request.data.reason === 'hidden' ? '다른 탭·앱으로 이동' :
+      request.data.reason === 'small' ? '창 작아짐(화면 분할·팝업 의심)' : '창 밖 클릭 3초 이상'};
   }
   if (request.type === 'back') return {kind: '복귀', text: request.data.seconds + '초 자리 비움'};
   return {kind: '제출', text: '점수 ' + request.data.score + '/' + request.data.total};
@@ -345,7 +346,7 @@ function findStatus_(sheet, request) {
 function eventOrder_(row, request) {
   if (!row) return 'new';
   const mark = String(row[HEADERS_STATUS_.length - 1] || '').split(' ');
-  if (mark.length !== 3 || mark[0] !== request.sid) return 'new';
+  if (mark.length < 3 || mark[0] !== request.sid) return 'new';
   const before = Date.parse(mark[1]);
   const now = Date.parse(request.t);
   if (!Number.isFinite(before) || !Number.isFinite(now)) return 'new';
@@ -374,8 +375,10 @@ function writeStatus_(sheet, current, request, serverTime, order) {
       /^\d+$/.test(prev[5]) ? Number(prev[5]) : prev[5], prev[6], score, prev[8]]);
     return;
   }
+  // 창이 작아져서 생긴 자리 비움은 순서 칸 끝에 small 을 붙여 현황판이 색을 다르게 보여 줘요.
+  const why = request.type === 'away' && request.data.reason === 'small' ? ' small' : '';
   writeRow_(sheet, rowNumber, [request.ws, title, request.num, request.name, state, request.away, serverTime, score,
-    request.sid + ' ' + request.t + ' ' + request.type]);
+    request.sid + ' ' + request.t + ' ' + request.type + why]);
 }
 
 // 시트 칸이 모자라면(예전에 칸을 줄여 둔 시트) 늘려요. 읽기 전에 불러야 범위 오류가 안 나요.
@@ -454,7 +457,8 @@ function dashboardData(key, noRoster) {
     now: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'HH:mm:ss'),
     nowFull: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss'),
     rows: rows.filter(function (r) { return r[0] !== ''; }).map(function (r) {
-      return {ws: r[0], title: r[1], num: r[2], name: r[3], state: r[4], away: r[5], last: r[6], score: r[7]};
+      return {ws: r[0], title: r[1], num: r[2], name: r[3], state: r[4], away: r[5], last: r[6], score: r[7],
+        small: r[4] === '자리 비움' && / small$/.test(r[8]) ? 1 : 0};
     }),
     roster: noRoster === true ? [] : rosterData_(book)
   };
@@ -593,6 +597,8 @@ function dashboardHtml_(key) {
     '.seat .no{font-weight:700;font-size:15px}.seat .nm{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.seat .st{display:block;font-size:12px;color:var(--muted)}' +
     '.seat.none{background:#eef0ed;border:1px dashed #b9c2bc;color:#7d8882}.seat.none .st{color:#7d8882;font-weight:700}' +
     '.seat.away{background:var(--redbg);border-color:#e9b7b2}.seat.away .st{color:var(--red);font-weight:700}' +
+    '.seat.small{background:#fff1e0;border-color:#efc58f}.seat.small .st{color:#b35c00;font-weight:700}' +
+    'tr.small td{background:#fff1e0}tr.small td.st{color:#b35c00;font-weight:700}.legend{font-size:12px;color:var(--muted);margin:0 0 8px}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin:0 4px 0 10px;vertical-align:-1px}' +
     '.seat.done{background:#e6f4ea;border-color:#b5dcc1}.seat.done .st{color:var(--green);font-weight:700}' +
     '.seat .warn{display:block;font-size:11px;color:#9a5b00;font-weight:700}.seathelp{font-size:13px;color:var(--muted);padding:16px;background:#fff;border-radius:10px}' +
     '.sum .gray b{color:#7d8882}' +
@@ -609,6 +615,7 @@ function dashboardHtml_(key) {
     '<button data-bulk="all" class="danger" role="menuitem">이 학습지 현황 모두 지우기</button></div></div>' +
     '<div class="sum"><div>접속<b id="nAll">0</b></div><div class="red">자리 비움<b id="nAway">0</b></div><div class="green">제출<b id="nDone">0</b></div><div class="gray" id="noneBox" hidden>안 옴<b id="nNone">0</b></div></div>' +
     '<div class="selbar" id="selbar" hidden><span id="selTxt"></span><span class="grow"></span><button id="selClear">선택 해제</button><button id="selDel" class="danger">현황에서 지우기</button></div>' +
+    '<p class="legend">색: <i style="background:#fde8e6;border:1px solid #e9b7b2"></i>자리 비움 <i style="background:#fff1e0;border:1px solid #efc58f"></i>자리 비움(창이 작아짐 · 화면 분할·팝업 의심)</p>' +
     '<div class="seats" id="seats" hidden></div>' +
     '<div class="wrap" id="listWrap"><table><thead><tr><th><input type="checkbox" id="all" aria-label="모두 선택"></th><th>학번</th><th>이름</th><th>상태</th><th>이탈</th><th>마지막 소식</th><th>점수</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>' +
     '<div class="veil" id="confirm" hidden role="dialog" aria-modal="true" aria-labelledby="cTitle"><div class="box"><h2 id="cTitle"></h2>' +
@@ -636,7 +643,7 @@ function dashboardHtml_(key) {
     'opts.forEach(function(r){var o=document.createElement("option");o.value=r.ws;o.textContent=r.title||r.ws;if(r.ws===picked)o.selected=true;s.appendChild(o)});drawCls();' +
     'var cur=current(),keep={};cur.forEach(function(r){if(sel[pk(r)])keep[pk(r)]=1});sel=keep;' +
     'var tb=$("tb");tb.textContent="";var na=0,nd=0;' +
-    'cur.forEach(function(r){var tr=document.createElement("tr"),k=pk(r);if(r.state==="자리 비움"){tr.className="away";na++}else if(r.state==="제출함"){tr.className="done";nd++}if(sel[k])tr.className+=" sel";' +
+    'cur.forEach(function(r){var tr=document.createElement("tr"),k=pk(r);if(r.state==="자리 비움"){tr.className=r.small?"away small":"away";na++}else if(r.state==="제출함"){tr.className="done";nd++}if(sel[k])tr.className+=" sel";' +
     'var c=document.createElement("td"),cb=document.createElement("input");cb.type="checkbox";cb.checked=!!sel[k];cb.setAttribute("aria-label",r.name+" 선택");cb.onchange=function(){if(cb.checked)sel[k]=1;else delete sel[k];draw()};c.appendChild(cb);tr.appendChild(c);' +
     '[td(r.num),td(r.name),td(r.state,"st"),td(r.away),td(r.last.slice(11)||r.last),td(r.score)].forEach(function(e){tr.appendChild(e)});' +
     'var d=document.createElement("td"),b=document.createElement("button");b.className="icon";b.textContent="지우기";b.setAttribute("aria-label",r.name+" 지우기");b.onclick=function(){ask([r],r.name+"("+r.num+") 학생을 지울까요?")};d.appendChild(b);tr.appendChild(d);tb.appendChild(tr)});' +
@@ -655,7 +662,7 @@ function dashboardHtml_(key) {
     'var lim=ros.length?0:seatN();if(!ros.length)for(var i=1;i<=lim;i++)nos[i]=1;cur.forEach(function(r){var k=Number(r.num.slice(3));if(k<1)return;nos[k]=1;(by[k]=by[k]||[]).push(r)});' +
     'var none=0;Object.keys(nos).map(Number).sort(function(a,b){return a-b}).forEach(function(k){var rows=(by[k]||[]).slice().sort(function(a,b){return b.last.localeCompare(a.last)}),r=rows[0],d=document.createElement("div");' +
     'var inRos=Object.prototype.hasOwnProperty.call(rn,k),nameOk=!r||!inRos||!rn[k]||rows.some(function(x){return x.name===rn[k]});' +
-    'var st=!r?"none":r.state==="자리 비움"?"away":r.state==="제출함"?"done":"on";if(!r||!nameOk)none++;d.className="seat "+st;' +
+    'var st=!r?"none":r.state==="자리 비움"?(r.small?"small":"away"):r.state==="제출함"?"done":"on";if(!r||!nameOk)none++;d.className="seat "+st;' +
     'var no=document.createElement("span");no.className="no";no.textContent=k+"번";d.appendChild(no);' +
     'var nm=document.createElement("span");nm.className="nm";nm.textContent=r?rows.map(function(x){return x.name}).join(", "):(rn[k]||"");d.appendChild(nm);' +
     'var t=document.createElement("span");t.className="st";t.textContent=!r?"안 옴":r.state+(Number(r.away)>0?" · 이탈 "+r.away:"")+(r.state==="제출함"&&r.score!==""?" · "+r.score+"점":"");d.appendChild(t);' +
