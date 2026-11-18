@@ -287,7 +287,7 @@
 
   // ---- 자리 비움 감지 -------------------------------------------------------
   // S.awayAt: 자리를 비운 시각(아직 복귀를 보내지 않았으면 0이 아님). 복귀를 보내야 다음 자리 비움을 새로 세요.
-  var warn = null, blurTimer = null, tracking = false;
+  var warn = null, warnClosedAt = 0, blurTimer = null, tracking = false;
   function warnText() {
     return '지금까지 자리 비움 ' + S.away + '회가 기록되었어요' + (ONLINE ? ' (선생님께 전송됨)' : '') +
       '. 학습을 마칠 때까지 이 화면에 머물러 주세요.';
@@ -299,7 +299,7 @@
     card.appendChild(el('h2', null, '학습지 화면을 벗어났어요'));
     var msg = el('p', null, warnText()); card.appendChild(msg);
     var btn = el('button', null, '학습지로 돌아가기'); btn.type = 'button';
-    btn.addEventListener('click', function () { veil.remove(); warn = null; markBack(); });
+    btn.addEventListener('click', function () { veil.remove(); warn = null; warnClosedAt = Date.now(); markBack(); });
     card.appendChild(btn); veil.appendChild(card); document.body.appendChild(veil);
     warn = {veil: veil, msg: msg};
     setTimeout(function () { btn.focus(); }, 50);
@@ -330,7 +330,8 @@
   // 갤럭시 실측(2026-11-18): 분할·팝업이 자리 잡은 뒤에는 blur·숨김 신호가 없고 창 크기만 평소의 40~56%로 줄어요.
   // 가로·세로 방향마다 지금까지 본 가장 큰 창 넓이를 기억해 두고(이 기기에 저장), 그 65% 미만이면 '작은 창'이에요.
   // 키보드는 창 크기(innerHeight)를 줄이지 않고, 주소창이 숨거나 나타나는 차이는 85% 정도라 걸리지 않아요.
-  var SMALL_RATIO = 0.65, SMALL_WAIT = 5000, smallSince = 0;
+  // 창이 작은 채로 경고 창을 닫으면 WARN_AGAIN 뒤에 경고 창을 다시 띄워요(횟수는 늘리지 않아요).
+  var SMALL_RATIO = 0.65, SMALL_WAIT = 5000, WARN_AGAIN = 30000, smallSince = 0;
   // 방향은 창 모양이 아니라 기기 화면 방향으로 봐요(위아래 분할 창은 가로로 넓적해서 창 모양으로는 헷갈려요).
   function orient() {
     var t = screen.orientation && screen.orientation.type;
@@ -354,6 +355,10 @@
     if (!isSmall()) {
       smallSince = 0;
       if (S.awayAt && S.awayWhy === 'small') markBack();
+      return;
+    }
+    if (S.awayAt && S.awayWhy === 'small') {
+      if (!warn && Date.now() - warnClosedAt >= WARN_AGAIN) showWarn();
       return;
     }
     if (!smallSince) smallSince = Date.now();
