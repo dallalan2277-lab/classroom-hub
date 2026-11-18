@@ -19,6 +19,13 @@ const SHEET_LOG = '기록';      // 모든 신호(시작·이탈·복귀·제출
 const SHEET_SUBMIT = '제출';   // 제출 결과를 쌓는 시트
 const SHEET_STATUS = '현황';   // 학습지·학번·이름별 최신 상태
 const SHEET_ROSTER = '명단';   // (선택) A열 학번(10712 모양), B열 이름. 있으면 현황판 자리표에 이름과 '안 온 학생'을 보여 줘요.
+// 현황판 '학습지' 목록에 보일 학습지(학습지 모음 첫 화면과 같은 순서). 여기 없는 학습지 기록은 시트에는 남지만 현황판에는 안 보여요.
+const DASH_SHEETS = [
+  ['gugak-class', '국악기 · 수업과 학습지'],
+  ['stage-class', '음악극 탐험대 · 수업과 학습지'],
+  ['dance-class', '춤을 세계 음악 속으로 · 수업과 학습지'],
+  ['pansori-plus', '판소리와 창극 · 수업과 학습지(개선판)']
+];
 
 // 아래는 내부용이에요.
 const PROP_SHEET_ID_ = 'HUB_SPREADSHEET_ID';
@@ -628,7 +635,7 @@ function dashboardHtml_(key) {
     '<p id="aMsg" role="status"></p><input id="aUrl" readonly aria-label="알림판 주소" hidden></div></div>' +
     '<div class="toast" id="toast" hidden role="status"><span id="tTxt"></span><button id="undo">되돌리기</button></div>' +
     '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script>' +
-    'var KEY=' + JSON.stringify(key) + ',data=null,picked="",cls="",view="list",sel={},pending=null,undoRows=null,busy=false,toastTimer=null;' +
+    'var SHEETS=' + JSON.stringify(DASH_SHEETS) + ',KEY=' + JSON.stringify(key) + ',data=null,picked="",cls="",view="list",sel={},pending=null,undoRows=null,busy=false,toastTimer=null;' +
     'var MEM={};function ls(k,v){if(v!==undefined)MEM[k]=v;try{if(v===undefined)return localStorage.getItem(k)||MEM[k]||null;localStorage.setItem(k,v)}catch(e){return MEM[k]||null}}' +
     'view=ls("hub:view")==="seat"?"seat":"list";cls=ls("hub:cls")||"";' +
     'function clsOf(n){return /^[1-3][0-9]{4}$/.test(n)?n.slice(0,3):""}' +
@@ -638,9 +645,9 @@ function dashboardHtml_(key) {
     'function td(t,c){var e=document.createElement("td");e.textContent=t;if(c)e.className=c;return e}' +
     'function visible(){if(!data)return[];var today=$("today").checked;return data.rows.filter(function(r){return !today||r.last.slice(0,10)===data.today})}' +
     'function current(){return visible().filter(function(r){return r.ws===picked&&(!cls||clsOf(r.num)===cls)}).sort(function(a,b){return a.num.localeCompare(b.num,"ko",{numeric:true})})}' +
-    'function draw(){if(!data)return;var rows=data.rows,seen={},opts=[];rows.forEach(function(r){if(!seen[r.ws]){seen[r.ws]={r:r,last:r.last};opts.push(r)}else if(r.last>seen[r.ws].last)seen[r.ws].last=r.last});' +
-    'opts.sort(function(a,b){return seen[b.ws].last.localeCompare(seen[a.ws].last)});if(!seen[picked])picked=opts.length?opts[0].ws:"";var s=$("ws");s.textContent="";' +
-    'opts.forEach(function(r){var o=document.createElement("option");o.value=r.ws;o.textContent=r.title||r.ws;if(r.ws===picked)o.selected=true;s.appendChild(o)});drawCls();' +
+    'function draw(){if(!data)return;var ok={},best="",bestAt="";SHEETS.forEach(function(w){ok[w[0]]=1});' +
+    'data.rows.forEach(function(r){if(ok[r.ws]&&r.last>bestAt){bestAt=r.last;best=r.ws}});if(!ok[picked])picked=best||SHEETS[0][0];var s=$("ws");s.textContent="";' +
+    'SHEETS.forEach(function(w){var o=document.createElement("option");o.value=w[0];o.textContent=w[1];if(w[0]===picked)o.selected=true;s.appendChild(o)});drawCls();' +
     'var cur=current(),keep={};cur.forEach(function(r){if(sel[pk(r)])keep[pk(r)]=1});sel=keep;' +
     'var tb=$("tb");tb.textContent="";var na=0,nd=0;' +
     'cur.forEach(function(r){var tr=document.createElement("tr"),k=pk(r);if(r.state==="자리 비움"){tr.className=r.small?"away small":"away";na++}else if(r.state==="제출함"){tr.className="done";nd++}if(sel[k])tr.className+=" sel";' +
@@ -688,7 +695,7 @@ function dashboardHtml_(key) {
     '$("moreBtn").onclick=function(e){e.stopPropagation();var m=$("menu");m.hidden=!m.hidden;this.setAttribute("aria-expanded",String(!m.hidden))};' +
     'document.addEventListener("click",function(e){if(!$("menu").contains(e.target)){$("menu").hidden=true;$("moreBtn").setAttribute("aria-expanded","false")}});' +
     'document.addEventListener("keydown",function(e){if(e.key==="Escape"){$("menu").hidden=true;$("confirm").hidden=true;pending=null}});' +
-    'Array.prototype.forEach.call(document.querySelectorAll("[data-bulk]"),function(b){b.onclick=function(){if(!data)return;var k=b.getAttribute("data-bulk"),all=data.rows.filter(function(r){return r.ws===picked}),t=(all[0]&&(all[0].title||all[0].ws))||"";' +
+    'Array.prototype.forEach.call(document.querySelectorAll("[data-bulk]"),function(b){b.onclick=function(){if(!data)return;var k=b.getAttribute("data-bulk"),all=data.rows.filter(function(r){return r.ws===picked}),t=picked;SHEETS.forEach(function(w){if(w[0]===picked)t=w[1]});' +
     'var people=k==="old"?all.filter(function(r){return r.last.slice(0,10)<data.today}):k==="test"?all.filter(function(r){return r.num==="00000"}):all;' +
     'ask(people,k==="all"?"「"+t+"」 현황 "+people.length+"명을 모두 지울까요?":k==="old"?"오늘 이전 "+people.length+"명을 지울까요?":"시험용 학생 "+people.length+"명을 지울까요?")}});' +
     '$("ws").onchange=function(){picked=this.value;sel={};draw()};$("today").onchange=function(){sel={};draw()};' +
