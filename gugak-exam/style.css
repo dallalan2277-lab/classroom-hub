@@ -696,3 +696,21 @@ button {
   object-fit: contain;
   display: block;
 }
+
+/* 학생용 QR (머리 오른쪽 작은 QR + 누르면 크게) */
+.meta-pills { align-items: center; }
+.qr-host { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.qr-thumb { padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: #ffffff; cursor: zoom-in; line-height: 0; }
+.qr-thumb[hidden] { display: none; }
+.qr-box img, .qr-box canvas { display: block; width: 56px; height: 56px; }
+.qr-toggle { border: 0; background: none; padding: 0; font-size: 11px; color: var(--muted); cursor: pointer; text-decoration: underline; }
+.qr-pop { position: fixed; inset: 0; z-index: 300; background: rgba(0, 0, 0, 0.72); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.qr-pop[hidden] { display: none; }
+.qr-pop-card { background: #ffffff; color: #111111; border-radius: 16px; padding: 20px; text-align: center; max-width: 100%; }
+.qr-pop-card h2 { margin: 0 0 12px; font-size: 22px; }
+.qr-pop-box { display: inline-block; padding: 12px; background: #ffffff; line-height: 0; }
+.qr-pop-box img, .qr-pop-box canvas { max-width: 100%; height: auto; }
+.qr-pop-url { margin: 10px 0 14px; font-size: 14px; word-break: break-all; color: #333333; }
+.qr-pop-close { padding: 8px 18px; border-radius: 10px; border: 1px solid #cccccc; background: #f4f4f4; color: #111111; font-weight: 700; cursor: pointer; }
+@media print { .qr-host, .qr-pop { display: none !important; } }
+@media (max-width: 599px) { .qr-host { display: none; } } /* 휴대폰은 위 고정 머리가 커지지 않게 QR 숨김 */

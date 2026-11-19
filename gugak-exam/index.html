@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex">
   <title>국악기 수행평가</title>
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
   <script src="../classroom.js" data-ws="gugak-exam" data-title="국악기 수행평가"></script>
   <script src="items.js?v=1" defer></script>
   <script src="app.js?v=2" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+  <script src="qr.js?v=1" defer></script>
 </head>
 <body>
   <header class="exam-top">
@@ -21,6 +23,7 @@
         <div class="meta-pills">
           <span class="pill" id="progressPill">작성 <b id="filledCnt">0</b> / 20</span>
           <span class="pill teacher-pill" id="teacherBanner" hidden>교사 모드 — 기록되지 않아요</span>
+          <div class="qr-host" id="qrHost"></div>
         </div>
       </div>
       <div class="away-bar" id="awayBar" role="status" aria-live="polite">
