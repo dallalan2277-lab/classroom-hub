@@ -172,7 +172,8 @@ p { margin: 0 0 1em; }
 .tl [role=tab]:hover { color: var(--muted); }
 .tl [role=tab][aria-selected=true] { color: var(--text); border-bottom-color: var(--acc); }
 .tl [role=tab][aria-selected=true] i { color: var(--acc2); }
-.tp { display: grid; grid-template-columns: 5fr 7fr; gap: clamp(24px, 4vw, 52px); padding: 30px 0 6px; outline: none; }
+.tp { display: grid; grid-template-columns: 5fr 7fr; gap: clamp(24px, 4vw, 52px); padding: 30px 0 6px; outline: none; align-items: start; }
+.tp > * { min-width: 0; }
 .tp[hidden] { display: none; }
 .tp h3 { margin: 0 0 4px; font-size: 2rem; }
 .tp .who { font-size: .82rem; color: var(--dim); }
@@ -189,7 +190,30 @@ a.next-md { display: inline-flex; align-items: center; text-decoration: none; }
 .tp-body p b { color: var(--text); }
 .tp .care { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); font-size: .86rem; }
 .tp .care b { color: var(--text); margin-right: 6px; }
+@media (min-width: 761px) { body:not(.class-mode) .tp-head { position: sticky; top: 24px; } }
 @media (max-width: 760px) { .tl [role=tab] { padding: 10px 12px 8px; font-size: .98rem; } .tp { grid-template-columns: 1fr; gap: 6px; } }
+
+/* 다섯 마당 장면 전개 */
+.acts { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.acts-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 12px; }
+.acts-head h4 { margin: 0 !important; }
+.acts-cnt { margin-left: 8px; font-variant-numeric: tabular-nums; color: var(--muted); letter-spacing: 0; }
+.act-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.act-card { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.act-card.is-now { border-color: rgba(232, 105, 63, .55); }
+.act-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 6px; }
+.act-n { font-size: .72rem; font-weight: 700; letter-spacing: .08em; color: var(--dim); }
+.act-mark { font-size: .74rem; font-weight: 700; color: var(--acc2); background: var(--accbg); border: 1px solid rgba(232, 105, 63, .4); border-radius: 999px; padding: 2px 10px; }
+.act-t { font-family: var(--serif); font-size: 1.08rem; font-weight: 700; color: var(--text); margin: 0 0 6px; line-height: 1.4; }
+.act-x { margin: 0; color: var(--muted); font-size: .94rem; line-height: 1.7; }
+.act-say { margin: 10px 0 0; padding: 8px 12px; border-left: 3px solid var(--acc); background: var(--bg3); border-radius: 0 8px 8px 0; }
+.act-say p { margin: 0; color: var(--text); font-family: var(--serif); font-size: .96rem; line-height: 1.55; }
+.act-say cite { display: block; margin-top: 2px; font-style: normal; font-size: .76rem; color: var(--dim); }
+.act-foot { margin-top: 14px; display: grid; gap: 8px; justify-items: start; }
+.act-cut { margin: 0 !important; font-size: .86rem !important; color: var(--acc2) !important; line-height: 1.5; }
+.act-next { background: var(--accbtn); color: #fff; border: 0; border-radius: 999px; min-height: 44px; padding: 9px 22px; font-weight: 700; font-size: .9rem; }
+.act-next:hover { background: #b84822; }
+@media (max-width: 520px) { .act-card { padding: 12px 14px; } .act-next { width: 100%; text-align: center; } }
 
 /* 영상 */
 .vid { margin: 0; }

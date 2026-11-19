@@ -107,15 +107,66 @@
     sim: '심청가 그림: 넓은 바다 위 배에 탄 심청',
     jeok: '적벽가 그림: 배 위에서 조자룡이 활을 겨누고, 동남풍에 돛이 펄럭여요'
   };
+  var storyShown = {};
+  function actsHTML(key, st) {
+    if (!st || !Array.isArray(st.acts) || !st.acts.length) return '';
+    var total = st.acts.length;
+    var shown = Math.max(1, Math.min(total, storyShown[key] || 1));
+    storyShown[key] = shown;
+    var allOpen = shown >= total;
+    var cards = st.acts.slice(0, shown).map(function (a, i) {
+      return '<li class="act-card' + (i === shown - 1 ? ' is-now' : '') + '">' +
+        '<div class="act-meta"><span class="act-n">장면 ' + (i + 1) + '</span>' +
+        (a.mark ? '<span class="act-mark">명장면 · ' + esc(a.mark) + '</span>' : '') + '</div>' +
+        '<h5 class="act-t">' + esc(a.t) + '</h5>' +
+        '<p class="act-x">' + esc(a.x) + '</p>' +
+        (a.say ? '<blockquote class="act-say"><p>“' + esc(a.say) + '”</p>' + (a.who ? '<cite>— ' + esc(a.who) + '</cite>' : '') + '</blockquote>' : '') +
+        '</li>';
+    }).join('');
+    var curAct = st.acts[shown - 1];
+    var foot = !allOpen
+      ? '<div class="act-foot">' +
+        (curAct && curAct.cut ? '<p class="act-cut">' + esc(curAct.cut) + '</p>' : '') +
+        '<button type="button" class="act-next" data-story="' + esc(key) + '">다음 장면 (' + (shown + 1) + ' / ' + total + ') →</button></div>'
+      : '';
+    return '<div class="acts" id="acts-' + esc(key) + '" data-story="' + esc(key) + '">' +
+      '<div class="acts-head"><h4>장면으로 따라가기 <span class="acts-cnt">' + shown + ' / ' + total + '</span></h4>' +
+      '<button type="button" class="mini act-all" data-story="' + esc(key) + '" aria-pressed="' + allOpen + '">' + (allOpen ? '첫 장면만 보기' : '한꺼번에 펼치기') + '</button></div>' +
+      '<ol class="act-list">' + cards + '</ol>' + foot + '</div>';
+  }
+  function updateActs(key, focusMode) {
+    var st = (DATA.STORIES || {})[key];
+    var box = document.getElementById('acts-' + key);
+    if (!st || !box) return;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = actsHTML(key, st);
+    var nextBox = tmp.firstChild;
+    if (!nextBox) return;
+    box.replaceWith(nextBox);
+    if (focusMode === 'next') {
+      var nb = nextBox.querySelector('.act-next') || nextBox.querySelector('.act-all');
+      if (nb) {
+        nb.focus();
+        if (nb.scrollIntoView) nb.scrollIntoView({ block: 'nearest' });
+      }
+    } else if (focusMode === 'all') {
+      var ab = nextBox.querySelector('.act-all');
+      if (ab) ab.focus();
+    }
+  }
   function storyPanel(key, k, all) {
     var st = (DATA.STORIES || {})[key]; if (!st) return '';
     var nk = all && all[k + 1], nst = nk && DATA.STORIES[nk];
     var next = nst ? '<button type="button" class="next-md" data-next="tb-' + esc(nk) + '">다음 마당: ' + esc(nst.name) + ' →</button>'
       : '<a class="next-md" href="#' + esc(PAGES[cur()].id) + '?sheet">다섯 마당을 다 봤어요 · 학습지로 →</a>';
+    var hasActs = Array.isArray(st.acts) && st.acts.length > 0;
+    var bodyHTML = hasActs
+      ? '<h4>세 줄 요약</h4><p class="story-sum">' + esc(st.story) + '</p>' + actsHTML(key, st)
+      : '<h4>줄거리</h4><p>' + esc(st.story) + '</p>';
     return '<div class="tp" role="tabpanel" id="tp-' + esc(key) + '" aria-labelledby="tb-' + esc(key) + '"' + (k ? ' hidden' : '') + ' tabindex="0">' +
       '<div class="tp-head">' + art('madang-' + key + '.webp', MD_ALT[key] || st.name, 'md-art', 1200, 900) + '<p class="eyebrow">다섯 마당 · ' + (k + 1) + '</p><h3>' + esc(st.name) + '</h3><p class="who">' + esc(st.who) + '</p>' +
       '<p class="one">' + esc(st.one) + '</p><p class="hook">' + esc(st.hook) + '</p></div>' +
-      '<div class="tp-body"><h4>줄거리</h4><p>' + esc(st.story) + '</p>' +
+      '<div class="tp-body">' + bodyHTML +
       '<h4>주제</h4><ul>' + st.theme.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
       '<h4>대표 대목은 어디쯤?</h4><p>' + st.scene + '</p>' +
       (st.care ? '<p class="care"><b>함께 생각해요</b> ' + esc(st.care) + '</p>' : '') + next + '</div></div>';
@@ -326,6 +377,16 @@
     var t = e.target.closest ? e.target.closest('button') : null; if (!t) return;
     if (t.getAttribute('role') === 'tab') { selectTab(t); return; }
     if (t.classList.contains('next-md') && t.hasAttribute('data-next')) { var nt = document.getElementById(t.getAttribute('data-next')); if (nt) { selectTab(nt, true); var tl = nt.closest('.tl'); if (tl) tl.scrollIntoView({ block: 'start' }); } return; }
+    if (t.classList.contains('act-next')) {
+      var sk = t.getAttribute('data-story'), st1 = (DATA.STORIES || {})[sk];
+      if (st1 && Array.isArray(st1.acts)) { storyShown[sk] = Math.min(st1.acts.length, (storyShown[sk] || 1) + 1); updateActs(sk, 'next'); }
+      return;
+    }
+    if (t.classList.contains('act-all')) {
+      var sk2 = t.getAttribute('data-story'), st2 = (DATA.STORIES || {})[sk2];
+      if (st2 && Array.isArray(st2.acts)) { storyShown[sk2] = (storyShown[sk2] || 1) >= st2.acts.length ? 1 : st2.acts.length; updateActs(sk2, 'all'); }
+      return;
+    }
     if (t.id === 'btnSheet') { setSheet(!sheetOn); if (sheetOn) { var sh = document.getElementById('sheet'); if (sh) sh.scrollIntoView({ block: 'start' }); } return; }
     if (t.classList.contains('vid-play')) {
       stopVideos();
