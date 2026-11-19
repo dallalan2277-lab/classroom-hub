@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex">
   <title>국악기 수행평가</title>
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
   <script src="../classroom.js" data-ws="gugak-exam" data-title="국악기 수행평가"></script>
   <script src="items.js?v=1" defer></script>
-  <script src="app.js?v=3" defer></script>
+  <script src="app.js?v=4" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
-  <script src="qr.js?v=1" defer></script>
+  <script src="qr.js?v=2" defer></script>
 </head>
 <body>
   <header class="exam-top">
@@ -37,7 +37,7 @@
         </div>
         <div class="audio-stage" aria-label="소리 재생 가리개">
           <div id="audioHost" class="audio-host" aria-hidden="true"></div>
-          <div class="audio-cover">소리만 들려요</div>
+          <div class="audio-cover">소리가 안 나오면 여기를 한 번 누르세요</div>
         </div>
         <button type="button" class="btn-stop" id="stopAudioBtn">멈추기</button>
       </div>
@@ -137,6 +137,16 @@
       <div class="modal-actions">
         <button type="button" class="btn-ghost" id="confirmCancelBtn">취소</button>
         <button type="button" class="btn-primary" id="confirmOkBtn">제출하기</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-veil" id="resetModal" hidden role="alertdialog" aria-modal="true" aria-labelledby="resetTitle">
+    <div class="modal-card">
+      <h2 id="resetTitle">재응시 초기화 안내</h2>
+      <p id="resetMsg">선생님이 다시 응시할 수 있게 초기화했어요. 학번·이름을 다시 입력해 주세요.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" id="resetConfirmBtn">학번·이름 다시 입력하기</button>
       </div>
     </div>
   </div>

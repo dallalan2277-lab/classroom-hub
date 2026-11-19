@@ -18,6 +18,7 @@ const ALERT_AT = 3;            // 한 학생이 한 학습지에서 이 횟수�
 const SHEET_LOG = '기록';      // 모든 신호(시작·이탈·복귀·제출)를 쌓는 시트
 const SHEET_SUBMIT = '제출';   // 제출 결과를 쌓는 시트
 const SHEET_STATUS = '현황';   // 학습지·학번·이름별 최신 상태
+const SHEET_ARCHIVE = '시험보관'; // 시험 제출 원본 보관(지우기·초기화로도 삭제 안 됨)
 const SHEET_ROSTER = '명단';   // (선택) A열 학번(10712 모양), B열 이름. 있으면 현황판 자리표에 이름과 '안 온 학생'을 보여 줘요.
 // 현황판 '학습지' 목록에 보일 학습지(학습지 모음 첫 화면과 같은 순서). 여기 없는 학습지 기록은 시트에는 남지만 현황판에는 안 보여요.
 const DASH_SHEETS = [
@@ -35,6 +36,7 @@ const HEADERS_LOG_ = ['서버시각', '학습지', '학번', '이름', '종류',
 const HEADERS_SUBMIT_ = ['서버시각', '학습지', '학번', '이름', '점수', '만점', '이탈 횟수',
   '걸린 시간(분)', '제출 차수', '틀린 문항', '답안(JSON)', '세션'];
 const HEADERS_STATUS_ = ['학습지', '제목', '학번', '이름', '상태', '누적 이탈', '마지막 소식 시각', '점수', '마지막 신호(순서 확인용)'];
+const HEADERS_ARCHIVE_ = ['서버시각', '학습지', '학번', '이름', '맞힌개수', '만점', '이탈', '걸린분', '차수', '자동제출', '답안(JSON)', '세션', '상태'];
 
 // ---------------------------------------------------------------------------
 // 설치
@@ -52,7 +54,8 @@ function setup() {
     const specs = [
       [SHEET_LOG, HEADERS_LOG_, [160, 140, 80, 90, 70, 80, 220, 260]],
       [SHEET_SUBMIT, HEADERS_SUBMIT_, [160, 140, 80, 90, 60, 60, 80, 100, 80, 200, 420, 260]],
-      [SHEET_STATUS, HEADERS_STATUS_, [140, 200, 80, 90, 90, 80, 160, 60, 260]]
+      [SHEET_STATUS, HEADERS_STATUS_, [140, 200, 80, 90, 90, 80, 160, 60, 260]],
+      [SHEET_ARCHIVE, HEADERS_ARCHIVE_, [160, 140, 80, 90, 70, 60, 60, 70, 60, 70, 420, 260, 100]]
     ];
     specs.forEach(function (spec) {
       const sheet = book.getSheetByName(spec[0]);
@@ -134,6 +137,15 @@ function newKey_() {
 function doGet(e) {
   const p = (e && e.parameter) || {};
   if (p.ping) return json_({ok: true, msg: '학습지 허브가 동작 중이에요'});
+  if (p.examstate !== undefined) {
+    const ws = String(p.examstate || '').trim();
+    const num = String(p.num || '').trim();
+    if (!/^[a-z0-9-]{1,40}$/.test(ws) || !isValidExamNum_(num)) {
+      return json_({ok: false, error: 'ws와 num 형식이 올바르지 않아요.'});
+    }
+    const resetAt = PropertiesService.getScriptProperties().getProperty('EXAM_RESET:' + ws + ':' + num) || '';
+    return json_({ok: true, resetAt: resetAt});
+  }
   if (p.format === 'json' && p.exam !== undefined) {
     if (!checkKey_(p.dash)) return json_({ok: false, error: '현황판 키가 올바르지 않아요.'});
     try { return json_(examData_(p.exam)); }
@@ -155,7 +167,15 @@ function doGet(e) {
 }
 
 function doPost(e) {
-  return json_(handle_(e && e.postData ? e.postData.contents : null));
+  const contents = e && e.postData ? e.postData.contents : null;
+  if (typeof contents === 'string' && contents.length <= 40000) {
+    try {
+      const parsed = JSON.parse(contents);
+      if (isObject_(parsed) && parsed.type === 'examReset') return json_(examReset_(parsed));
+      if (isObject_(parsed) && parsed.type === 'examRestore') return json_(examRestore_(parsed));
+    } catch (err) {}
+  }
+  return json_(handle_(contents));
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +230,11 @@ function handle_(contents) {
       const d = request.data;
       appendRow_(submissions, [serverTime, request.ws, request.num, request.name, d.score, d.total,
         request.away, d.minutes, d.attempt, d.wrong.join(', '), request.answersJson, request.sid]);
+      if (request.exam) {
+        appendRow_(ensureArchiveSheet_(book), [serverTime, request.ws, request.num, request.name,
+          d.score, d.total, request.away, d.minutes, d.attempt, request.auto ? '예' : '아니요',
+          request.answersJson, request.sid, '제출']);
+      }
     }
     if (order !== 'late' || request.type === 'submit') writeStatus_(status, current, request, serverTime, order);
     SpreadsheetApp.flush();
@@ -246,8 +271,8 @@ function validateSettings_() {
   if (typeof ALERT_EMAIL !== 'string' || !Number.isSafeInteger(ALERT_AT) || ALERT_AT < 1) {
     throw new Error('ALERT_EMAIL, ALERT_AT 설정을 확인해 주세요.');
   }
-  const names = [SHEET_LOG, SHEET_SUBMIT, SHEET_STATUS];
-  if (names.some(function (n) { return typeof n !== 'string' || !n.trim(); }) || new Set(names).size !== 3) {
+  const names = [SHEET_LOG, SHEET_SUBMIT, SHEET_STATUS, SHEET_ARCHIVE];
+  if (names.some(function (n) { return typeof n !== 'string' || !n.trim(); }) || new Set(names).size !== 4) {
     throw new Error('시트 이름은 비어 있지 않고 서로 달라야 해요.');
   }
 }
@@ -305,6 +330,7 @@ function parseRequest_(contents) {
     if (exam) {
       const grade = gradeExam_(exam, data.answers);
       request.exam = true;
+      request.auto = data.answers._auto === '1';
       request.data.score = grade.correct;
       request.data.total = exam.items.length;
       request.data.wrong = grade.wrong;
@@ -476,9 +502,13 @@ function examKey_(ws) {
 }
 
 function normalizeExamAnswer_(value) {
-  return typeof value === 'string'
-    ? value.replace(/\s/g, '').replace(/^["'“”‘’.]+|["'“”‘’.]+$/g, '').toLowerCase()
-    : '';
+  if (typeof value !== 'string') return '';
+  const nfc = typeof value.normalize === 'function' ? value.normalize('NFC') : value;
+  return nfc
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s/g, '')
+    .replace(/^["'“”‘’.]+|["'“”‘’.]+$/g, '')
+    .toLowerCase();
 }
 
 function gradeExam_(exam, answers) {
@@ -507,6 +537,137 @@ function hasExamSubmission_(sheet, request) {
   });
 }
 
+function ensureArchiveSheet_(book) {
+  let sheet = book.getSheetByName(SHEET_ARCHIVE);
+  const isNew = !sheet || sheet.getLastRow() === 0;
+  if (!sheet) sheet = book.insertSheet(SHEET_ARCHIVE);
+  if (isNew) {
+    if (sheet.getMaxRows() < 2) sheet.insertRowsAfter(sheet.getMaxRows(), 1);
+    if (sheet.getMaxColumns() < HEADERS_ARCHIVE_.length) {
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), HEADERS_ARCHIVE_.length - sheet.getMaxColumns());
+    }
+    sheet.getRange(1, 1, 1, HEADERS_ARCHIVE_.length).setValues([HEADERS_ARCHIVE_])
+      .setBackground('#1f4e78').setFontColor('#ffffff').setFontWeight('bold');
+    sheet.setFrozenRows(1);
+    [160, 140, 80, 90, 70, 60, 60, 70, 60, 70, 420, 260, 100].forEach(function (w, i) {
+      sheet.setColumnWidth(i + 1, w);
+    });
+  }
+  return sheet;
+}
+
+function isValidExamNum_(num) {
+  return typeof num === 'string' && /^(?:[1-3]0[1-9](?:0[1-9]|[12]\d|30)|[0-9]{4,10})$/.test(num);
+}
+
+function examReset_(input) {
+  if (!checkKey_(input.key)) return {ok: false, error: '현황판 키가 올바르지 않아요.'};
+  const ws = typeof input.ws === 'string' ? input.ws.trim() : '';
+  const exam = /^[a-z0-9-]{1,40}$/.test(ws) ? examKey_(ws) : null;
+  if (!exam) return {ok: false, error: '시험 학습지를 찾지 못했어요.'};
+  const num = typeof input.num === 'string' ? input.num.trim() : '';
+  if (!isValidExamNum_(num)) return {ok: false, error: '학번 형식이 올바르지 않아요.'};
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) return {ok: false, error: '다른 요청을 처리 중이에요. 잠시 후 다시 눌러 주세요.'};
+  try {
+    validateSettings_();
+    const book = openBook_();
+    if (!book) return {ok: false, error: '먼저 setup을 실행하세요.'};
+    const wanted = {};
+    wanted[num] = true;
+    const removedStatus = deleteMatching_(book.getSheetByName(SHEET_STATUS), 1, ws, wanted, true).length;
+    const removedLog = deleteMatching_(book.getSheetByName(SHEET_LOG), 2, ws, wanted, true).length;
+    const removedSubmit = deleteMatching_(book.getSheetByName(SHEET_SUBMIT), 2, ws, wanted, true).length;
+
+    const now = new Date();
+    const resetAt = now.toISOString();
+    const serverTime = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+    PropertiesService.getScriptProperties().setProperty('EXAM_RESET:' + ws + ':' + num, resetAt);
+
+    const logSheet = book.getSheetByName(SHEET_LOG);
+    if (logSheet) {
+      appendRow_(logSheet, [serverTime, ws, num, '(선생님)', '재응시 초기화', 0, '지운 제출 ' + removedSubmit + '줄', '']);
+    }
+    appendRow_(ensureArchiveSheet_(book), [serverTime, ws, num, '(선생님)', '', '', 0, '', '', '', '', '', '재응시 초기화']);
+    SpreadsheetApp.flush();
+    return {ok: true, removed: {submit: removedSubmit, log: removedLog, status: removedStatus}, resetAt: resetAt};
+  } catch (error) {
+    return {ok: false, error: error.message};
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function examRestore_(input) {
+  if (!checkKey_(input.key)) return {ok: false, error: '현황판 키가 올바르지 않아요.'};
+  const ws = typeof input.ws === 'string' ? input.ws.trim() : '';
+  const exam = /^[a-z0-9-]{1,40}$/.test(ws) ? examKey_(ws) : null;
+  if (!exam) return {ok: false, error: '시험 학습지를 찾지 못했어요.'};
+  const sid = typeof input.sid === 'string' ? input.sid.trim() : '';
+  const time = typeof input.time === 'string' ? input.time.trim() : '';
+  if (!sid || sid.length > 40 || !time || time.length > 40) {
+    return {ok: false, error: '되살릴 제출 정보가 올바르지 않아요.'};
+  }
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) return {ok: false, error: '다른 요청을 처리 중이에요. 잠시 후 다시 눌러 주세요.'};
+  try {
+    validateSettings_();
+    const book = openBook_();
+    if (!book) return {ok: false, error: '먼저 setup을 실행하세요.'};
+    const archiveSheet = book.getSheetByName(SHEET_ARCHIVE);
+    const subSheet = book.getSheetByName(SHEET_SUBMIT);
+    const statusSheet = book.getSheetByName(SHEET_STATUS);
+    if (!subSheet) return {ok: false, error: '제출 시트가 없어요.'};
+
+    const archRows = examSheetRows_(archiveSheet, HEADERS_ARCHIVE_.length);
+    const hit = archRows.find(function (r) {
+      return r[1] === ws && r[11] === sid && r[0] === time && (r[12] || '제출') === '제출';
+    });
+    if (!hit) return {ok: false, error: '보관함에서 해당 제출을 찾지 못했어요.'};
+
+    const existingSub = examSheetRows_(subSheet, HEADERS_SUBMIT_.length).some(function (r) {
+      return r[1] === ws && r[11] === sid && r[0] === time;
+    });
+    if (existingSub) return {ok: true, dup: true, restored: false};
+
+    let stored = {};
+    try { stored = JSON.parse(hit[10]); } catch (err) { stored = {}; }
+    if (!isObject_(stored)) stored = {};
+    const grade = gradeExam_(exam, stored);
+    const num = hit[2];
+    const name = hit[3];
+    const away = Number(hit[6]) || 0;
+    const minutes = Number(hit[7]) || 0;
+    const attempt = Math.max(1, Number(hit[8]) || 1);
+
+    appendRow_(subSheet, [hit[0], ws, num, name, grade.correct, exam.items.length,
+      away, minutes, attempt, grade.wrong.join(', '), hit[10], sid]);
+
+    if (statusSheet) {
+      ensureColumns_(statusSheet, HEADERS_STATUS_.length);
+      const stLast = statusSheet.getLastRow();
+      const stRows = stLast > 1 ? statusSheet.getRange(2, 1, stLast - 1, HEADERS_STATUS_.length).getDisplayValues() : [];
+      const stIdx = stRows.findIndex(function (r) { return r[0] === ws && r[2] === num && r[3] === name; });
+      const stRowNum = stIdx < 0 ? Math.max(stLast, 1) + 1 : stIdx + 2;
+      const prevSt = stIdx < 0 ? null : stRows[stIdx];
+      const stTitle = (prevSt && prevSt[1]) || exam.title || ws;
+      const stScore = (prevSt && prevSt[4] === '제출함' && prevSt[7] !== '') ? Number(prevSt[7]) : grade.correct;
+      const stAway = prevSt ? Math.max(Number(prevSt[5]) || 0, away) : away;
+      const stLastTime = (prevSt && prevSt[6] > hit[0]) ? prevSt[6] : hit[0];
+      const stOrder = (prevSt && prevSt[8]) || (sid + ' ' + hit[0] + ' submit');
+      writeRow_(statusSheet, stRowNum, [ws, stTitle, num, name, '제출함', stAway, stLastTime, stScore, stOrder]);
+    }
+    SpreadsheetApp.flush();
+    return {ok: true, restored: true};
+  } catch (error) {
+    return {ok: false, error: error.message};
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function examData_(ws) {
   const exam = examKey_(ws);
   if (!exam) throw new Error('시험 정답표를 찾지 못했어요. 허브에 ExamKey 스크립트를 추가해 주세요.');
@@ -530,14 +691,46 @@ function examData_(ws) {
     if (!sessions.has(r[2])) sessions.set(r[2], new Set());
     sessions.get(r[2]).add(r[7]);
   });
+  const sessionsObj = {};
+  sessions.forEach(function (set, num) {
+    sessionsObj[num] = Array.from(set);
+  });
   const status = examSheetRows_(book.getSheetByName(SHEET_STATUS), HEADERS_STATUS_.length)
     .filter(function (r) { return r[0] === ws; }).map(function (r) {
       return {num: r[2], name: r[3], state: r[4], away: Number(r[5]), sid: (r[8] || '').split(' ')[0],
         sessions: Array.from(sessions.get(r[2]) || [])};
     });
+  const archive = examSheetRows_(book.getSheetByName(SHEET_ARCHIVE), HEADERS_ARCHIVE_.length)
+    .filter(function (r) { return r[1] === ws; }).map(function (r) {
+      const st = r[12] || '제출';
+      let correct = r[4] === '' ? null : Number(r[4]);
+      let total = r[5] === '' ? exam.items.length : Number(r[5]);
+      if (st === '제출' && r[10]) {
+        try {
+          const parsedAns = JSON.parse(r[10]);
+          if (isObject_(parsedAns)) {
+            const ans = {};
+            Object.keys(parsedAns).forEach(function (k) { if (/^q:/.test(k)) ans[k] = parsedAns[k]; });
+            correct = gradeExam_(exam, ans).correct;
+            total = exam.items.length;
+          }
+        } catch (err) {}
+      }
+      return {
+        time: r[0],
+        num: r[2],
+        name: r[3],
+        correct: correct,
+        total: total,
+        away: Number(r[6]) || 0,
+        auto: r[9] === '예',
+        sid: r[11] || '',
+        status: st
+      };
+    });
   return {ok: true, exam: {ws: ws, title: exam.title, base: exam.base, per: exam.per,
     items: exam.items.map(function (item) { return {code: item.code, answer: item.answer}; })},
-    rows: rows, status: status, roster: rosterData_(book),
+    rows: rows, status: status, sessions: sessionsObj, archive: archive, roster: rosterData_(book),
     today: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd')};
 }
 
@@ -646,7 +839,7 @@ function dashboardRestore(key, rows) {
 
 // wsCol 열이 ws이고 (학번, 이름)이 wanted에 있는 줄을 지우고, 지운 줄(현황 형식 문자열)을 돌려줘요.
 // 이웃한 줄은 한 번에 지워서 빠르게 처리해요.
-function deleteMatching_(sheet, wsCol, ws, wanted) {
+function deleteMatching_(sheet, wsCol, ws, wanted, matchByNumOnly) {
   if (!sheet) return [];
   const count = sheet.getLastRow() - 1;
   if (count < 1) return [];
@@ -654,7 +847,9 @@ function deleteMatching_(sheet, wsCol, ws, wanted) {
   const values = sheet.getRange(2, 1, count, width).getDisplayValues();
   const hits = [];
   values.forEach(function (row, i) {
-    if (row[wsCol - 1] === ws && wanted[row[2] + '\u0000' + row[3]]) hits.push(i);
+    if (row[wsCol - 1] !== ws) return;
+    const key = matchByNumOnly ? row[2] : (row[2] + '\u0000' + row[3]);
+    if (wanted[key]) hits.push(i);
   });
   for (let k = hits.length - 1; k >= 0;) {
     let start = hits[k];

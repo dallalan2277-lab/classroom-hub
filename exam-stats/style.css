@@ -495,6 +495,76 @@ tr.review-row td { background: var(--warn-bg); }
 }
 
 /* 조기 종료(이탈 5회 자동 제출) 표시 */
-tr.early-row td { background: rgba(198, 40, 40, 0.10); }
-tr.early-row td:first-child { box-shadow: inset 4px 0 0 #c62828; }
-.stat-box.danger-box b { color: #c62828; }
+tr.early-row td { background: var(--red-bg); }
+tr.early-row td:first-child { box-shadow: inset 4px 0 0 var(--red); }
+.stat-box.danger-box b { color: var(--red); }
+
+.btn-danger {
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--red);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn-danger { color: #2a0a08; }
+}
+
+.btn-danger:disabled { opacity: 0.6; cursor: default; }
+
+.btn-danger-ghost {
+  padding: 4px 9px;
+  border: 1px solid var(--red-bg);
+  border-radius: 8px;
+  background: var(--red-bg);
+  color: var(--red);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.btn-danger-ghost:hover { filter: brightness(0.95); }
+
+.confirm-card { max-width: 440px; }
+.confirm-card h2 { margin: 0; font-size: 18px; }
+.confirm-card p { margin: 0; font-size: 14px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+.archive-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 16px;
+  list-style: none;
+}
+
+.archive-summary::-webkit-details-marker { display: none; }
+.archive-summary::before { content: '▸ '; color: var(--muted); }
+details[open] > .archive-summary::before { content: '▾ '; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 200;
+  background: var(--ink);
+  color: var(--bg);
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  max-width: calc(100vw - 32px);
+}
+
+.toast.err {
+  background: var(--red);
+  color: #ffffff;
+}

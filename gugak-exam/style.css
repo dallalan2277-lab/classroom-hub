@@ -209,10 +209,12 @@ button {
 
 .audio-stage {
   position: relative;
-  width: 190px;
+  width: 210px;
   height: 40px;
   border-radius: 8px;
   overflow: hidden;
+  clip-path: inset(0);
+  contain: paint;
   background: var(--accent);
   flex-shrink: 0;
 }
@@ -221,19 +223,20 @@ button {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .audio-host iframe {
   position: absolute;
   /* 유튜브 재생기는 200×200보다 작거나 거의 투명하면 재생이 안 될 수 있어요.
-     보통 크기로 두고, 불투명 가리개(.audio-cover)와 overflow:hidden 으로 감춰요. */
-  top: 0;
-  left: 0;
+     320×240 중앙 재생 버튼이 210×40 창 한가운데에 오도록 배치해 제목·로고 링크 클릭을 막고,
+     불투명 가리개(.audio-cover)는 클릭만 통과(pointer-events:none)시켜 영상을 완전히 가려요. */
+  top: -100px;
+  left: -55px;
   width: 320px;
   height: 240px;
   border: 0;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .audio-cover {
@@ -242,13 +245,15 @@ button {
   z-index: 10;
   background: var(--accent);
   color: #ffffff;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
+  padding: 0 6px;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   justify-content: center;
   user-select: none;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .btn-stop {
@@ -634,6 +639,9 @@ button {
 .modal-card {
   width: 100%;
   max-width: 460px;
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -716,6 +724,28 @@ button {
 @media (max-width: 599px) { .qr-host { display: none; } } /* 휴대폰은 위 고정 머리가 커지지 않게 QR 숨김 */
 
 /* 시작 안내 창의 부정행위 경고 */
-.cheat-warn { margin: 14px 0 4px; padding: 12px 14px; border-radius: 10px; border: 2px solid #c62828; background: #fdecea; color: #7f1d1d; }
-.cheat-warn b { color: #b71c1c; }
-.cheat-warn p { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: #7f1d1d; }
+.cheat-warn { margin: 14px 0 4px; padding: 12px 14px; border-radius: 10px; border: 2px solid var(--danger-line); background: var(--danger-bg); color: var(--danger-ink); }
+.cheat-warn b { color: var(--danger-ink); }
+.cheat-warn p { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: var(--danger-ink); }
+
+/* 높이 낮은 태블릿 가로(1024×600)·좁은 화면에서 고정 머리 크기 최소화 */
+@media (max-height: 700px), (max-width: 767px) {
+  .eyebrow, .away-note { display: none; }
+  .top-inner { padding: 5px 12px; gap: 4px; }
+  .title-row { gap: 4px 10px; }
+  .title-row h1 { font-size: 16px; line-height: 1.2; }
+  .pill { padding: 3px 9px; font-size: 12px; }
+  .away-bar { padding: 3px 10px; font-size: 12px; line-height: 1.2; }
+  .audio-bar { padding: 4px 10px; gap: 8px; }
+  .audio-info { font-size: 12.5px; gap: 6px; }
+  .audio-stage { height: 34px; }
+  .audio-host iframe { top: -103px; }
+  .btn-stop { padding: 4px 10px; font-size: 12px; }
+}
+
+@media (max-width: 599px) {
+  .top-inner { padding: 5px 10px; gap: 4px; }
+  .audio-bar { padding: 4px 8px; gap: 5px; }
+  .audio-stage { width: 195px; }
+  .audio-host iframe { left: -62px; }
+}

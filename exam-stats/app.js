@@ -57,10 +57,20 @@
   var detailModal = $('detailModal');
   var detailTitle = $('detailTitle');
   var detailSub = $('detailSub');
+  var detailResetBtn = $('detailResetBtn');
   var detailCloseBtn = $('detailCloseBtn');
   var detailSubs = $('detailSubs');
   var detailSubLabel = $('detailSubLabel');
   var detailItemsBody = $('detailItemsBody');
+
+  var archiveCount = $('archiveCount');
+  var archiveBody = $('archiveBody');
+  var resetModal = $('resetModal');
+  var resetMsg = $('resetMsg');
+  var resetErr = $('resetErr');
+  var resetCancelBtn = $('resetCancelBtn');
+  var resetOkBtn = $('resetOkBtn');
+  var toastEl = $('toast');
 
   var key = null;
   var examData = null;
@@ -71,6 +81,9 @@
   var neisFiles = [];
   var detailNum = '';
   var detailViewKey = '';
+  var resetTarget = null;
+  var resetBusy = false;
+  var toastTimer = null;
 
   function store(k, v) {
     try {
@@ -191,6 +204,14 @@
       var rec = ensure(String(s.num || ''));
       rec.statusRow = s;
       (s.sessions || []).forEach(function (sid) {
+        if (sid) rec.sessions[sid] = true;
+      });
+    });
+
+    var allSessions = (examData && examData.sessions) || {};
+    Object.keys(allSessions).forEach(function (num) {
+      var rec = ensure(String(num || ''));
+      (allSessions[num] || []).forEach(function (sid) {
         if (sid) rec.sessions[sid] = true;
       });
     });
@@ -500,7 +521,7 @@
     if (!filtered.length) {
       var er = document.createElement('tr');
       var td = document.createElement('td');
-      td.colSpan = 9;
+      td.colSpan = 10;
       td.className = 'muted';
       td.textContent = '표시할 학생이 없어요.';
       er.appendChild(td);
@@ -513,7 +534,7 @@
       if (!rec.submitted) {
         tr.className = 'unsub';
         var stLabel = (rec.statusRow && rec.statusRow.state) ? rec.statusRow.state : '미응시';
-        [rec.num, rec.displayName, '-', '-', '-', '-', '-', '-', stLabel].forEach(function (txt, idx) {
+        [rec.num, rec.displayName, '-', '-', '-', '-', '-', '-', stLabel, '-'].forEach(function (txt, idx) {
           var td = document.createElement('td');
           if (idx === 8) {
             var b = document.createElement('span');
@@ -572,6 +593,19 @@
       }
       revTd.appendChild(badge);
       tr.appendChild(revTd);
+
+      var actTd = document.createElement('td');
+      var rstBtn = document.createElement('button');
+      rstBtn.type = 'button';
+      rstBtn.className = 'btn-danger-ghost';
+      rstBtn.textContent = '재응시 초기화';
+      rstBtn.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        openResetModal(rec.num, rec.displayName);
+      });
+      actTd.appendChild(rstBtn);
+      tr.appendChild(actTd);
+
       studentBody.appendChild(tr);
     });
   }
@@ -590,6 +624,11 @@
     var viewedSub = rec.submissions.find(function (s) { return s._key === detailViewKey; }) || rec.official;
 
     detailTitle.textContent = rec.num + ' ' + rec.displayName;
+    if (detailResetBtn) {
+      detailResetBtn.onclick = function () {
+        openResetModal(rec.num, rec.displayName);
+      };
+    }
     var extraInfo = [];
     if (rec.rosterName && rec.submissions.some(function (s) { return normName(s.name) !== normName(rec.rosterName); })) {
       extraInfo.push('명단 이름: ' + rec.rosterName);
@@ -872,7 +911,7 @@
     if (!overwrite && plan.existingCells.length && !skipConfirm) {
       overwrite = window.confirm(
         entry.name + '의 J열에 이미 값이 들어 있는 칸이 ' + plan.existingCells.length + '개 있어요.\n' +
-        '확인을 누르면 새 점수로 덮어쓰고, 취소를 누르면 기존 값이 있는 칸은 비워 둔 채 나머지만 채워요.'
+        '확인을 누르면 새 점수로 덮어쓰고, 취소를 누르면 기존 값이 있는 칸은 그대로 둔 채 빈 칸만 채워요.'
       );
     }
     var scoreByRow = {};
@@ -909,8 +948,12 @@
         return window.JSZip.loadAsync(buffer).then(function (zip) {
           var sheetFile = zip.file('xl/worksheets/sheet1.xml');
           if (!sheetFile) throw new Error(file.name + ': xl/worksheets/sheet1.xml을 찾지 못했어요.');
-          return sheetFile.async('string').then(function (xml) {
-            var parsed = window.NeisExcel.parseSheetXml(xml, file.name);
+          var sstFile = zip.file('xl/sharedStrings.xml');
+          var readSst = sstFile ? sstFile.async('string') : Promise.resolve('');
+          return Promise.all([sheetFile.async('string'), readSst]).then(function (pair) {
+            var xml = pair[0];
+            var sstXml = pair[1];
+            var parsed = window.NeisExcel.parseSheetXml(xml, file.name, sstXml);
             var fallbackGrade = parsed.detectedGrade || (selectedGrade ? Number(selectedGrade) : null);
             return {
               name: file.name,
@@ -932,6 +975,7 @@
 
   function csvCell(v) {
     var s = String(v == null ? '' : v);
+    if (/^[\s\u0000-\u001f]*[=+\-@]/.test(s)) s = "'" + s;
     if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
     return s;
   }
@@ -974,6 +1018,135 @@
     downloadBlob(blob, '국악기_수행평가_' + tag + '.csv');
   }
 
+  function showToast(msg, isErr) {
+    if (!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.className = 'toast' + (isErr ? ' err' : '');
+    toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toastEl.hidden = true;
+    }, 4500);
+  }
+
+  function returnToSetup(errMsg) {
+    store(KEY_STORE, null);
+    key = null;
+    examData = null;
+    setupCard.hidden = false;
+    appEl.hidden = true;
+    headActions.hidden = true;
+    setupErr.textContent = (errMsg || '현황판 키가 올바르지 않아요.') + ' 현황판 주소를 다시 붙여 넣어 주세요.';
+  }
+
+  function openResetModal(num, name) {
+    resetTarget = { num: num, name: name || '' };
+    resetErr.textContent = '';
+    resetOkBtn.disabled = false;
+    resetOkBtn.textContent = '초기화하기';
+    resetCancelBtn.disabled = false;
+    resetMsg.textContent = num + ' ' + (name || '') + ' 학생의 시험 기록(제출·이탈 기록)을 지우고 다시 응시하게 할까요? 원래 답안은 아래 보관함에 남아서, 필요하면 \'통계에 되살리기\'로 다시 가져올 수 있어요.';
+    resetModal.hidden = false;
+    resetCancelBtn.focus();
+  }
+
+  function closeResetModal() {
+    if (resetBusy) return;
+    resetModal.hidden = true;
+    resetTarget = null;
+  }
+
+  function restoreArchiveItem(item, btn) {
+    if (!key || !item) return;
+    btn.disabled = true;
+    btn.textContent = '되살리는 중…';
+    fetch(HUB, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ type: 'examRestore', key: key, ws: EXAM_WS, sid: item.sid, time: item.time })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.ok) {
+          btn.disabled = false;
+          btn.textContent = '통계에 되살리기';
+          var errMsg = (d && d.error) || '되살리기에 실패했어요.';
+          if (/키/.test(errMsg)) returnToSetup(errMsg);
+          else showToast(errMsg, true);
+          return;
+        }
+        showToast(item.num + ' ' + item.name + ' 학생의 제출을 통계에 되살렸어요.');
+        fetchData();
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = '통계에 되살리기';
+        showToast((err && err.message) || '허브에 연결하지 못했어요.', true);
+      });
+  }
+
+  function renderArchive() {
+    if (!archiveBody || !archiveCount) return;
+    var liveSet = {};
+    ((examData && examData.rows) || []).forEach(function (r) {
+      liveSet[(r.sid || '') + '|' + (r.time || '')] = true;
+    });
+    var deleted = ((examData && examData.archive) || []).filter(function (a) {
+      return a.status === '제출' && !liveSet[(a.sid || '') + '|' + (a.time || '')];
+    }).sort(function (a, b) {
+      return a.time === b.time ? 0 : (a.time > b.time ? -1 : 1);
+    });
+    archiveCount.textContent = '지워진 제출 ' + deleted.length + '건';
+    archiveCount.className = 'badge ' + (deleted.length ? 'warn' : 'muted');
+    archiveBody.textContent = '';
+    if (!deleted.length) {
+      var er = document.createElement('tr');
+      var td = document.createElement('td');
+      td.colSpan = 7;
+      td.className = 'muted';
+      td.textContent = '지워진 제출 기록이 없어요.';
+      er.appendChild(td);
+      archiveBody.appendChild(er);
+      return;
+    }
+    deleted.forEach(function (item) {
+      var tr = document.createElement('tr');
+      var scoreTxt = item.correct !== null && item.correct !== undefined
+        ? (item.correct + ' / ' + (item.total || totalItemsCount()) + ' (' + calcScore(item.correct) + '점)')
+        : '-';
+      [
+        item.time || '-',
+        item.num || '-',
+        item.name || '-',
+        scoreTxt,
+        (item.away || 0) + '회',
+        item.auto ? '조기 종료' : '-'
+      ].forEach(function (txt, idx) {
+        var td = document.createElement('td');
+        if (idx === 5 && item.auto) {
+          var b = document.createElement('span');
+          b.className = 'badge danger';
+          b.textContent = txt;
+          td.appendChild(b);
+        } else {
+          td.textContent = txt;
+        }
+        tr.appendChild(td);
+      });
+      var actTd = document.createElement('td');
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-ghost';
+      btn.textContent = '통계에 되살리기';
+      btn.addEventListener('click', function () {
+        restoreArchiveItem(item, btn);
+      });
+      actTd.appendChild(btn);
+      tr.appendChild(actTd);
+      archiveBody.appendChild(tr);
+    });
+  }
+
   function renderAll() {
     if (!examData) return;
     examTitle.textContent = ((examData.exam && examData.exam.title) || '국악기 수행평가') + ' · 성적 통계';
@@ -998,6 +1171,7 @@
     renderCharts(filtered, sm);
     renderTable(filtered);
     renderNeisList(byNum);
+    renderArchive();
   }
 
   function fetchData() {
@@ -1018,12 +1192,14 @@
         renderAll();
       })
       .catch(function (err) {
-        loadErr.hidden = false;
-        loadErr.textContent = err && err.message ? err.message : '허브에 연결하지 못했어요.';
-        lastSync.textContent = '불러오기 실패';
-        if (/키/.test(loadErr.textContent)) {
-          store(KEY_STORE, null);
+        var msg = err && err.message ? err.message : '허브에 연결하지 못했어요.';
+        if (/키/.test(msg)) {
+          returnToSetup(msg);
+          return;
         }
+        loadErr.hidden = false;
+        loadErr.textContent = msg;
+        lastSync.textContent = '불러오기 실패';
       });
   }
 
@@ -1117,11 +1293,18 @@
     var studentMap = buildNeisStudentMap(byNum);
     var maxPt = calcScore(totalItemsCount());
     var seq = Promise.resolve();
+    var exported = 0;
     neisFiles.forEach(function (entry) {
       if (!entry.grade) return;
       var plan = window.NeisExcel.planNeisFill(entry.parsed, entry.grade, studentMap, maxPt);
       if (!plan.fills.length) return;
-      seq = seq.then(function () { return exportSingleNeis(entry, plan); });
+      var delay = exported > 0 ? 400 : 0;
+      exported++;
+      seq = seq.then(function () {
+        if (!delay) return exportSingleNeis(entry, plan);
+        return new Promise(function (resolve) { setTimeout(resolve, delay); })
+          .then(function () { return exportSingleNeis(entry, plan); });
+      });
     });
   });
 
@@ -1134,8 +1317,62 @@
   detailModal.addEventListener('click', function (e) {
     if (e.target === detailModal) closeDetailModal();
   });
+  resetCancelBtn.addEventListener('click', closeResetModal);
+  resetModal.addEventListener('click', function (e) {
+    if (e.target === resetModal) closeResetModal();
+  });
+  resetOkBtn.addEventListener('click', function () {
+    if (resetBusy || !resetTarget || !key) return;
+    var target = resetTarget;
+    resetBusy = true;
+    resetErr.textContent = '';
+    resetOkBtn.disabled = true;
+    resetCancelBtn.disabled = true;
+    resetOkBtn.textContent = '초기화 중…';
+    fetch(HUB, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ type: 'examReset', key: key, ws: EXAM_WS, num: target.num })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        resetBusy = false;
+        resetOkBtn.disabled = false;
+        resetCancelBtn.disabled = false;
+        resetOkBtn.textContent = '초기화하기';
+        if (!d || !d.ok) {
+          var errMsg = (d && d.error) || '초기화에 실패했어요.';
+          if (/키/.test(errMsg)) {
+            resetModal.hidden = true;
+            resetTarget = null;
+            closeDetailModal();
+            returnToSetup(errMsg);
+            return;
+          }
+          resetErr.textContent = errMsg;
+          return;
+        }
+        delete picks[target.num];
+        store(PICK_STORE, JSON.stringify(picks));
+        resetModal.hidden = true;
+        resetTarget = null;
+        if (!detailModal.hidden && detailNum === target.num) closeDetailModal();
+        var subRemoved = (d.removed && d.removed.submit) || 0;
+        showToast(target.num + ' ' + target.name + ' 학생을 재응시 초기화했어요. (제출 ' + subRemoved + '건 지움)');
+        fetchData();
+      })
+      .catch(function (err) {
+        resetBusy = false;
+        resetOkBtn.disabled = false;
+        resetCancelBtn.disabled = false;
+        resetOkBtn.textContent = '초기화하기';
+        resetErr.textContent = (err && err.message) || '허브에 연결하지 못했어요.';
+      });
+  });
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && !detailModal.hidden) closeDetailModal();
+    if (e.key !== 'Escape') return;
+    if (!resetModal.hidden) closeResetModal();
+    else if (!detailModal.hidden) closeDetailModal();
   });
 
   boot();

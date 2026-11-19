@@ -128,4 +128,52 @@ assert(keepExistingXml.includes('<c r="J4" s="7" t="inlineStr"><is><t>15</t></is
 const overwriteXml = NeisExcel.patchSheetXml(existingXml, {3: 27, 4: 29}, {overwriteExisting: true});
 assert(overwriteXml.includes('<c r="J4" s="7" t="inlineStr"><is><t>29</t></is></c>'), 'existing J4 overwritten when overwriteExisting=true');
 
-console.log(`neis check: ${filename} verified (J3..J24 only modified, byte-identical outside J <v>, all edge cases passed)`);
+// 3) sharedStrings.xml (t="s") 파싱 및 패치 검증 (엑셀 재저장 파일 대응)
+const sstXml = `<?xml version="1.0" encoding="UTF-8"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="7" uniqueCount="7">
+  <si><t>( 영역만점 : 30 )</t></si>
+  <si><t>합계</t></si>
+  <si><t>1</t></si>
+  <si><t>5</t></si>
+  <si><r><t>학생</t></r><r><rPr><sz val="10"/></rPr><t>05</t></r><rPh sb="0" eb="2"><t>후리가나</t></rPh></si>
+  <si><t>6</t></si>
+  <si><t>24</t></si>
+</sst>`;
+const sstSheetXml = `<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>
+  <row r="1"><c r="F1" s="3" t="s"><v>0</v></c></row>
+  <row r="2"><c r="J2" s="6" t="s"><v>1</v></c></row>
+  <row r="3"><c r="C3" s="7" t="s"><v>2</v></c><c r="D3" s="7" t="s"><v>3</v></c><c r="E3" s="7" t="s"><v>4</v></c><c r="J3" s="7"/></row>
+  <row r="4"><c r="C4" s="7" t="s"><v>2</v></c><c r="D4" s="7" t="s"><v>5</v></c><c r="E4" s="7" t="s"><v>4</v></c><c r="J4" s="7" t="s"><v>6</v></c></row>
+</sheetData></worksheet>`;
+
+// sharedStrings 없이 t="s"만 있으면 인덱스 숫자를 반·번호로 오인하지 않고 빈값 처리
+const withoutSst = NeisExcel.parseSheetXml(sstSheetXml, '2026학년도 2학기 주간 2학년 1반.xlsx');
+assert.strictEqual(withoutSst.rows.length, 0, 't="s" without sharedStrings must not misread string indices');
+
+const parsedSst = NeisExcel.parseSheetXml(sstSheetXml, '2026학년도 2학기 주간 2학년 1반.xlsx', sstXml);
+assert.strictEqual(parsedSst.maxScore, 30, 'F1 sharedString maxScore parsed');
+assert.strictEqual(parsedSst.jHeader, '합계', 'J2 sharedString header parsed');
+assert.strictEqual(parsedSst.rows.length, 2, '2 rows parsed from sharedStrings');
+assert.strictEqual(parsedSst.rows[0].cls, 1);
+assert.strictEqual(parsedSst.rows[0].no, 5);
+assert.strictEqual(parsedSst.rows[0].name, '학생05');
+assert.strictEqual(parsedSst.rows[0].hasExistingJ, false);
+assert.strictEqual(parsedSst.rows[1].no, 6);
+assert.strictEqual(parsedSst.rows[1].hasExistingJ, true);
+assert.strictEqual(parsedSst.rows[1].existingJ, '24');
+
+const sstMap = {
+  '20105': {num: '20105', name: '학생05', submitted: true, score: 26, needsReview: false},
+  '20106': {num: '20106', name: '학생05', submitted: true, score: 28, needsReview: false}
+};
+const sstPlan = NeisExcel.planNeisFill(parsedSst, 2, sstMap, 30);
+assert.strictEqual(sstPlan.fills.length, 2);
+assert.strictEqual(sstPlan.existingCells.length, 1);
+const patchedSstKeep = NeisExcel.patchSheetXml(sstSheetXml, {3: 26, 4: 28}, {overwriteExisting: false});
+assert(patchedSstKeep.includes('<c r="J3" s="7" t="inlineStr"><is><t>26</t></is></c>'));
+assert(patchedSstKeep.includes('<c r="J4" s="7" t="s"><v>6</v></c>'), 'existing t="s" J4 preserved when overwriteExisting=false');
+const patchedSstOverwrite = NeisExcel.patchSheetXml(sstSheetXml, {3: 26, 4: 28}, {overwriteExisting: true});
+assert(patchedSstOverwrite.includes('<c r="J4" s="7" t="inlineStr"><is><t>28</t></is></c>'), 'existing t="s" J4 replaced with inlineStr when overwriteExisting=true');
+
+console.log(`neis check: ${filename} verified (J3..J24 only modified, byte-identical outside J <v>, all edge cases + sharedStrings passed)`);

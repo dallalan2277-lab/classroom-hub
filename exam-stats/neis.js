@@ -30,8 +30,34 @@
     return base + '_점수입력.xlsx';
   }
 
-  function extractCellValue(attrs, inner) {
+  function parseSharedStringsXml(xml) {
+    var source = String(xml || '');
+    var out = [];
+    var siRe = /<si\b[^>]*>([\s\S]*?)<\/si>/g;
+    var sm;
+    while ((sm = siRe.exec(source)) !== null) {
+      var cleaned = sm[1].replace(/<rPh\b[^>]*>[\s\S]*?<\/rPh>/g, '');
+      var parts = [];
+      var tRe = /<t\b[^>]*>([\s\S]*?)<\/t>/g;
+      var tm;
+      while ((tm = tRe.exec(cleaned)) !== null) {
+        parts.push(decodeXmlEntities(tm[1]));
+      }
+      out.push(parts.join(''));
+    }
+    return out;
+  }
+
+  function extractCellValue(attrs, inner, sharedStrings) {
     if (!inner) return '';
+    if (/(?:^|\s)t="s"(?=$|\s)/.test(attrs || '')) {
+      var sMatch = inner.match(/<v\b[^>]*>\s*(\d+)\s*<\/v>/);
+      if (sMatch && Array.isArray(sharedStrings)) {
+        var idx = Number(sMatch[1]);
+        return idx >= 0 && idx < sharedStrings.length ? sharedStrings[idx] : '';
+      }
+      return '';
+    }
     var isMatch = inner.match(/<is\b[^>]*>([\s\S]*?)<\/is>/);
     if (isMatch) {
       var parts = [];
@@ -47,7 +73,7 @@
     return '';
   }
 
-  function parseRowCells(rowInner) {
+  function parseRowCells(rowInner, sharedStrings) {
     var cells = {};
     var cellRe = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
     var cm;
@@ -56,13 +82,19 @@
       var refMatch = attrs.match(/\br="([A-Z]+)\d+"/);
       if (!refMatch) continue;
       var col = refMatch[1];
-      cells[col] = extractCellValue(attrs, cm[2] || '');
+      cells[col] = extractCellValue(attrs, cm[2] || '', sharedStrings);
     }
     return cells;
   }
 
-  function parseSheetXml(xml, filename) {
+  function parseSheetXml(xml, filename, sharedStringsOrXml) {
     var source = String(xml || '');
+    var sharedStrings = null;
+    if (typeof sharedStringsOrXml === 'string') {
+      sharedStrings = parseSharedStringsXml(sharedStringsOrXml);
+    } else if (Array.isArray(sharedStringsOrXml)) {
+      sharedStrings = sharedStringsOrXml;
+    }
     var rowRe = /<row\b([^>]*?)>([\s\S]*?)<\/row>/g;
     var rm;
     var f1Text = '';
@@ -73,7 +105,7 @@
       var rowAttrMatch = rm[1].match(/\br="(\d+)"/);
       if (!rowAttrMatch) continue;
       var rowNum = Number(rowAttrMatch[1]);
-      var cells = parseRowCells(rm[2]);
+      var cells = parseRowCells(rm[2], sharedStrings);
 
       if (rowNum === 1) {
         f1Text = (cells.F || '').trim();
@@ -267,6 +299,7 @@
   return {
     detectGradeFromFilename: detectGradeFromFilename,
     outputFilename: outputFilename,
+    parseSharedStringsXml: parseSharedStringsXml,
     parseSheetXml: parseSheetXml,
     makeStudentId: makeStudentId,
     planNeisFill: planNeisFill,

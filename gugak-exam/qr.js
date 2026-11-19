@@ -14,9 +14,23 @@
       colorDark: '#000000', colorLight: '#ffffff', correctLevel: window.QRCode.CorrectLevel.M });
   }
 
+  function isTeacherMode() {
+    if (window.Classroom && window.Classroom.teacher) return true;
+    try {
+      var q = new URLSearchParams(location.search);
+      if (q.has('교사') || q.has('teacher')) return true;
+      var h = decodeURIComponent(location.hash || '');
+      return /[?&](교사|teacher)(?=$|[&=])/.test(h);
+    } catch (e) { return false; }
+  }
+
   function init() {
     var host = document.getElementById('qrHost');
     if (!host) return;
+    if (!isTeacherMode()) {
+      host.hidden = true;
+      return;
+    }
     var hidden = false;
     try { hidden = localStorage.getItem(HIDE_KEY) === '1'; } catch (e) {}
 

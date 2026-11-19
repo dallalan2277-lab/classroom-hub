@@ -305,4 +305,126 @@ assert.strictEqual(sheets['명단'].getRange(1, 1, 1, 2).getDisplayValues()[0][0
   delete ctx.EXAM_KEYS;
   assert.strictEqual(run('doGet')({parameter: {dash: key, format: 'json', exam: 'fake-exam'}}).ok, false);
 }
+// 10) T007: NFC/보이지 않는 문자 정규화, 시험보관, 통계 되살리기(examRestore), 재응시 초기화(examReset)
+{
+  const T = sec => new Date(Date.UTC(2026, 10, 19, 3, 0, sec)).toISOString();
+  ctx.EXAM_KEYS = {
+    'fake-exam': {
+      title: '가짜 국악기 시험',
+      base: 10,
+      per: 1,
+      items: [
+        {code: 'f1111', answer: '가짜악기1', also: []},
+        {code: 'f2222', answer: '가짜악기2', also: []},
+        {code: 'f3333', answer: '가짜북', also: ['장고']}
+      ]
+    }
+  };
+  // 1) NFD 한글 + 보이지 않는 문자(\u200B, \uFEFF) 정규화 통과 확인
+  assert.strictEqual(run('normalizeExamAnswer_')('가짜악기1'.normalize('NFD')), '가짜악기1');
+  assert.strictEqual(run('normalizeExamAnswer_')('\uFEFF가짜\u200B악기2'), '가짜악기2');
+
+  // 일반(비시험) 학습지는 시험보관에 쌓이지 않음 확인
+  const archiveBeforeNormal = sheets['시험보관'] ? sheets['시험보관'].getLastRow() : 0;
+  assert.deepStrictEqual(
+    post({v: 1, ws: 'normal-ws', title: '일반 학습지', sid: 'n1', num: '20102', name: '이시험', t: T(1), away: 0, type: 'submit',
+      data: {score: 5, total: 5, minutes: 3, attempt: 1, wrong: [], answers: {q1: 'a'}}}),
+    {ok: true}
+  );
+  assert.strictEqual(sheets['시험보관'] ? sheets['시험보관'].getLastRow() : 0, archiveBeforeNormal, 'non-exam submit must not write archive');
+
+  // 2) 시험 제출 시 시험보관 시트 자동 생성 및 기록, 소프트 삭제 후에도 sessions 유지
+  const subCount0 = sheets['제출'].getLastRow();
+  assert.deepStrictEqual(
+    post({v: 1, ws: 'fake-exam', title: '가짜 국악기 시험', sid: 't7s1', num: '20102', name: '이시험', t: T(2), away: 1, type: 'submit',
+      data: {score: 0, total: 3, minutes: 5, attempt: 1, wrong: [], answers: {'q:f1111': '가짜악기1'.normalize('NFD'), 'q:f2222': '가짜\u200B악기2', 'q:f3333': '틀림', _auto: '0'}}}),
+    {ok: true}
+  );
+  assert.strictEqual(sheets['제출'].getLastRow(), subCount0 + 1);
+  assert(sheets['시험보관'], 'archive sheet auto-created');
+  const archRows = () => sheets['시험보관'].getRange(2, 1, sheets['시험보관'].getLastRow() - 1, 13).getDisplayValues();
+  const targetArch = archRows().find(r => r[11] === 't7s1');
+  assert(targetArch && targetArch[12] === '제출' && targetArch[4] === '2', 'archive stores submission');
+
+  // 다른 학생(20109)도 fake-exam에 추가(초기화 시 보존 확인용)
+  assert.deepStrictEqual(
+    post({v: 1, ws: 'fake-exam', title: '가짜 국악기 시험', sid: 't7other', num: '20109', name: '박보존', t: T(3), away: 0, type: 'submit',
+      data: {score: 0, total: 3, minutes: 4, attempt: 1, wrong: [], answers: {'q:f1111': '가짜악기1', _auto: '0'}}}),
+    {ok: true}
+  );
+
+  // 현황판 소프트 삭제 후에도 examData_.sessions[num] 은 기록 탭 모든 세션을 유지
+  run('dashboardDelete')(key, 'fake-exam', [{num: '20102', name: '이시험'}], false);
+  const afterSoft = run('doGet')({parameter: {dash: key, format: 'json', exam: 'fake-exam'}});
+  assert(afterSoft.sessions['20102'].includes('t7s1') && afterSoft.sessions['20102'].includes('ex1'), 'sessions preserved after soft delete');
+
+  // 3) 완전 삭제(hard=true) 후에도 시험보관은 유지되고, examRestore 로 되살리기 가능
+  const archCountBeforeHard = archRows().length;
+  run('dashboardDelete')(key, 'fake-exam', [{num: '20102', name: '이시험'}], true);
+  assert.strictEqual(archRows().length, archCountBeforeHard, 'hard delete must not remove archive');
+  assert(!sheets['제출'].getRange(2, 1, sheets['제출'].getLastRow() - 1, 12).getDisplayValues().some(r => r[11] === 't7s1'));
+
+  // examRestore 키 오류 거절 + 정상 되살리기
+  assert.strictEqual(post({type: 'examRestore', key: 'wrong', ws: 'fake-exam', sid: 't7s1', time: targetArch[0]}).ok, false);
+  assert.deepStrictEqual(post({type: 'examRestore', key: key, ws: 'fake-exam', sid: 't7s1', time: targetArch[0]}), {ok: true, restored: true});
+  const afterRestore = run('doGet')({parameter: {dash: key, format: 'json', exam: 'fake-exam'}});
+  assert(afterRestore.rows.some(r => r.sid === 't7s1' && r.correct === 2), 'restored row appears in examData');
+  assert(afterRestore.status.some(s => s.num === '20102' && s.state === '제출함'), 'restored status is 제출함');
+
+  // 4) examReset 검증: 잘못된 요청 거절 + 정상 초기화(다른 학생·다른 ws 보존 + 보관함 유지 + 감사 줄 + examstate + 재제출)
+  assert.strictEqual(post({type: 'examReset', key: 'wrong', ws: 'fake-exam', num: '20102'}).ok, false);
+  assert.strictEqual(post({type: 'examReset', key: key, ws: 'no-exam', num: '20102'}).ok, false);
+  assert.strictEqual(post({type: 'examReset', key: key, ws: 'fake-exam', num: 'abc'}).ok, false);
+
+  // 다른 이름('이시험2')의 같은 학번 행이 하나 더 있어도 학번 기준으로 모두 지워지는지 확인
+  post({v: 1, ws: 'fake-exam', title: '가짜 국악기 시험', sid: 't7s2', num: '20102', name: '이시험2', t: T(4), away: 2, type: 'submit',
+    data: {score: 0, total: 3, minutes: 2, attempt: 1, wrong: [], answers: {'q:f1111': '가짜악기1', _auto: '1'}}});
+
+  const resetRes = post({type: 'examReset', key: key, ws: 'fake-exam', num: '20102'});
+  assert.strictEqual(resetRes.ok, true);
+  assert(resetRes.removed.submit >= 2 && resetRes.resetAt, 'removed submissions and returned resetAt');
+
+  // 제출·기록·현황에서 fake-exam의 20102는 감사 줄 외 모두 삭제, 20109·normal-ws는 유지
+  const subRowsNow = sheets['제출'].getRange(2, 1, Math.max(sheets['제출'].getLastRow() - 1, 1), 12).getDisplayValues();
+  assert(!subRowsNow.some(r => r[1] === 'fake-exam' && r[2] === '20102'), '20102 submissions cleared');
+  assert(subRowsNow.some(r => r[1] === 'fake-exam' && r[2] === '20109'), 'other student submission kept');
+  assert(subRowsNow.some(r => r[1] === 'normal-ws' && r[2] === '20102'), 'other ws same num kept');
+
+  const statusNow = sheets['현황'].getRange(2, 1, Math.max(sheets['현황'].getLastRow() - 1, 1), 9).getDisplayValues();
+  assert(!statusNow.some(r => r[0] === 'fake-exam' && r[2] === '20102'), '20102 status cleared');
+  assert(statusNow.some(r => r[0] === 'fake-exam' && r[2] === '20109'), 'other student status kept');
+  assert(statusNow.some(r => r[0] === 'normal-ws' && r[2] === '20102'), 'other ws status kept');
+
+  const logNow = sheets['기록'].getRange(2, 1, sheets['기록'].getLastRow() - 1, 8).getDisplayValues();
+  const auditRow = logNow.find(r => r[1] === 'fake-exam' && r[2] === '20102');
+  assert(auditRow && auditRow[3] === '(선생님)' && auditRow[4] === '재응시 초기화', 'audit log added');
+  assert(!logNow.some(r => r[1] === 'fake-exam' && r[2] === '20102' && r[4] !== '재응시 초기화'), 'old student logs cleared');
+
+  // 시험보관 시트에는 기존 제출들이 남고 '재응시 초기화' 표시 줄 추가됨
+  const archAfterReset = archRows();
+  assert(archAfterReset.some(r => r[11] === 't7s1' && r[12] === '제출'), 'archive kept previous submission');
+  assert(archAfterReset.some(r => r[2] === '20102' && r[12] === '재응시 초기화'), 'archive logged reset marker');
+
+  // 공개 조회 ?examstate=
+  const stateHit = run('doGet')({parameter: {examstate: 'fake-exam', num: '20102'}});
+  assert.strictEqual(stateHit.ok, true);
+  assert.strictEqual(stateHit.resetAt, resetRes.resetAt);
+  assert.strictEqual(run('doGet')({parameter: {examstate: 'fake-exam', num: '20109'}}).resetAt, '');
+  assert.strictEqual(run('doGet')({parameter: {examstate: 'fake-exam', num: 'bad'}}).ok, false);
+
+  // 초기화 뒤 새 세션(t7new) 제출이 1건(첫 제출)으로 잡히는지 확인
+  assert.deepStrictEqual(
+    post({v: 1, ws: 'fake-exam', title: '가짜 국악기 시험', sid: 't7new', num: '20102', name: '이시험', t: T(20), away: 0, type: 'submit',
+      data: {score: 0, total: 3, minutes: 3, attempt: 1, wrong: [], answers: {'q:f1111': '가짜악기1', 'q:f2222': '가짜악기2', 'q:f3333': '장고', _auto: '0'}}}),
+    {ok: true}
+  );
+  const afterRetake = run('doGet')({parameter: {dash: key, format: 'json', exam: 'fake-exam'}});
+  const retakeSubs = afterRetake.rows.filter(r => r.num === '20102');
+  assert.strictEqual(retakeSubs.length, 1);
+  assert.strictEqual(retakeSubs[0].sid, 't7new');
+  assert.strictEqual(retakeSubs[0].correct, 3);
+  assert(afterRetake.archive.some(a => a.sid === 't7s1' && a.status === '제출'), 'archive exposed in examData');
+
+  delete ctx.EXAM_KEYS;
+}
 console.log('hub harness: all checks passed');

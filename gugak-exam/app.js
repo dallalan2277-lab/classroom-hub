@@ -7,8 +7,18 @@
   var TEACHER = !!(CR && CR.teacher);
   var MAX_AWAY = 5;
   var LAST_KEY = 'gugak-exam:last';
+  var RESET_ACK_PREFIX = 'gugak-exam:reset-ack:';
+  var HUB_URL = 'https://script.google.com/macros/s/AKfycbyIvmwidYjUqyMIx5SdVP4NhY5tsqAhuWOGzOhtRUI4NSYAoQkKMt-6s7DFud7s5aMN/exec';
+  var CR_SCRIPT = document.querySelector('script[data-ws]');
+  var HUB = (CR_SCRIPT && CR_SCRIPT.getAttribute('data-hub')) || HUB_URL;
+  try {
+    var qh = new URLSearchParams(location.search).get('hub');
+    if (qh && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) HUB = qh;
+  } catch (e) {}
 
   var $ = function (id) { return document.getElementById(id); };
+  var examTop = document.querySelector('.exam-top');
+  var examMain = document.querySelector('.exam-main');
   var qGrid = $('qGrid');
   var filledCnt = $('filledCnt');
   var awayCnt = $('awayCnt');
@@ -41,11 +51,13 @@
   var confirmText = $('confirmText');
   var confirmCancelBtn = $('confirmCancelBtn');
   var confirmOkBtn = $('confirmOkBtn');
+  var resetModal = $('resetModal');
+  var resetConfirmBtn = $('resetConfirmBtn');
 
   var student = { num: '00000', name: '교사 모드' };
   var sid = 'teacher';
   var orderedItems = ITEMS.slice();
-  var draft = { sid: '', answers: {}, locked: false, auto: false, submittedAt: '', introSeen: false };
+  var draft = { sid: '', answers: {}, locked: false, auto: false, submittedAt: '', introSeen: false, ackAt: '', createdAt: '' };
   var playingCode = '';
   var audioTimer = null;
   var submitting = false;
@@ -98,22 +110,26 @@
   }
 
   function loadDraft(num) {
-    var base = { sid: sid, answers: {}, locked: false, auto: false, submittedAt: '', introSeen: false };
+    var base = { sid: sid, answers: {}, locked: false, auto: false, submittedAt: '', introSeen: false, ackAt: '', createdAt: '' };
+    var exists = false;
     try {
       var raw = localStorage.getItem(draftKey(num));
       if (raw) {
         var o = JSON.parse(raw);
         if (o && typeof o === 'object') {
+          exists = true;
           if (o.answers && typeof o.answers === 'object') base.answers = o.answers;
           base.locked = !!o.locked;
           base.auto = !!o.auto;
           base.submittedAt = typeof o.submittedAt === 'string' ? o.submittedAt : '';
           base.introSeen = !!o.introSeen;
+          base.ackAt = typeof o.ackAt === 'string' ? o.ackAt : '';
+          base.createdAt = typeof o.createdAt === 'string' ? o.createdAt : '';
           if (typeof o.sid === 'string') base.sid = o.sid;
         }
       }
     } catch (e) {}
-    return base;
+    return { data: base, exists: exists };
   }
 
   function saveDraft() {
@@ -179,6 +195,7 @@
     fr.title = '소리 재생';
     fr.tabIndex = -1;
     fr.setAttribute('aria-hidden', 'true');
+    fr.referrerPolicy = 'strict-origin-when-cross-origin';
     fr.allow = 'autoplay; encrypted-media';
     audioHost.appendChild(fr);
     audioLabel.textContent = (index + 1) + '번 문항 소리 재생 중';
@@ -200,8 +217,29 @@
     submitBtn.disabled = disabled;
   }
 
+  function setBackgroundInert(on) {
+    var val = !!on;
+    [examTop, examMain].forEach(function (el) {
+      if (!el) return;
+      el.inert = val;
+      if (val) {
+        el.setAttribute('inert', '');
+        el.setAttribute('aria-hidden', 'true');
+      } else {
+        el.removeAttribute('inert');
+        el.removeAttribute('aria-hidden');
+      }
+    });
+    if (val) {
+      setInputsDisabled(true);
+    } else if (!draft.locked && !submitting) {
+      setInputsDisabled(false);
+    }
+  }
+
   function showLockedView(isAuto, pendingRetry, errMsg) {
     stopAudio();
+    setBackgroundInert(false);
     introModal.hidden = true;
     confirmModal.hidden = true;
     zoomModal.hidden = true;
@@ -317,11 +355,17 @@
     updateProgress();
   }
 
+  function cleanAnswer(val) {
+    var s = String(val || '');
+    if (typeof s.normalize === 'function') s = s.normalize('NFC');
+    return s.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+  }
+
   function buildAnswers(isAuto) {
     var out = {};
     for (var i = 0; i < ITEMS.length; i++) {
       var code = ITEMS[i].code;
-      out['q:' + code] = String(draft.answers[code] || '').trim();
+      out['q:' + code] = cleanAnswer(draft.answers[code]);
     }
     out._auto = isAuto ? '1' : '0';
     out._order = orderedItems.map(function (x) { return x.code; }).join(',');
@@ -331,6 +375,7 @@
 
   function submitExam(isAuto) {
     if (submitting || draft.locked) return;
+    if (!isAuto && !TEACHER && !draft.introSeen) return;
     if (autoRetryTimer) {
       clearTimeout(autoRetryTimer);
       autoRetryTimer = null;
@@ -373,7 +418,8 @@
         return;
       }
       var errText = (res && res.error) || '전송에 실패했습니다. 잠시 후 다시 시도하세요.';
-      if (isAuto) {
+      if (isAuto || (!TEACHER && (CR ? CR.away : 0) >= MAX_AWAY)) {
+        setInputsDisabled(true);
         showLockedView(true, true, errText + ' 5초 뒤 자동으로 다시 보냅니다.');
         autoRetryTimer = setTimeout(function () {
           autoRetryTimer = null;
@@ -400,6 +446,7 @@
 
   submitBtn.addEventListener('click', function () {
     if (submitting || draft.locked) return;
+    if (!TEACHER && !draft.introSeen) return;
     var left = ITEMS.length - filledCount();
     confirmText.textContent = left > 0
       ? '아직 쓰지 않은 빈칸이 ' + left + '개 남았습니다. 지금 제출할까요?'
@@ -427,6 +474,7 @@
     draft.ackAt = formatNow(); // 시작 경고 창에서 '이해했습니다'를 누른 시각(답안과 함께 전송)
     saveDraft();
     introModal.hidden = true;
+    setBackgroundInert(false);
   });
 
   zoomCloseBtn.addEventListener('click', function () {
@@ -436,9 +484,33 @@
     if (e.target === zoomModal) zoomModal.hidden = true;
   });
   document.addEventListener('keydown', function (e) {
+    if (document.querySelector('.cr-veil')) return;
+    if (!resetModal.hidden) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        resetConfirmBtn.focus();
+      }
+      return;
+    }
+    if (!introModal.hidden) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        introStartBtn.focus();
+      }
+      return;
+    }
     if (e.key !== 'Escape') return;
     if (!zoomModal.hidden) zoomModal.hidden = true;
     else if (!confirmModal.hidden) confirmModal.hidden = true;
+  });
+
+  document.addEventListener('focusin', function (e) {
+    if (document.querySelector('.cr-veil')) return;
+    if (!resetModal.hidden && !resetModal.contains(e.target)) {
+      resetConfirmBtn.focus();
+    } else if (!introModal.hidden && !introModal.contains(e.target)) {
+      introStartBtn.focus();
+    }
   });
 
   document.addEventListener('classroom:away', function (e) {
@@ -461,10 +533,70 @@
     } catch (e) {}
   });
 
+  function parseStampMs(s) {
+    if (!s || typeof s !== 'string') return NaN;
+    var norm = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s) ? s.replace(' ', 'T') : s;
+    return Date.parse(norm);
+  }
+
+  function showResetNotice(resetAt) {
+    stopAudio();
+    introModal.hidden = true;
+    confirmModal.hidden = true;
+    zoomModal.hidden = true;
+    setBackgroundInert(true);
+    resetModal.hidden = false;
+    resetConfirmBtn.onclick = function () {
+      try {
+        localStorage.setItem(RESET_ACK_PREFIX + student.num, resetAt);
+        localStorage.removeItem(draftKey(student.num));
+        localStorage.removeItem(LAST_KEY);
+      } catch (e) {}
+      if (CR && CR.switchStudent) CR.switchStudent();
+      else location.reload();
+    };
+    resetConfirmBtn.focus();
+  }
+
+  function checkExamReset(refTime) {
+    if (TEACHER || !/^https?:\/\//.test(HUB) || !student.num) return;
+    var ws = CR && CR.ws ? CR.ws : 'gugak-exam';
+    var url = HUB + '?examstate=' + encodeURIComponent(ws) + '&num=' + encodeURIComponent(student.num);
+    var ctl = null;
+    var timer = null;
+    try { ctl = new AbortController(); } catch (e) {}
+    if (ctl) {
+      timer = setTimeout(function () { try { ctl.abort(); } catch (e) {} }, 3000);
+    }
+    fetch(url, { cache: 'no-store', signal: ctl ? ctl.signal : undefined })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (timer) clearTimeout(timer);
+        if (!d || !d.ok || !d.resetAt) return;
+        try {
+          if (localStorage.getItem(RESET_ACK_PREFIX + student.num) === d.resetAt) return;
+        } catch (e) {}
+        var resetMs = parseStampMs(d.resetAt);
+        var refMs = parseStampMs(refTime);
+        if (Number.isFinite(resetMs) && (!Number.isFinite(refMs) || resetMs > refMs)) {
+          showResetNotice(d.resetAt);
+        }
+      })
+      .catch(function () {
+        if (timer) clearTimeout(timer);
+      });
+  }
+
   function startApp(st) {
     student = st || { num: '00000', name: '교사 모드' };
     sid = readSid(student.num);
-    draft = loadDraft(student.num);
+    var loaded = loadDraft(student.num);
+    draft = loaded.data;
+    var hadSaved = loaded.exists;
+    var refTime = draft.createdAt || draft.submittedAt || '';
+    if (!draft.createdAt) {
+      draft.createdAt = new Date().toISOString();
+    }
     draft.sid = sid;
     saveDraft();
 
@@ -481,17 +613,25 @@
     if (locked) {
       draft.locked = true;
       showLockedView(!!draft.auto, false, '');
+      checkExamReset(refTime);
       return;
     }
 
     renderCards();
     if (!TEACHER && (CR ? CR.away : 0) >= MAX_AWAY) {
       submitExam(true);
+      if (hadSaved) checkExamReset(refTime);
       return;
     }
     if (!TEACHER && !draft.introSeen) {
       introModal.hidden = false;
+      setBackgroundInert(true);
       introStartBtn.focus();
+    } else {
+      setBackgroundInert(false);
+    }
+    if (!TEACHER && hadSaved) {
+      checkExamReset(refTime);
     }
   }
 
