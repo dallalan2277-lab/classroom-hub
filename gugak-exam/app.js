@@ -325,6 +325,7 @@
     }
     out._auto = isAuto ? '1' : '0';
     out._order = orderedItems.map(function (x) { return x.code; }).join(',');
+    out._ack = draft.ackAt || '';
     return out;
   }
 
@@ -423,6 +424,7 @@
 
   introStartBtn.addEventListener('click', function () {
     draft.introSeen = true;
+    draft.ackAt = formatNow(); // 시작 경고 창에서 '이해했습니다'를 누른 시각(답안과 함께 전송)
     saveDraft();
     introModal.hidden = true;
   });

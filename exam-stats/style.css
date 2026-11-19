@@ -493,3 +493,8 @@ tr.review-row td { background: var(--warn-bg); }
 .mini-table td, .mini-table th {
   padding: 6px 8px;
 }
+
+/* 조기 종료(이탈 5회 자동 제출) 표시 */
+tr.early-row td { background: rgba(198, 40, 40, 0.10); }
+tr.early-row td:first-child { box-shadow: inset 4px 0 0 #c62828; }
+.stat-box.danger-box b { color: #c62828; }

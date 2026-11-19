@@ -530,7 +530,7 @@
       }
 
       var off = rec.official;
-      tr.className = 'clickable' + (rec.needsReview ? ' review-row' : '');
+      tr.className = 'clickable' + (rec.needsReview ? ' review-row' : '') + (off.auto ? ' early-row' : '');
       tr.addEventListener('click', function () {
         openDetailModal(rec.num);
       });
@@ -541,7 +541,7 @@
         off.correct + ' / ' + totalItemsCount(),
         rec.convertedScore + '점',
         off.away + '회',
-        off.auto ? '자동 제출' : '-',
+        off.auto ? '조기 종료(이탈 5회)' : '-',
         off.time || '-',
         (off.minutes || 0) + '분'
       ];
@@ -613,7 +613,7 @@
       var meta = document.createElement('div');
       meta.className = 'muted';
       meta.textContent = (sub.time || '') + ' · 이탈 ' + sub.away + '회 · ' + (sub.minutes || 0) + '분 · ' +
-        (sub.auto ? '자동 제출 · ' : '') + '이름 "' + sub.name + '" · 세션 ' + String(sub.sid || '').slice(0, 8);
+        (sub.auto ? '조기 종료(이탈 5회 자동 제출) · ' : '') + '이름 "' + sub.name + '" · 세션 ' + String(sub.sid || '').slice(0, 8);
       left.appendChild(strong);
       left.appendChild(meta);
 
@@ -827,6 +827,15 @@
         }).join(', ');
         warns.appendChild(wNm);
       }
+      var earlyFills = plan.fills.filter(function (f) { var rc = byNum[f.num]; return rc && rc.official && rc.official.auto; });
+      if (earlyFills.length) {
+        var wEarly = document.createElement('div');
+        wEarly.className = 'danger-box-inline';
+        wEarly.textContent = '조기 종료(이탈 5회 자동 제출) 학생 — 점수는 넣지만 부정행위 여부를 확인해 주세요: ' + earlyFills.map(function (f) {
+          var rc = byNum[f.num]; return f.num + ' ' + ((rc && rc.displayName) || '');
+        }).join(', ');
+        warns.appendChild(wEarly);
+      }
       if (plan.needsReview.length) {
         var wRev = document.createElement('div');
         wRev.className = 'warn-box-inline';
@@ -932,7 +941,7 @@
     var byNum = buildStudentRecords();
     var filtered = filterRecords(byNum, selectedGrade, selectedClass);
     var items = (examData.exam && examData.exam.items) || [];
-    var header = ['학번', '학년', '반', '번호', '이름', '상태', '맞힌개수', '환산점수', '이탈횟수', '자동제출', '제출시각', '걸린시간(분)', '확인필요']
+    var header = ['학번', '학년', '반', '번호', '이름', '상태', '맞힌개수', '환산점수', '이탈횟수', '조기종료(이탈5회)', '제출시각', '걸린시간(분)', '확인필요']
       .concat(items.map(function (it) { return it.answer; }));
 
     var lines = [header.map(csvCell).join(',')];
@@ -981,6 +990,10 @@
     stCorrectAvg.textContent = sm.avgCorrect !== null ? ('평균 맞힌 개수 ' + sm.avgCorrect + '/' + totalItemsCount()) : '';
     stMinMax.textContent = sm.maxScore !== null ? (sm.maxScore + ' · ' + sm.minScore + '점') : '-';
     stReview.textContent = sm.review.length + '명';
+    // 이탈 5회로 자동 제출된(조기 종료) 답안 수
+    var early = filtered.filter(function (r) { return r.submitted && r.official && r.official.auto; });
+    $('stEarly').textContent = early.length + '명';
+    $('stEarlyNames').textContent = early.length ? early.map(function (r) { return r.num + ' ' + r.displayName; }).slice(0, 6).join(', ') + (early.length > 6 ? ' 외 ' + (early.length - 6) + '명' : '') : '이탈 5회 자동 제출';
 
     renderCharts(filtered, sm);
     renderTable(filtered);
