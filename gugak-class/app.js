@@ -56,7 +56,7 @@
   var view = document.getElementById('view'), nav = document.getElementById('nav');
   var root = document.documentElement, body = document.body;
   var state, showAns = false, sending = false, lastPage = -1, sheetOn = false, classOn = false;
-  var curTab = {}, coverOn = true, revealed = {}, nowG = '';
+  var curTab = {}, coverOn = true, revealed = {}, nowG = '', warmPick = {};
 
   /* ---------- 저장 ---------- */
   var saveOk = true, saveWarned = false;
@@ -92,7 +92,7 @@
   }
   function answerSig() { return JSON.stringify([state.answers, state.classification, state.review, state.notes, state.reflection, state.listen]); }
   state = load();
-  document.addEventListener('classroom:switch', function () { try { localStorage.removeItem(KEY); } catch (e) {} state = fresh(); lastPage = -1; route(); });
+  document.addEventListener('classroom:switch', function () { try { localStorage.removeItem(KEY); } catch (e) {} state = fresh(); warmPick = {}; lastPage = -1; route(); });
   if (CR && CR.ready && CR.ready.then) CR.ready.then(function (st) {
     if (!st) return;
     if (state.owner && st.num && state.owner !== st.num) state = fresh();
@@ -190,9 +190,10 @@
   function miniVid(x) {
     if (!(x.id in VST) || !PV.videoId) return '';
     var ls = VLS[x.id], st = ls ? ls[0] : VST[x.id], en = ls ? ls[1] : (nextStart(st) || st + 30);
+    var solo = !!(ls || (en - st) <= 20);
     return '<figure class="vid mini" data-yt="' + esc(PV.videoId) + '" data-start="' + st + '" data-end="' + en + '">' +
       '<button class="vid-play" type="button" aria-label="' + esc(x.name) + ' 소리 듣기 영상 재생"><span class="play" aria-hidden="true"></span>소리 듣기 · ' + mmss(st) + '부터</button>' +
-      '<figcaption><small>' + esc(PV.credit || '') + '</small></figcaption></figure>';
+      '<figcaption><span class="play-mode' + (solo ? ' is-solo' : '') + '">' + (solo ? '태블릿 · 각자 짧게' : '칠판 · 다 같이') + '</span> <small>' + esc(PV.credit || '') + '</small></figcaption></figure>';
   }
   // 수업 모드에서 정답을 가렸으면 ✓도 감춰요(맞혔는지가 칠판에 드러나지 않게)
   function showDone(id) { return isDone(id) && (!classOn || showAns); }
@@ -233,9 +234,42 @@
   }
 
   /* ---------- 장 본문 ---------- */
+  var WARMUP = ['02', '10', '20'];
+  function warmRange(id) {
+    var ls = VLS[id];
+    if (ls) return [ls[0], Math.min(ls[1], ls[0] + 10)];
+    var st = VST[id] || 0;
+    return [st, st + 10];
+  }
+  function warmNameHTML(id) {
+    var x = IBY[id] || {}, pick = warmPick[id];
+    var hint = { '관악기': '숨', '현악기': '줄', '타악기': '두드림' };
+    return '<p class="lname"' + (pick ? '' : ' hidden') + '>' + esc(x.name || id) +
+      '<small>' + esc(x.family || '') + (hint[x.family] ? ' (' + hint[x.family] + ')' : '') + '</small>' +
+      (pick ? (pick === x.family ? '<span class="ok">맞았어요!</span>' : '<span class="no">정답은 ' + esc(x.family) + '(' + esc(hint[x.family] || '') + ')예요</span>') : '') + '</p>';
+  }
+  function lvPlayerHTML() {
+    return '<div class="lv' + (coverOn ? ' covered' : '') + '" id="lv"><div class="lv-screen" id="lvScreen"><div class="lv-idle">카드의 듣기를 누르면 여기에서 소리가 나요.</div>' +
+      '<div class="lv-cover" aria-hidden="true"><div class="wave"><i></i><i></i><i></i><i></i><i></i></div><b>소리 먼저 들어요</b><span>화면은 가려 두었어요.</span></div></div>' +
+      '<div class="lv-bar"><button type="button" class="mini" id="lvCover" aria-pressed="' + coverOn + '">' + (coverOn ? '화면 가리기: 켬' : '화면 가리기: 끔') + '</button>' +
+      '<button type="button" class="mini" id="lvStop">멈추기</button>' +
+      '<span class="play-mode is-solo">태블릿 · 각자 짧게</span>' +
+      '<span>영상: <a href="' + esc(PV.url || '#') + '" target="_blank" rel="noopener">' + esc(PV.title || '') + '</a> · ' + esc(PV.credit || '') + '</span></div></div>';
+  }
   function kindHTML() {
     var how = { '관악기': '숨을 불어 소리를 내요.', '현악기': '줄의 떨림으로 소리를 내요.', '타악기': '몸체나 가죽 등을 두드려 소리를 내요.' };
-    return '<div class="fam3">' + ['관악기', '현악기', '타악기'].map(function (f) {
+    var warm = '<div class="bigq"><b>오늘의 질문</b><p>“눈을 감고 들어도 무슨 악기인지 알 수 있을까?”</p><small>먼저 화면을 가린 채 소리만 짧게 듣고, 무엇으로 낸 소리인지 느낌으로 골라 봐요.</small></div>' +
+      '<section class="warmup" aria-label="짐작하고 듣기"><h3>짐작하고 듣기</h3>' +
+      '<p class="hint">소리마다 10초쯤 나와요. <b>숨 · 줄 · 두드림</b> 가운데 하나를 고르면 악기 이름과 가족이 열려요. (점수에 들어가지 않아요)</p>' +
+      lvPlayerHTML() +
+      '<ol class="lcards wcards">' + WARMUP.map(function (id, k) {
+        var rg = warmRange(id), pick = warmPick[id];
+        return '<li class="lcard wcard" data-g="w:' + esc(id) + '" data-start="' + rg[0] + '" data-end="' + rg[1] + '"><div class="lh"><b>소리 ' + (k + 1) + '</b><button type="button" class="lplay" aria-label="짐작 소리 ' + (k + 1) + ' 듣기">듣기</button></div>' +
+          '<div class="lg" role="group" aria-label="짐작 소리 ' + (k + 1) + ' 고르기">' + [['관악기', '숨?'], ['현악기', '줄?'], ['타악기', '두드림?']].map(function (f) {
+            return '<button type="button" data-wg="' + f[0] + '" aria-pressed="' + (pick === f[0]) + '" aria-label="' + f[0] + ' (' + f[1] + ')">' + f[1] + '</button>';
+          }).join('') + '</div>' + warmNameHTML(id) + '</li>';
+      }).join('') + '</ol></section>';
+    return warm + '<h3>소리 내는 방법으로 나눈 세 가족</h3><div class="fam3">' + ['관악기', '현악기', '타악기'].map(function (f) {
       var l = fam(f);
       return '<div><h3>' + f + '<small>' + l.length + '가지</small></h3><p class="how2">' + how[f] + '</p><ul>' +
         l.map(function (x) { return '<li><a href="#' + FAMCH[f] + '?i-' + esc(x.id) + '">' + esc(x.name) + '</a></li>'; }).join('') + '</ul></div>';
@@ -264,13 +298,10 @@
       (pick ? (pick === gi.family ? '<span class="ok">✓ 가족을 맞혔어요</span>' : '<span class="no">고른 답: ' + esc(pick) + '</span>') : '') + '</p>';
   }
   function listenHTML() {
-    return sceneHTML({ img: 'madang-listen.webp', alt: '중학생 몇 명이 눈을 감고 멀리 무대에서 퍼져 오는 소리에 귀 기울여요', one: '화면을 가리고 소리만 들어요. 숨소리, 줄 떨림, 두드림 가운데 무엇이 들리나요?' },
+    return '<div class="bigq"><b>오늘의 질문 다시 꺼내기</b><p>“눈을 감고 들어도 무슨 악기인지 알 수 있을까?”</p><small>이제 답해 볼까요? 아래 소리를 듣고 학습지에 내가 찾은 단서를 적어 봐요.</small></div>' +
+      sceneHTML({ img: 'madang-listen.webp', alt: '중학생 몇 명이 눈을 감고 멀리 무대에서 퍼져 오는 소리에 귀 기울여요', one: '화면을 가리고 소리만 들어요. 숨소리, 줄 떨림, 두드림 가운데 무엇이 들리나요?' },
       '카드의 듣기를 누르면 해설 없이 그 악기 소리만 짧게 나와요. 관·현·타 가운데 하나를 고른 뒤 악기 열기로 확인해요.') +
-      '<div class="lv' + (coverOn ? ' covered' : '') + '" id="lv"><div class="lv-screen" id="lvScreen"><div class="lv-idle">카드의 듣기를 누르면 여기에서 소리가 나요.</div>' +
-      '<div class="lv-cover" aria-hidden="true"><div class="wave"><i></i><i></i><i></i><i></i><i></i></div><b>소리 먼저 들어요</b><span>화면은 가려 두었어요.</span></div></div>' +
-      '<div class="lv-bar"><button type="button" class="mini" id="lvCover" aria-pressed="' + coverOn + '">' + (coverOn ? '화면 가리기: 켬' : '화면 가리기: 끔') + '</button>' +
-      '<button type="button" class="mini" id="lvStop">멈추기</button>' +
-      '<span>영상: <a href="' + esc(PV.url || '#') + '" target="_blank" rel="noopener">' + esc(PV.title || '') + '</a> · ' + esc(PV.credit || '') + '</span></div></div>' +
+      lvPlayerHTML() +
       '<ol class="lcards">' + LGROUPS.map(function (g, k) {
         var gi = gInfo(g), pick = state.lg[g];
         return '<li class="lcard" data-g="' + g + '" data-start="' + gi.start + '" data-end="' + gi.end + '"><div class="lh"><b>소리 ' + (k + 1) + '</b><button type="button" class="lplay" aria-label="소리 ' + (k + 1) + ' 듣기">듣기</button></div>' +
@@ -498,7 +529,11 @@
     Array.prototype.forEach.call(document.querySelectorAll('.lcard.now'), function (c) { c.classList.remove('now'); });
     nowG = '';
   }
-  function syncCover() { var lv = document.getElementById('lv'); if (lv) lv.classList.toggle('covered', coverOn && !revealed[nowG]); }
+  function syncCover() {
+    var lv = document.getElementById('lv'); if (!lv) return;
+    var isRev = nowG.indexOf('w:') === 0 ? !!warmPick[nowG.slice(2)] : !!revealed[nowG];
+    lv.classList.toggle('covered', coverOn && !isRev);
+  }
   function ytFrame(st, en, title) {
     var fr = document.createElement('iframe');
     fr.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(PV.videoId) + '?autoplay=1&rel=0&playsinline=1' + (st ? '&start=' + st : '') + (en ? '&end=' + en : '');
@@ -545,6 +580,14 @@
         scr.insertBefore(ytFrame(+card.getAttribute('data-start'), +card.getAttribute('data-end'), t.getAttribute('aria-label')), scr.firstChild);
         lv.classList.add('on'); card.classList.add('now'); nowG = g; syncCover();
         if (lv.getBoundingClientRect().top < 0) lv.scrollIntoView({ block: 'start', behavior: 'instant' });
+        return;
+      }
+      if (t.hasAttribute('data-wg')) {
+        var wid = g.replace(/^w:/, '');
+        warmPick[wid] = t.getAttribute('data-wg');
+        Array.prototype.forEach.call(card.querySelectorAll('[data-wg]'), function (b) { b.setAttribute('aria-pressed', String(warmPick[wid] === b.getAttribute('data-wg'))); });
+        var wln = card.querySelector('.lname'); if (wln) wln.outerHTML = warmNameHTML(wid);
+        if (g === nowG) syncCover();
         return;
       }
       if (t.hasAttribute('data-lg')) {
