@@ -8,12 +8,12 @@
   var DATA = window.PANSORI, V = DATA.V, CH = DATA.CHAPTERS;
   var CR = window.Classroom || null;
   var TEACHER = !!(CR && CR.teacher);
-  var KEY = 'pansori-plus-v1', FS_KEY = 'pansori-plus-fs';
+  var KEY = 'pansori-plus-v2', FS_KEY = 'pansori-plus-fs';
   var SHARE_URL = 'https://dallalan2277-lab.github.io/classroom-hub/pansori-plus/';
   var PAGES = [{ id: 'start', nav: '시작' }].concat(CH.map(function (c) { return { id: c.id, nav: c.nav, ch: c }; }), [{ id: 'submit', nav: '제출' }]);
   var ALLQ = []; CH.forEach(function (c) { c.qs.forEach(function (q) { q.ch = c.id; ALLQ.push(q); }); });
   var QBY = {}; ALLQ.forEach(function (q) { QBY[q.id] = q; });
-  var GRADED = ALLQ.filter(function (q) { return q.type !== 'text'; });
+  var GRADED = ALLQ.filter(function (q) { return q.ans !== undefined; });
   // 1차시는 split 이 붙은 장까지
   var SPLIT = 0; CH.forEach(function (c, k) { if (c.split) SPLIT = k; });
   function part(k) { return k <= SPLIT ? 1 : 2; }
@@ -62,24 +62,37 @@
     if (q.type === 'order') return Array.isArray(v) ? v.filter(function (x, i, a) { return q.opts.indexOf(x) >= 0 && a.indexOf(x) === i; }) : [];
     return typeof v === 'string' ? v : '';
   }
-  function answered(q) { var v = val(q); return q.type === 'multi' ? v.length > 0 : q.type === 'order' ? v.length === q.ans.length : v.trim() !== ''; }
+  function answered(q) { var v = val(q); return q.type === 'multi' ? v.length > 0 : q.type === 'order' ? v.length === q.opts.length : v.trim() !== ''; }
   function correct(q) {
+    if (q.ans === undefined) return false;
     var v = val(q);
     if (q.type === 'blank') { var n = norm(v); return n !== '' && q.ans.some(function (a) { return norm(a) === n; }); }
     if (q.type === 'multi') return v.slice().sort().join('|') === q.ans.slice().sort().join('|');
     if (q.type === 'order') return v.length === q.ans.length && v.every(function (x, i) { return x === q.ans[i]; });
     return v === q.ans;
   }
-  function ansText(q) { return q.type === 'blank' ? q.ans[0] : q.type === 'multi' ? q.ans.join(', ') : q.type === 'order' ? q.ans.join(' → ') : q.ans; }
+  function ansText(q) { if (q.ans === undefined) return ''; return q.type === 'blank' ? q.ans[0] : q.type === 'multi' ? q.ans.join(', ') : q.type === 'order' ? q.ans.join(' → ') : q.ans; }
   function valText(q) { var v = val(q); return q.type === 'multi' ? q.opts.filter(function (o) { return v.indexOf(o) >= 0; }).join(', ') : q.type === 'order' ? v.join(' → ') : v.trim(); }
   function marking() { return !!state.done || (TEACHER && showAns); }
 
   /* ---------- 수업 화면 조각 ---------- */
-  function vidHTML(key, cap) {
+  function playMode(v) {
+    if (v && (v.mode === 'solo' || v.mode === 'board')) return v.mode;
+    return v && v.end && (v.end - (v.start || 0)) <= 20 ? 'solo' : 'board';
+  }
+  function vidHTML(key, cap, mask) {
     var v = V[key]; if (!v) return '';
+    var title = mask || v.title, by = mask ? '' : v.by;
+    var mode = playMode(v), modeText = mode === 'solo' ? '태블릿 · 각자 짧게' : '칠판 · 다 같이';
     return '<figure class="vid" data-yt="' + esc(v.id) + '" data-start="' + (v.start || 0) + '" data-end="' + (v.end || 0) + '">' +
-      '<button class="vid-play" type="button" aria-label="' + esc(v.title) + ' 재생"><img alt="" loading="lazy" src="https://i.ytimg.com/vi/' + esc(v.id) + '/hqdefault.jpg"><span class="play" aria-hidden="true"></span></button>' +
-      '<figcaption><b>' + esc(v.title) + '</b><small>' + esc(v.by) + '</small>' + (cap ? '<em>' + esc(cap) + '</em>' : '') + '</figcaption></figure>';
+      // 정체를 가린 영상은 썸네일에도 곡 이름 글자가 박혀 있어서 그림 대신 글자 판을 띄워요(T016)
+      '<button class="vid-play" type="button" aria-label="' + esc(title) + ' 재생">' +
+        (mask ? '<span class="vid-mask" aria-hidden="true">' + esc((mask.match(/영상\s*([A-Z])/) || [, '?'])[1]) + '</span>'
+              : '<img alt="" loading="lazy" src="https://i.ytimg.com/vi/' + esc(v.id) + '/hqdefault.jpg">') +
+        '<span class="play" aria-hidden="true"></span></button>' +
+      '<figcaption><div class="vid-head"><b>' + esc(title) + '</b><span class="play-mode' + (mode === 'solo' ? ' is-solo' : '') + '">' + modeText + '</span></div>' +
+      (by ? '<small>' + esc(by) + '</small>' : '') +
+      (cap ? '<em>' + esc(cap) + '</em>' : '') + '</figcaption></figure>';
   }
   function role(name, short, desc, cls) {
     return '<div class="role ' + (cls || '') + '"><b>' + esc(name) + '</b><span>' + esc(short) + '</span><p>' + esc(desc) + '</p></div>';
@@ -113,44 +126,88 @@
     sim: '심청가 그림: 넓은 바다 위 배에 탄 심청',
     jeok: '적벽가 그림: 배 위에서 조자룡이 활을 겨누고, 동남풍에 돛이 펄럭여요'
   };
+  var STORY_KEYS = ['chun', 'heung', 'su', 'sim', 'jeok'];
   var storyShown = {};
+  function storyList(st) {
+    if (!st) return [];
+    return Array.isArray(st.cuts) && st.cuts.length ? st.cuts : (Array.isArray(st.acts) ? st.acts : []);
+  }
+  function listenHTML(st) {
+    if (!st || !Array.isArray(st.listen) || !st.listen.length) return '';
+    var items = st.listen.map(function (l) {
+      return '<article class="listen-card">' +
+        '<h5 class="listen-t">' + esc(l.name) + '</h5>' +
+        vidHTML(l.v) +
+        '<dl class="listen-pts">' +
+          (l.fun ? '<div><dt>재미</dt><dd>' + esc(l.fun) + '</dd></div>' : '') +
+          (l.focus ? '<div><dt>집중</dt><dd>' + esc(l.focus) + '</dd></div>' : '') +
+        '</dl>' +
+      '</article>';
+    }).join('');
+    return '<div class="listen-sec">' +
+      '<div class="listen-head"><h4>명장면 듣기</h4><p>이야기 속 가장 재미있는 대목을 직접 들어 봐요.</p></div>' +
+      '<div class="listen-grid">' + items + '</div>' +
+    '</div>';
+  }
+  function nextMadangBtn(key) {
+    var idx = STORY_KEYS.indexOf(key);
+    var nk = STORY_KEYS[(idx + 1) % STORY_KEYS.length];
+    var nst = nk && (DATA.STORIES || {})[nk];
+    return nst ? '<button type="button" class="next-md" data-next="tb-' + esc(nk) + '">다른 마당 보기: ' + esc(nst.name) + '</button>' : '';
+  }
   function actsHTML(key, st) {
-    if (!st || !Array.isArray(st.acts) || !st.acts.length) return '';
-    var total = st.acts.length;
+    var list = storyList(st);
+    if (!list.length) return '';
+    var total = list.length;
     var shown = Math.max(1, Math.min(total, storyShown[key] || 1));
     storyShown[key] = shown;
     var allOpen = shown >= total;
-    var cards = st.acts.slice(0, shown).map(function (a, i) {
-      return '<li class="act-card' + (i === shown - 1 ? ' is-now' : '') + '">' +
-        '<div class="act-meta"><span class="act-n">장면 ' + (i + 1) + '</span>' +
-        (a.mark ? '<span class="act-mark">명장면 · ' + esc(a.mark) + '</span>' : '') + '</div>' +
-        '<h5 class="act-t">' + esc(a.t) + '</h5>' +
-        '<p class="act-x">' + esc(a.x) + '</p>' +
-        (a.say ? '<blockquote class="act-say"><p>“' + esc(a.say) + '”</p>' + (a.who ? '<cite>— ' + esc(a.who) + '</cite>' : '') + '</blockquote>' : '') +
-        '</li>';
+    var cards = list.slice(0, shown).map(function (a, i) {
+      var alt = a.alt || (st.name + ' ' + (i + 1) + '컷 · ' + a.t);
+      return '<li class="act-card cut-card' + (i === shown - 1 && !allOpen ? ' is-now' : '') + '">' +
+        (a.img ? art(a.img, alt, 'cut-art', 1200, 900) : '') +
+        '<div class="cut-body">' +
+          '<div class="act-meta"><span class="act-n">' + (i + 1) + '컷</span>' +
+          (a.mark ? '<span class="act-mark">대표 대목 · ' + esc(a.mark) + '</span>' : '') + '</div>' +
+          '<h5 class="act-t">' + esc(a.t) + '</h5>' +
+          '<p class="act-x">' + esc(a.x) + '</p>' +
+          (a.say ? '<div class="cut-say"><p>“' + esc(a.say) + '”</p>' + (a.who ? '<cite>— ' + esc(a.who) + '</cite>' : '') + '</div>' : '') +
+        '</div>' +
+      '</li>';
     }).join('');
-    var curAct = st.acts[shown - 1];
+    var curAct = list[shown - 1], nBtn = nextMadangBtn(key);
     var foot = !allOpen
       ? '<div class="act-foot">' +
         (curAct && curAct.cut ? '<p class="act-cut">' + esc(curAct.cut) + '</p>' : '') +
-        '<button type="button" class="act-next" data-story="' + esc(key) + '">다음 장면 (' + (shown + 1) + ' / ' + total + ') →</button></div>'
-      : '';
+        '<div class="act-actions">' +
+          '<button type="button" class="act-next" data-story="' + esc(key) + '">다음 컷 (' + (shown + 1) + ' / ' + total + ') →</button>' +
+          nBtn +
+        '</div></div>'
+      : listenHTML(st) +
+        '<div class="act-foot act-done">' +
+          '<p class="act-cut">' + esc(st.name) + ' 4컷 이야기를 끝까지 봤어요.</p>' +
+          '<div class="act-actions">' +
+            '<a class="act-sheet" href="#' + esc(PAGES[cur()].id) + '?sheet">학습지 쓰러 가기 ↓</a>' +
+            nBtn +
+          '</div>' +
+        '</div>';
     return '<div class="acts" id="acts-' + esc(key) + '" data-story="' + esc(key) + '">' +
-      '<div class="acts-head"><h4>장면으로 따라가기 <span class="acts-cnt">' + shown + ' / ' + total + '</span></h4>' +
-      '<button type="button" class="mini act-all" data-story="' + esc(key) + '" aria-pressed="' + allOpen + '">' + (allOpen ? '첫 장면만 보기' : '한꺼번에 펼치기') + '</button></div>' +
-      '<ol class="act-list">' + cards + '</ol>' + foot + '</div>';
+      '<div class="acts-head"><h4>4컷 이야기 <span class="acts-cnt">' + shown + ' / ' + total + '</span></h4>' +
+      '<button type="button" class="mini act-all" data-story="' + esc(key) + '" aria-pressed="' + allOpen + '">' + (allOpen ? '1컷만 보기' : '4컷 한꺼번에 보기') + '</button></div>' +
+      '<ol class="act-list' + (allOpen ? ' is-grid' : '') + '">' + cards + '</ol>' + foot + '</div>';
   }
   function updateActs(key, focusMode) {
     var st = (DATA.STORIES || {})[key];
     var box = document.getElementById('acts-' + key);
     if (!st || !box) return;
+    stopVideos();
     var tmp = document.createElement('div');
     tmp.innerHTML = actsHTML(key, st);
     var nextBox = tmp.firstChild;
     if (!nextBox) return;
     box.replaceWith(nextBox);
     if (focusMode === 'next') {
-      var nb = nextBox.querySelector('.act-next') || nextBox.querySelector('.act-all');
+      var nb = nextBox.querySelector('.act-next') || nextBox.querySelector('.act-sheet') || nextBox.querySelector('.act-all');
       if (nb) {
         nb.focus();
         if (nb.scrollIntoView) nb.scrollIntoView({ block: 'nearest' });
@@ -160,28 +217,33 @@
       if (ab) ab.focus();
     }
   }
-  function storyPanel(key, k, all) {
+  function storyPanel(key, k) {
     var st = (DATA.STORIES || {})[key]; if (!st) return '';
-    var nk = all && all[k + 1], nst = nk && DATA.STORIES[nk];
-    var next = nst ? '<button type="button" class="next-md" data-next="tb-' + esc(nk) + '">다음 마당: ' + esc(nst.name) + ' →</button>'
-      : '<a class="next-md" href="#' + esc(PAGES[cur()].id) + '?sheet">다섯 마당을 다 봤어요 · 학습지로 →</a>';
-    var hasActs = Array.isArray(st.acts) && st.acts.length > 0;
-    var bodyHTML = hasActs
-      ? '<h4>세 줄 요약</h4><p class="story-sum">' + esc(st.story) + '</p>' + actsHTML(key, st)
-      : '<h4>줄거리</h4><p>' + esc(st.story) + '</p>';
     return '<div class="tp" role="tabpanel" id="tp-' + esc(key) + '" aria-labelledby="tb-' + esc(key) + '"' + (k ? ' hidden' : '') + ' tabindex="0">' +
-      '<div class="tp-head">' + art('madang-' + key + '.webp', MD_ALT[key] || st.name, 'md-art', 1200, 900) + '<p class="eyebrow">다섯 마당 · ' + (k + 1) + '</p><h3>' + esc(st.name) + '</h3><p class="who">' + esc(st.who) + '</p>' +
-      '<p class="one">' + esc(st.one) + '</p><p class="hook">' + esc(st.hook) + '</p></div>' +
-      '<div class="tp-body">' + bodyHTML +
-      '<h4>주제</h4><ul>' + st.theme.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
-      '<h4>대표 대목은 어디쯤?</h4><p>' + st.scene + '</p>' +
-      (st.care ? '<p class="care"><b>함께 생각해요</b> ' + esc(st.care) + '</p>' : '') + next + '</div></div>';
+      '<div class="tp-head">' +
+        art('madang-' + key + '.webp', MD_ALT[key] || st.name, 'md-art', 1200, 900) +
+        '<div class="tp-intro">' +
+          '<p class="eyebrow">다섯 마당 · ' + (k + 1) + '</p>' +
+          '<h3>' + esc(st.name) + '</h3>' +
+          '<p class="hook">' + esc(st.hook) + '</p>' +
+        '</div>' +
+      '</div>' +
+      '<div class="tp-body">' +
+        actsHTML(key, st) +
+        '<details class="more tp-more"><summary>더 알아보기 · 세 줄 요약과 주제</summary>' +
+          '<div class="tp-more-body">' +
+            '<h4>세 줄 요약</h4><p class="story-sum">' + esc(st.story) + '</p>' +
+            '<h4>주제</h4><ul>' + st.theme.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
+            (st.care ? '<p class="care"><b>함께 생각해요</b> ' + esc(st.care) + '</p>' : '') +
+          '</div>' +
+        '</details>' +
+      '</div></div>';
   }
   function build(html) {
     return html.replace(/\{(\w+):([^}]*)\}/g, function (_, kind, b) {
       var p = b.split('|');
       if (kind === 'term') return '<div><dt>' + esc(p[0]) + '</dt><dd><b>' + esc(p[1]) + '</b>' + esc(p[2]) + '</dd></div>';
-      if (kind === 'vid') return vidHTML(p[0], p[1]);
+      if (kind === 'vid') return vidHTML(p[0], p[1], p[2]);
       if (kind === 'stage') return STAGE[p[0]] || '';
       if (kind === 'madang') return '<article class="md"><div class="md-text"><p class="eyebrow">' + esc(p[0]) + '</p><h4>' + esc(p[1]) + '</h4><p>' + esc(p[3]) + '</p>' +
         '<div class="guess" role="group" aria-label="빠르기 짐작(점수 없음)"><span>짐작</span><button type="button" aria-pressed="false">느릴 것 같아요</button><button type="button" aria-pressed="false">빠를 것 같아요</button></div>' +
@@ -221,17 +283,35 @@
     return (q.group ? '<h4 class="q-group">' + esc(q.group) + '</h4>' : '') +
       '<div class="q q-' + q.type + (m ? (ok ? ' is-ok' : ' is-no') : '') + '" id="' + name + '"><p class="q-p"><i>' + i + '</i><span>' + q.prompt + '</span></p>' + h + mark + '</div>';
   }
-  function sheetHTML(c) {
+  function nextEndHTML(c, idx) {
+    var nextP = PAGES[idx + 2]; if (!nextP) return '';
+    var isSubmit = nextP.id === 'submit';
+    var label = isSubmit ? '채점·제출하러 가기 →' : '다음 장: ' + esc(nextP.nav) + ' →';
+    if (!c.qs.length) {
+      return '<div class="lesson-end">' +
+        '<p class="end-msg">이 장 활동을 마쳤으면 다음 장으로 넘어가요.</p>' +
+        '<a class="end-go is-done" id="endGo" href="#' + esc(nextP.id) + '">' + label + '</a></div>';
+    }
+    var n = c.qs.filter(answered).length, total = c.qs.length, left = total - n, all = left === 0;
+    return '<div class="sheet-end' + (all ? ' is-done' : '') + '" id="sheetEnd">' +
+      (c.split ? '<p class="split-note"><b>1차시 마무리</b> 1차시는 여기까지! 다음 시간에 이어서 해요.</p>' : '') +
+      '<div class="sheet-end-row">' +
+        '<p class="end-msg" id="endMsg">' + (all ? '이 장 학습지 완료!' : '아직 <b>' + left + '문항</b> 남았어요') + '</p>' +
+        '<a class="end-go' + (all ? ' is-done' : '') + '" id="endGo" href="#' + esc(nextP.id) + '">' + label + '</a>' +
+      '</div></div>';
+  }
+  function sheetHTML(c, idx) {
+    if (!c.qs.length) return '';
     var n = c.qs.filter(answered).length;
     return '<section class="sheet" id="sheet" aria-label="' + esc(c.title) + ' 학습지"><header><p class="eyebrow">학습지</p><h2>' + esc(c.title) + '</h2><span class="cnt" id="cnt">' + n + ' / ' + c.qs.length + '</span></header>' +
       '<p class="warn" id="saveWarn"' + (saveOk ? ' hidden' : '') + '>이 기기에 답이 저장되지 않아요. 제출할 때까지 이 화면을 닫거나 새로고침하지 마세요.</p>' +
       (TEACHER ? '<p class="t-note">교사 모드예요. 기록이 남지 않아요. <button type="button" class="mini" id="btnAns" aria-pressed="' + showAns + '">' + (showAns ? '정답 숨기기' : '정답 보기') + '</button></p>' : '') +
-      c.qs.map(function (q, i) { return qHTML(q, i + 1); }).join('') + '</section>';
+      c.qs.map(function (q, i) { return qHTML(q, i + 1); }).join('') + nextEndHTML(c, idx) + '</section>';
   }
 
   /* ---------- 쪽 ---------- */
   function startHTML() {
-    var row = function (c, k) { return '<li><a href="#' + c.id + '"><i>' + (k + 1) + '</i><b>' + esc(c.title) + '</b><small>' + esc(c.time) + ' · 학습지 ' + c.qs.length + '문항</small></a></li>'; };
+    var row = function (c, k) { return '<li><a href="#' + c.id + '"><i>' + (k + 1) + '</i><b>' + esc(c.title) + '</b><small>' + esc(c.time) + (c.qs.length ? ' · 학습지 ' + c.qs.length + '문항' : '') + '</small></a></li>'; };
     return '<section class="hero"><p class="eyebrow">중학교 음악 · 우리 음악극</p><h1>판소리와 창극</h1>' +
       '<p class="lead">한 사람이 끌고 가는 이야기, 여럿이 나누어 맡는 이야기. 두 음악극을 듣고 견주어 봐요.</p>' +
       '<a class="go" href="#' + CH[0].id + '">수업 시작하기</a></section>' +
@@ -240,17 +320,31 @@
       '<div><h2>오늘의 순서</h2><p class="part">1차시</p><ol class="flow">' + CH.slice(0, SPLIT + 1).map(function (c, k) { return row(c, k); }).join('') + '</ol>' +
       '<p class="part">2차시</p><ol class="flow">' + CH.slice(SPLIT + 1).map(function (c, k) { return row(c, k + SPLIT + 1); }).join('') +
       '<li><a href="#submit"><i></i><b>제출하기</b><small>채점하고 선생님께 보내기</small></a></li></ol></div></section>' +
-      (TEACHER ? '<p class="t-plan"><b>선생님 안내</b> 다섯 마당 이야기가 들어가 <b>2차시(45분×2)</b> 기준이에요. 첫째 시간은 <b>' + esc(CH[SPLIT].title) + '</b> 장까지 하고, 둘째 시간은 사랑가를 다시 짧게 들으며 시작해요. 학생 답은 각자 기기에 남으므로 둘째 시간에도 같은 기기·같은 브라우저로 들어오게 해 주세요. 제출은 마지막에 한 번 해요. 수업 모드 버튼을 누르면 목차가 숨고 글자가 커져요.</p>' : '') +
+      (TEACHER ? '<p class="t-plan"><b>선생님 안내</b> <b>2차시(45분×2)</b> 기준이에요. 장 시간은 차시마다 40분이고 5분은 여유예요. 첫째 시간은 <b>' + esc(CH[SPLIT].title) + '</b> 장까지 하고, 둘째 시간은 사랑가 두 무대 비교로 시작해 정리·제출까지 마쳐요. 학생 답은 각자 기기에 남으므로 둘째 시간에도 같은 기기·같은 브라우저로 들어오게 해 주세요. 제출은 마지막에 한 번 해요. 수업 모드 버튼을 누르면 목차가 숨고 글자가 커져요.</p>' : '') +
       '<details class="more qr" id="qrBox"' + (TEACHER ? ' open' : '') + '><summary>학생용 QR 코드</summary><div class="qr-body"><div id="qrImg" aria-label="학생용 주소 QR 코드"></div><div><p>휴대폰·태블릿 카메라로 비추면 이 수업이 열려요. 학년·반·번호와 이름을 넣고 시작해요.</p><code>' + esc(SHARE_URL) + '</code></div></div></details>' +
       '<details class="more src"><summary>영상과 자료 출처</summary><ul>' + Object.keys(V).map(function (k) { return '<li>' + esc(V[k].title) + ' — ' + esc(V[k].by) + ' (YouTube)</li>'; }).join('') +
       '<li>내용: 중학교 음악 교과서 "판소리와 창극" 단원. 대목마다 붙인 장면 설명, 추임새의 예, 발림의 부채, 비교표의 일부 표현은 교과서에 없는 내용으로, 이 수업을 위해 덧붙였어요. 그림은 이 수업을 위해 새로 마련했어요(출처·라이선스: <a href="img/CREDITS.md" target="_blank" rel="noopener">img/CREDITS.md</a>).</li>' +
       '<li>다섯 마당 이야기(교과서 밖 내용): <a href="https://www.gugak.go.kr/ency/" target="_blank" rel="noopener">국립국악원 국악사전</a>, <a href="https://encykorea.aks.ac.kr/" target="_blank" rel="noopener">한국민족문화대백과사전</a>을 참고해 정리했어요.</li></ul></details>';
   }
   function chapterHTML(c, idx) {
-    return '<section class="lesson"><header class="ch-head art" style="--art:url(img/head-' + esc(c.id) + '.webp)"><p class="eyebrow">' + (idx + 1) + '장 · ' + esc(c.time) + ' · ' + part(idx) + '차시</p><h1>' + esc(c.title) + '</h1><p class="lead">' + esc(c.lead) + '</p></header>' +
-      build(c.lesson) + '</section>' +
-      '<div class="bridge"><p><b>여기까지 함께 봤으면</b> 아래 종이 학습지에 답을 써요. ' + c.qs.length + '문항이고, 쓴 답은 이 기기에 저절로 저장돼요.</p>' +
-      '<button type="button" class="mini cls" id="btnSheet" aria-pressed="' + sheetOn + '">' + (sheetOn ? '학습지 숨기기' : '학습지 함께 보기') + '</button></div>' + sheetHTML(c);
+    var artFile = c.art || ('head-' + c.id + '.webp');
+    var hasQ = c.qs.length > 0;
+    var n = hasQ ? c.qs.filter(answered).length : 0, all = hasQ && n === c.qs.length;
+    var chip = hasQ ? '<a class="sheet-chip' + (all ? ' is-done' : '') + '" id="headChip" href="#' + esc(c.id) + '?sheet">이 장 학습지 <b id="headChipCnt">' + n + '/' + c.qs.length + '</b> · 학습지로 ↓</a>' : '';
+    var head = '<section class="lesson"><header class="ch-head art" style="--art:url(img/' + esc(artFile) + ')"><p class="eyebrow">' + (idx + 1) + '장 · ' + esc(c.time) + ' · ' + part(idx) + '차시</p><h1>' + esc(c.title) + '</h1><p class="lead">' + esc(c.lead) + '</p>' + chip + '</header>' +
+      build(c.lesson) + (hasQ ? '' : nextEndHTML(c, idx)) + '</section>';
+    if (!hasQ) return head;
+    return head +
+      '<div class="bridge"><div class="bridge-card">' +
+        '<div class="bridge-copy">' +
+          '<p class="bridge-norm"><b>여기까지 함께 봤으면</b> 아래 종이 학습지에 답을 써요. ' + c.qs.length + '문항이고, 쓴 답은 이 기기에 저절로 저장돼요.</p>' +
+          '<p class="bridge-cls"><b>수업 모드</b> 학생 학습지(' + c.qs.length + '문항)는 숨겨져 있어요. 함께 보려면 오른쪽 버튼을 눌러요.</p>' +
+        '</div>' +
+        '<div class="bridge-acts">' +
+          '<a class="bridge-go" href="#' + esc(c.id) + '?sheet">학습지 쓰기 ↓</a>' +
+          '<button type="button" class="mini cls" id="btnSheet" aria-pressed="' + sheetOn + '">' + (sheetOn ? '학습지 숨기기' : '학습지 함께 보기') + '</button>' +
+        '</div>' +
+      '</div></div>' + sheetHTML(c, idx);
   }
   function result() {
     var wrong = [], score = 0;
@@ -262,6 +356,7 @@
     var left = ALLQ.filter(function (q) { return !answered(q); }), d = state.done;
     var changed = d && d.sig && d.sig !== answerSig();
     var rows = CH.map(function (c, k) {
+      if (!c.qs.length) return '';
       var g = c.qs.filter(function (q) { return GRADED.indexOf(q) >= 0; }), n = c.qs.filter(answered).length;
       return '<li><a href="#' + c.id + '?sheet"><i>' + (k + 1) + '</i><b>' + esc(c.title) + '</b><span>' + n + ' / ' + c.qs.length + ' 씀' + (d && g.length ? ' · ' + g.filter(correct).length + ' / ' + g.length + ' 맞음' : '') + '</span></a></li>';
     }).join('');
@@ -295,9 +390,10 @@
   function cur() { var id = hashParts().id; for (var i = 0; i < PAGES.length; i++) if (PAGES[i].id === id) return i; return 0; }
   function navHTML(i) {
     var link = function (x, k) {
-      var done = x.ch ? x.ch.qs.every(answered) : false, on = k === i;
+      var hasQ = !!(x.ch && x.ch.qs.length);
+      var done = hasQ ? x.ch.qs.every(answered) : false, on = k === i;
       var h = '<a href="#' + x.id + '"' + (on ? ' class="on" aria-current="page"' : '') + '><i>' + (x.ch ? k : '') + '</i><span>' + esc(x.nav) + '</span>' + (done ? '<em class="dot" title="학습지 다 씀"></em>' : '') + '</a>';
-      if (x.ch) {
+      if (hasQ) {
         var n = x.ch.qs.filter(answered).length;
         h += '<a class="subl' + (on ? ' here' : '') + '" href="#' + x.id + '?sheet">학습지 <span>' + n + '/' + x.ch.qs.length + '</span></a>';
       }
@@ -306,16 +402,39 @@
     var grp = function (t, from, to) { var s = ''; for (var k = from; k <= to; k++) s += link(PAGES[k], k); return '<div class="grp"><p>' + t + '</p>' + s + '</div>'; };
     nav.innerHTML = link(PAGES[0], 0) + grp('1차시', 1, SPLIT + 1) + grp('2차시', SPLIT + 2, PAGES.length - 2) + link(PAGES[PAGES.length - 1], PAGES.length - 1);
   }
+  function syncNextUI() {
+    var i = cur(), p = PAGES[i], hasQ = !!(p.ch && p.ch.qs.length);
+    var n = hasQ ? p.ch.qs.filter(answered).length : 0, total = hasQ ? p.ch.qs.length : 0;
+    var all = hasQ && n === total, left = total - n;
+    var nx = document.getElementById('next'), nextP = i < PAGES.length - 1 ? PAGES[i + 1] : null;
+    if (nx) {
+      nx.classList.toggle('is-ready', all);
+      if (nextP) nx.setAttribute('aria-label', (i === PAGES.length - 2 ? '다음: 채점·제출하러 가기' : '다음: ' + nextP.nav) + (all ? ' (이 장 학습지 완료)' : ''));
+      else nx.removeAttribute('aria-label');
+    }
+    var chip = document.getElementById('headChip'), chipCnt = document.getElementById('headChipCnt');
+    if (chip) chip.classList.toggle('is-done', all);
+    if (chipCnt) chipCnt.textContent = n + '/' + total;
+    var end = document.getElementById('sheetEnd'), msg = document.getElementById('endMsg'), goBtn = document.getElementById('endGo');
+    if (end) end.classList.toggle('is-done', all);
+    if (msg) msg.innerHTML = all ? '이 장 학습지 완료!' : '아직 <b>' + left + '문항</b> 남았어요';
+    if (goBtn) goBtn.classList.toggle('is-done', all);
+  }
   function route(keep) {
     var i = cur(), p = PAGES[i];
     view.innerHTML = p.id === 'start' ? startHTML() : p.id === 'submit' ? submitHTML() : chapterHTML(p.ch, i - 1);
     navHTML(i);
     var pv = document.getElementById('prev'), nx = document.getElementById('next');
     pv.disabled = i === 0; nx.disabled = i === PAGES.length - 1;
-    pv.querySelector('b').textContent = i ? PAGES[i - 1].nav : ''; nx.querySelector('b').textContent = i < PAGES.length - 1 ? PAGES[i + 1].nav : '';
-    document.getElementById('where').textContent = (i + 1) + ' / ' + PAGES.length;
+    pv.querySelector('small').textContent = '이전';
+    pv.querySelector('b').textContent = i ? PAGES[i - 1].nav : '';
+    pv.setAttribute('aria-label', i ? '이전: ' + PAGES[i - 1].nav : '');
+    nx.querySelector('small').textContent = '다음:';
+    nx.querySelector('b').textContent = i < PAGES.length - 1 ? PAGES[i + 1].nav : '';
+    document.getElementById('where').textContent = p.ch ? (i + ' / ' + CH.length + '장') : p.nav;
     document.getElementById('pgBar').style.width = (i / (PAGES.length - 1) * 100) + '%';
     document.title = (p.ch ? p.ch.title + ' · ' : '') + '판소리와 창극';
+    syncNextUI();
     if (p.id === 'start') drawQR();
     lastPage = i;
     if (!keep) jump();
@@ -350,12 +469,13 @@
 
   /* ---------- 입력 ---------- */
   function refreshCount() {
-    var i = cur(), p = PAGES[i]; if (!p.ch) return;
+    var i = cur(), p = PAGES[i]; if (!p.ch || !p.ch.qs.length) return;
     var n = p.ch.qs.filter(answered).length;
     var c = document.getElementById('cnt'); if (c) c.textContent = n + ' / ' + p.ch.qs.length;
     var sl = nav.querySelector('.subl.here span'); if (sl) sl.textContent = n + '/' + p.ch.qs.length;
     var a = nav.querySelector('a.on'); if (a) { var dot = a.querySelector('.dot'), all = n === p.ch.qs.length;
       if (all && !dot) a.insertAdjacentHTML('beforeend', '<em class="dot" title="학습지 다 씀"></em>'); else if (!all && dot) dot.remove(); }
+    syncNextUI();
   }
   function onInput(e) {
     var el = e.target, id = el.getAttribute && el.getAttribute('data-q'), q = id && QBY[id]; if (!q) return;
@@ -367,7 +487,7 @@
   view.addEventListener('change', function (e) {
     onInput(e);
     var id = e.target.getAttribute && e.target.getAttribute('data-q'), q = id && QBY[id];
-    if (q && marking() && q.type !== 'text') {
+    if (q && marking() && q.ans !== undefined) {
       var box = document.getElementById('q-' + id), c = PAGES[cur()].ch;
       if (box && c) { var t = document.createElement('div'); t.innerHTML = qHTML(q, c.qs.indexOf(q) + 1); box.replaceWith(t.querySelector('.q')); }
     }
@@ -378,6 +498,7 @@
     });
   }
   function selectTab(t, focus) {
+    stopVideos();
     var list = t.parentNode;
     Array.prototype.forEach.call(list.querySelectorAll('[role=tab]'), function (b) {
       var on = b === t; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1;
@@ -395,13 +516,13 @@
     if (t.getAttribute('role') === 'tab') { selectTab(t); return; }
     if (t.classList.contains('next-md') && t.hasAttribute('data-next')) { var nt = document.getElementById(t.getAttribute('data-next')); if (nt) { selectTab(nt, true); var tl = nt.closest('.tl'); if (tl) tl.scrollIntoView({ block: 'start' }); } return; }
     if (t.classList.contains('act-next')) {
-      var sk = t.getAttribute('data-story'), st1 = (DATA.STORIES || {})[sk];
-      if (st1 && Array.isArray(st1.acts)) { storyShown[sk] = Math.min(st1.acts.length, (storyShown[sk] || 1) + 1); updateActs(sk, 'next'); }
+      var sk = t.getAttribute('data-story'), list1 = storyList((DATA.STORIES || {})[sk]);
+      if (list1.length) { storyShown[sk] = Math.min(list1.length, (storyShown[sk] || 1) + 1); updateActs(sk, 'next'); }
       return;
     }
     if (t.classList.contains('act-all')) {
-      var sk2 = t.getAttribute('data-story'), st2 = (DATA.STORIES || {})[sk2];
-      if (st2 && Array.isArray(st2.acts)) { storyShown[sk2] = (storyShown[sk2] || 1) >= st2.acts.length ? 1 : st2.acts.length; updateActs(sk2, 'all'); }
+      var sk2 = t.getAttribute('data-story'), list2 = storyList((DATA.STORIES || {})[sk2]);
+      if (list2.length) { storyShown[sk2] = (storyShown[sk2] || 1) >= list2.length ? 1 : list2.length; updateActs(sk2, 'all'); }
       return;
     }
     if (t.id === 'btnSheet') { setSheet(!sheetOn); if (sheetOn) { var sh = document.getElementById('sheet'); if (sh) sh.scrollIntoView({ block: 'start' }); } return; }
