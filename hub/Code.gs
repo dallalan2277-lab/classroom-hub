@@ -21,6 +21,7 @@ const SHEET_STATUS = '현황';   // 학습지·학번·이름별 최신 상태
 const SHEET_ROSTER = '명단';   // (선택) A열 학번(10712 모양), B열 이름. 있으면 현황판 자리표에 이름과 '안 온 학생'을 보여 줘요.
 // 현황판 '학습지' 목록에 보일 학습지(학습지 모음 첫 화면과 같은 순서). 여기 없는 학습지 기록은 시트에는 남지만 현황판에는 안 보여요.
 const DASH_SHEETS = [
+  ['gugak-exam', '국악기 수행평가'],
   ['gugak-class', '국악기 · 수업과 학습지'],
   ['stage-class', '음악극 탐험대 · 수업과 학습지'],
   ['dance-class', '춤을 세계 음악 속으로 · 수업과 학습지'],
@@ -133,6 +134,11 @@ function newKey_() {
 function doGet(e) {
   const p = (e && e.parameter) || {};
   if (p.ping) return json_({ok: true, msg: '학습지 허브가 동작 중이에요'});
+  if (p.format === 'json' && p.exam !== undefined) {
+    if (!checkKey_(p.dash)) return json_({ok: false, error: '현황판 키가 올바르지 않아요.'});
+    try { return json_(examData_(p.exam)); }
+    catch (error) { return json_({ok: false, error: error.message}); }
+  }
   // 선생님 알림판(GitHub Pages)이 5초마다 읽어 가는 JSON
   if (p.dash && p.format === 'json') {
     if (!checkKey_(p.dash)) return json_({ok: false, error: '현황판 키가 올바르지 않아요.'});
@@ -188,6 +194,13 @@ function handle_(contents) {
     const current = findStatus_(status, request);
     const order = eventOrder_(current.row, request);
     if (order === 'dup') return {ok: true, dup: true};
+    if (request.exam && hasExamSubmission_(submissions, request)) {
+      if (!current.row || (current.row[4] !== '제출함' && current.row[8].split(' ')[0] === request.sid)) {
+        writeStatus_(status, current, request, serverTime, order);
+        SpreadsheetApp.flush();
+      }
+      return {ok: true, dup: true};
+    }
     sendAlert = Boolean(ALERT_EMAIL) && request.type === 'away' && request.away === ALERT_AT &&
       !hasAlertRecord_(log, request);
     const details = eventDetails_(request);
@@ -277,15 +290,11 @@ function parseRequest_(contents) {
   } else if (type === 'back') {
     request.data = {seconds: integer_(data.seconds, 'seconds', 0)};
   } else {
+    const exam = examKey_(request.ws);
     request.data = {
-      score: integer_(data.score, 'score', 0),
-      total: integer_(data.total, 'total', 0),
       minutes: integer_(data.minutes, 'minutes', 0),
       attempt: integer_(data.attempt, 'attempt', 1)
     };
-    if (request.data.score > request.data.total) throw new Error('점수는 만점보다 클 수 없어요.');
-    if (!Array.isArray(data.wrong) || data.wrong.length > 100) throw new Error('wrong은 최대 100개 배열이어야 해요.');
-    request.data.wrong = data.wrong.map(function (v) { return string_(v, 'wrong 항목', 100, true); });
     if (!isObject_(data.answers)) throw new Error('answers는 JSON 객체여야 해요.');
     Object.keys(data.answers).forEach(function (key) {
       string_(key, '문항 이름', 40, false);
@@ -293,6 +302,19 @@ function parseRequest_(contents) {
     });
     request.answersJson = JSON.stringify(data.answers);
     if (request.answersJson.length > 30000) throw new Error('답안은 합쳐서 최대 30000자예요.');
+    if (exam) {
+      const grade = gradeExam_(exam, data.answers);
+      request.exam = true;
+      request.data.score = grade.correct;
+      request.data.total = exam.items.length;
+      request.data.wrong = grade.wrong;
+    } else {
+      request.data.score = integer_(data.score, 'score', 0);
+      request.data.total = integer_(data.total, 'total', 0);
+      if (request.data.score > request.data.total) throw new Error('점수는 만점보다 클 수 없어요.');
+      if (!Array.isArray(data.wrong) || data.wrong.length > 100) throw new Error('wrong은 최대 100개 배열이어야 해요.');
+      request.data.wrong = data.wrong.map(function (v) { return string_(v, 'wrong 항목', 100, true); });
+    }
   }
   return request;
 }
@@ -447,6 +469,76 @@ function checkKey_(key) {
   let diff = 0;
   for (let i = 0; i < real.length; i++) diff |= real.charCodeAt(i) ^ key.charCodeAt(i);
   return diff === 0;
+}
+
+function examKey_(ws) {
+  return typeof EXAM_KEYS !== 'undefined' && Object.prototype.hasOwnProperty.call(EXAM_KEYS, ws) ? EXAM_KEYS[ws] : null;
+}
+
+function normalizeExamAnswer_(value) {
+  return typeof value === 'string'
+    ? value.replace(/\s/g, '').replace(/^["'“”‘’.]+|["'“”‘’.]+$/g, '').toLowerCase()
+    : '';
+}
+
+function gradeExam_(exam, answers) {
+  const perItem = {};
+  const wrong = [];
+  exam.items.forEach(function (item) {
+    const answer = normalizeExamAnswer_(answers['q:' + item.code]);
+    perItem[item.code] = !!answer && [item.answer].concat(item.also || []).some(function (accepted) {
+      return answer === normalizeExamAnswer_(accepted);
+    });
+    if (!perItem[item.code]) wrong.push(item.answer);
+  });
+  return {correct: exam.items.length - wrong.length, wrong: wrong, perItem: perItem};
+}
+
+function examSheetRows_(sheet, width) {
+  const count = sheet ? sheet.getLastRow() - 1 : 0;
+  return count > 0 ? sheet.getRange(2, 1, count, Math.min(width, sheet.getMaxColumns())).getDisplayValues() : [];
+}
+
+// Classroom.submit은 다시 보낼 때 시각이 달라져요. 같은 세션의 같은 제출 차수는 한 번만 기록해요.
+function hasExamSubmission_(sheet, request) {
+  return examSheetRows_(sheet, HEADERS_SUBMIT_.length).some(function (r) {
+    return r[1] === request.ws && r[2] === request.num && r[3] === request.name &&
+      Number(r[8]) === request.data.attempt && r[11] === request.sid;
+  });
+}
+
+function examData_(ws) {
+  const exam = examKey_(ws);
+  if (!exam) throw new Error('시험 정답표를 찾지 못했어요. 허브에 ExamKey 스크립트를 추가해 주세요.');
+  const book = openBook_();
+  if (!book) throw new Error('먼저 setup을 실행하세요.');
+  const rows = examSheetRows_(book.getSheetByName(SHEET_SUBMIT), HEADERS_SUBMIT_.length)
+    .filter(function (r) { return r[1] === ws; }).map(function (r) {
+      let stored;
+      try { stored = JSON.parse(r[10]); } catch (error) { stored = {}; }
+      if (!isObject_(stored)) stored = {};
+      const answers = {};
+      Object.keys(stored).forEach(function (key) { if (/^q:/.test(key)) answers[key] = stored[key]; });
+      const grade = gradeExam_(exam, answers);
+      return {time: r[0], num: r[2], name: r[3], correct: grade.correct, total: exam.items.length,
+        away: Number(r[6]), minutes: Number(r[7]), attempt: Number(r[8]), sid: r[11] || '',
+        auto: stored._auto === '1', answers: answers, perItem: grade.perItem};
+    });
+  const sessions = new Map();
+  examSheetRows_(book.getSheetByName(SHEET_LOG), HEADERS_LOG_.length).forEach(function (r) {
+    if (r[1] !== ws || !r[7]) return;
+    if (!sessions.has(r[2])) sessions.set(r[2], new Set());
+    sessions.get(r[2]).add(r[7]);
+  });
+  const status = examSheetRows_(book.getSheetByName(SHEET_STATUS), HEADERS_STATUS_.length)
+    .filter(function (r) { return r[0] === ws; }).map(function (r) {
+      return {num: r[2], name: r[3], state: r[4], away: Number(r[5]), sid: (r[8] || '').split(' ')[0],
+        sessions: Array.from(sessions.get(r[2]) || [])};
+    });
+  return {ok: true, exam: {ws: ws, title: exam.title, base: exam.base, per: exam.per,
+    items: exam.items.map(function (item) { return {code: item.code, answer: item.answer}; })},
+    rows: rows, status: status, roster: rosterData_(book),
+    today: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd')};
 }
 
 // 현황판이 10초마다 불러요. 현황 시트의 모든 행을 돌려줘요.

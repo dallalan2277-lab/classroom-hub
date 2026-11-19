@@ -1,27 +1,216 @@
-"""로컬 시험용 가짜 허브: 받은 신호를 그대로 기록하고 /log 로 보여 준다."""
-import json, sys
+"""로컬 시험용 가짜 허브: 받은 신호를 그대로 기록하고 /log 와 exam JSON 을 돌려준다."""
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import json
+from pathlib import Path
+import re
+import sys
+from urllib.parse import parse_qs, urlparse
+
 LOG = []
+TIMES = []
 FAIL = [0]  # 남은 실패 횟수: /fail?n=2 로 다음 신호 2개를 '잠시 후' 오류로 돌려줘요(재전송 시험용)
-FAKE = {'ok': True, 'today': '', 'now': '', 'nowFull': '', 'rows': []}
+FAKE = {'ok': True, 'today': '', 'now': '', 'nowFull': '', 'rows': [], 'roster': []}
+
+FALLBACK_EXAM_KEYS = {
+    'gugak-exam': {
+        'title': '국악기 수행평가',
+        'base': 10,
+        'per': 1,
+        'items': [],
+    }
+}
+
+
+def load_exam_keys():
+    key_path = Path(__file__).resolve().parent.parent / 'hub' / 'ExamKey.gs'
+    if not key_path.is_file():
+        return FALLBACK_EXAM_KEYS
+    try:
+        text = key_path.read_text(encoding='utf-8')
+        m = re.search(r'EXAM_KEYS\s*=\s*(\{[\s\S]*\})\s*;?\s*$', text)
+        if m:
+            return json.loads(m.group(1))
+    except Exception:
+        pass
+    return FALLBACK_EXAM_KEYS
+
+
+def norm_answer(val):
+    s = re.sub(r'\s', '', str(val or ''))
+    s = re.sub(r'^["\'“”‘’.]+|["\'“”‘’.]+$', '', s)
+    return s.lower()
+
+
+def grade_exam(exam, answers):
+    per_item = {}
+    correct = 0
+    for item in exam.get('items', []):
+        code = item['code']
+        ans = norm_answer(answers.get('q:' + code, ''))
+        accepted = [item['answer']] + list(item.get('also') or [])
+        ok = bool(ans) and any(ans == norm_answer(a) for a in accepted)
+        per_item[code] = ok
+        if ok:
+            correct += 1
+    return correct, per_item
+
+
+def build_exam_data(ws):
+    exam_keys = load_exam_keys()
+    exam = exam_keys.get(ws)
+    if not exam:
+        return {'ok': False, 'error': '시험 정답표를 찾지 못했어요.'}
+
+    rows = []
+    sessions = {}
+    status_by_person = {}
+
+    for idx, entry in enumerate(LOG):
+        if entry.get('ws') != ws:
+            continue
+        num = str(entry.get('num', ''))
+        name = str(entry.get('name', ''))
+        sid = str(entry.get('sid', ''))
+        if sid:
+            sessions.setdefault(num, [])
+            if sid not in sessions[num]:
+                sessions[num].append(sid)
+
+        etype = entry.get('type')
+        person_key = (num, name)
+        prev = status_by_person.get(person_key)
+        if etype == 'submit':
+            state = '제출함'
+        elif prev and prev['state'] == '제출함' and etype in ('away', 'back'):
+            state = '제출함'
+        elif etype == 'away':
+            state = '자리 비움'
+        else:
+            state = '풀이 중'
+        status_by_person[person_key] = {
+            'num': num,
+            'name': name,
+            'state': state,
+            'away': int(entry.get('away') or 0),
+            'sid': sid,
+        }
+
+        if etype == 'submit':
+            d = entry.get('data') or {}
+            stored = d.get('answers') or {}
+            q_answers = {k: v for k, v in stored.items() if str(k).startswith('q:')}
+            correct, per_item = grade_exam(exam, q_answers)
+            rows.append({
+                'time': TIMES[idx] if idx < len(TIMES) else datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'num': num,
+                'name': name,
+                'correct': correct,
+                'total': len(exam.get('items', [])),
+                'away': int(entry.get('away') or 0),
+                'minutes': int(d.get('minutes') or 0),
+                'attempt': int(d.get('attempt') or 1),
+                'sid': sid,
+                'auto': stored.get('_auto') == '1',
+                'answers': q_answers,
+                'perItem': per_item,
+            })
+
+    status = []
+    for st in status_by_person.values():
+        st_copy = dict(st)
+        st_copy['sessions'] = sessions.get(st['num'], [])
+        status.append(st_copy)
+
+    return {
+        'ok': True,
+        'exam': {
+            'ws': ws,
+            'title': exam.get('title', ws),
+            'base': exam.get('base', 10),
+            'per': exam.get('per', 1),
+            'items': [{'code': it['code'], 'answer': it['answer']} for it in exam.get('items', [])],
+        },
+        'rows': rows,
+        'status': status,
+        'roster': FAKE.get('roster', []),
+        'today': datetime.now().strftime('%Y-%m-%d'),
+    }
+
+
+def is_dup_exam_submit(entry):
+    if entry.get('type') != 'submit':
+        return False
+    ws = entry.get('ws')
+    if ws not in load_exam_keys():
+        return False
+    attempt = int((entry.get('data') or {}).get('attempt') or 1)
+    for prev in LOG:
+        if (
+            prev.get('type') == 'submit'
+            and prev.get('ws') == ws
+            and prev.get('num') == entry.get('num')
+            and prev.get('name') == entry.get('name')
+            and prev.get('sid') == entry.get('sid')
+            and int((prev.get('data') or {}).get('attempt') or 1) == attempt
+        ):
+            return True
+    return False
+
+
 class H(BaseHTTPRequestHandler):
     def _send(self, obj, code=200):
         b = json.dumps(obj, ensure_ascii=False).encode()
-        self.send_response(code); self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.send_header('Access-Control-Allow-Origin', '*'); self.end_headers(); self.wfile.write(b)
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(b)
+
     def do_POST(self):
-        n = int(self.headers.get('Content-Length') or 0); raw = self.rfile.read(n).decode('utf-8')
+        n = int(self.headers.get('Content-Length') or 0)
+        raw = self.rfile.read(n).decode('utf-8')
         if self.path.startswith('/fake'):
-            FAKE.update(json.loads(raw)); return self._send({'ok': True})
+            FAKE.update(json.loads(raw))
+            return self._send({'ok': True})
         if FAIL[0] > 0:
-            FAIL[0] -= 1; LOG.append({'failed': json.loads(raw)}); return self._send({'ok': False, 'error': '요청이 몰렸어요. 잠시 후 다시 보내 주세요.'})
-        try: LOG.append(json.loads(raw)); self._send({'ok': True})
-        except Exception as e: self._send({'ok': False, 'error': str(e)})
+            FAIL[0] -= 1
+            LOG.append({'failed': json.loads(raw)})
+            TIMES.append(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            return self._send({'ok': False, 'error': '요청이 몰렸어요. 잠시 후 다시 보내 주세요.'})
+        try:
+            entry = json.loads(raw)
+            if is_dup_exam_submit(entry):
+                return self._send({'ok': True, 'dup': True})
+            LOG.append(entry)
+            TIMES.append(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            self._send({'ok': True})
+        except Exception as e:
+            self._send({'ok': False, 'error': str(e)})
+
     def do_GET(self):
-        if 'format=json' in self.path: self._send(FAKE)
-        elif self.path.startswith('/log'): self._send(LOG)
-        elif self.path.startswith('/clear'): LOG.clear(); self._send({'ok': True})
-        elif self.path.startswith('/fail'): FAIL[0] = int((self.path.split('n=') + ['1'])[1] or 1); self._send({'ok': True, 'fail': FAIL[0]})
-        else: self._send({'ok': True})
-    def log_message(self, *a): pass
+        parsed = urlparse(self.path)
+        qs = parse_qs(parsed.query)
+        if qs.get('format', [''])[0] == 'json' and 'exam' in qs:
+            if not qs.get('dash', [''])[0]:
+                return self._send({'ok': False, 'error': '현황판 키가 올바르지 않아요.'})
+            return self._send(build_exam_data(qs['exam'][0]))
+        if 'format=json' in self.path:
+            self._send(FAKE)
+        elif parsed.path.startswith('/log'):
+            self._send(LOG)
+        elif parsed.path.startswith('/clear'):
+            LOG.clear()
+            TIMES.clear()
+            self._send({'ok': True})
+        elif parsed.path.startswith('/fail'):
+            FAIL[0] = int((self.path.split('n=') + ['1'])[1] or 1)
+            self._send({'ok': True, 'fail': FAIL[0]})
+        else:
+            self._send({'ok': True})
+
+    def log_message(self, *a):
+        pass
+
+
 ThreadingHTTPServer(('127.0.0.1', int(sys.argv[1]) if len(sys.argv) > 1 else 8768), H).serve_forever()

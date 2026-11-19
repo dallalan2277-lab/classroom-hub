@@ -220,4 +220,89 @@ assert.strictEqual(sheets['명단'].getRange(1, 1, 1, 2).getDisplayValues()[0][0
   assert.strictEqual(pick().small, 0, 'hidden away is plain red');
   assert.strictEqual(post({...b4, t: T(11), type: 'away', away: 3, data: {reason: 'zzz'}}).ok, false);
 }
+// 9) 시험 서버 채점·중복 제출 방지·exam JSON
+{
+  const T = sec => new Date(Date.UTC(2026, 10, 19, 1, 0, sec)).toISOString();
+  // EXAM_KEYS 가 없을 때도 일반 제출은 정상 동작하고 exam JSON 요청은 깨지지 않음
+  assert.deepStrictEqual(
+    post({v: 1, ws: 'no-key-exam', title: '키 없음 시험', sid: 'nk1', num: '20101', name: '김시험', t: T(1), away: 0, type: 'submit',
+      data: {score: 7, total: 10, minutes: 5, attempt: 1, wrong: [], answers: {'q:x1': '답'}}}),
+    {ok: true}
+  );
+  const noKeyGet = run('doGet')({parameter: {dash: key, format: 'json', exam: 'no-key-exam'}});
+  assert.strictEqual(noKeyGet.ok, false);
+
+  // 테스트용 가짜 EXAM_KEYS 주입 (실제 hub/ExamKey.gs 를 읽지 않음)
+  ctx.EXAM_KEYS = {
+    'fake-exam': {
+      title: '가짜 국악기 시험',
+      base: 10,
+      per: 1,
+      items: [
+        {code: 'f1111', answer: '가짜악기1', also: []},
+        {code: 'f2222', answer: '가짜악기2', also: []},
+        {code: 'f3333', answer: '가짜북', also: ['장고']}
+      ]
+    }
+  };
+  const submitCountBefore = sheets['제출'].getLastRow();
+  const baseEx = {v: 1, ws: 'fake-exam', title: '가짜 국악기 시험', sid: 'ex1', num: '20102', name: '이시험', away: 0};
+  assert.deepStrictEqual(post({...baseEx, t: T(1), type: 'start'}), {ok: true});
+  // 클라이언트 점수(0)를 무시하고 서버 채점(2점), 공백 무시(' 가짜 악기 1 '), also(' 장고 ') 인정
+  assert.deepStrictEqual(
+    post({...baseEx, t: T(2), away: 1, type: 'submit',
+      data: {score: 0, total: 3, minutes: 4, attempt: 1, wrong: ['가짜악기1'], answers: {'q:f1111': ' 가짜 악기 1 ', 'q:f2222': '틀린답', 'q:f3333': ' 장고 ', _auto: '0', _order: 'f1111,f2222,f3333'}}}),
+    {ok: true}
+  );
+  assert.strictEqual(sheets['제출'].getLastRow(), submitCountBefore + 1);
+  const rowSub1 = sheets['제출'].getRange(sheets['제출'].getLastRow(), 1, 1, 12).getDisplayValues()[0];
+  assert.strictEqual(rowSub1[4], '2');
+  assert.strictEqual(rowSub1[5], '3');
+  assert.strictEqual(rowSub1[9], '가짜악기2');
+
+  // 같은 세션·같은 차수 재전송(다른 t) → 한 번만 기록
+  assert.deepStrictEqual(
+    post({...baseEx, t: T(9), away: 1, type: 'submit',
+      data: {score: 3, total: 3, minutes: 4, attempt: 1, wrong: [], answers: {'q:f1111': '가짜악기1', 'q:f2222': '가짜악기2', 'q:f3333': '가짜북'}}}),
+    {ok: true, dup: true}
+  );
+  assert.strictEqual(sheets['제출'].getLastRow(), submitCountBefore + 1, 'same sid+attempt not duplicated');
+
+  // 다른 세션(ex2) 두 번째 제출은 기록되며 클라이언트 위조 점수(3)를 서버 채점(1)으로 덮어씀
+  assert.deepStrictEqual(post({...baseEx, sid: 'ex2', t: T(10), type: 'start'}), {ok: true});
+  assert.deepStrictEqual(
+    post({...baseEx, sid: 'ex2', t: T(12), away: 5, type: 'submit',
+      data: {score: 3, total: 3, minutes: 2, attempt: 1, wrong: [], answers: {'q:f1111': '가짜악기1', 'q:f2222': '틀린답', 'q:f3333': '틀린답', _auto: '1'}}}),
+    {ok: true}
+  );
+  assert.strictEqual(sheets['제출'].getLastRow(), submitCountBefore + 2, 'different sid recorded');
+  const rowSub2 = sheets['제출'].getRange(sheets['제출'].getLastRow(), 1, 1, 12).getDisplayValues()[0];
+  assert.strictEqual(rowSub2[4], '1');
+
+  // exam JSON 키 확인 및 응답 구조
+  assert.strictEqual(run('doGet')({parameter: {dash: 'wrong', format: 'json', exam: 'fake-exam'}}).ok, false);
+  const exData = run('doGet')({parameter: {dash: key, format: 'json', exam: 'fake-exam'}});
+  assert.strictEqual(exData.ok, true);
+  assert.strictEqual(exData.exam.ws, 'fake-exam');
+  assert.strictEqual(exData.exam.items.length, 3);
+  assert.strictEqual(exData.rows.length, 2);
+  assert.strictEqual(exData.rows[0].correct, 2);
+  assert.strictEqual(exData.rows[0].auto, false);
+  assert.deepStrictEqual(exData.rows[0].perItem, {f1111: true, f2222: false, f3333: true});
+  assert.strictEqual(exData.rows[1].correct, 1);
+  assert.strictEqual(exData.rows[1].auto, true);
+  assert.strictEqual(exData.status.length, 1);
+  assert.deepStrictEqual(exData.status[0].sessions.sort(), ['ex1', 'ex2']);
+  assert(Array.isArray(exData.roster));
+  assert(/^\d{4}-\d{2}-\d{2}/.test(exData.today));
+
+  // 정답표 변경 시 exam JSON 재채점 반영 확인
+  ctx.EXAM_KEYS['fake-exam'].items[1].also.push('틀린답');
+  const regraded = run('doGet')({parameter: {dash: key, format: 'json', exam: 'fake-exam'}});
+  assert.strictEqual(regraded.rows[0].correct, 3);
+  assert.strictEqual(regraded.rows[1].correct, 2);
+
+  delete ctx.EXAM_KEYS;
+  assert.strictEqual(run('doGet')({parameter: {dash: key, format: 'json', exam: 'fake-exam'}}).ok, false);
+}
 console.log('hub harness: all checks passed');

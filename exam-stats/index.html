@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>국악기 수행평가 성적 통계 · 나이스 입력</title>
+  <link rel="stylesheet" href="style.css?v=1">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+          integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="neis.js?v=2" defer></script>
+  <script src="app.js?v=2" defer></script>
+</head>
+<body>
+  <main class="page">
+    <header class="top-head">
+      <div>
+        <p class="eyebrow">선생님 전용 · 비공개</p>
+        <h1 id="examTitle">국악기 수행평가 성적 통계</h1>
+      </div>
+      <div class="head-actions" id="headActions" hidden>
+        <span class="muted" id="lastSync">불러오는 중…</span>
+        <button type="button" class="btn-ghost" id="refreshBtn">새로 고침</button>
+        <button type="button" class="btn-ghost" id="forgetKeyBtn">키 지우기</button>
+      </div>
+    </header>
+
+    <section class="card setup-card" id="setup" hidden>
+      <h2>현황판 연결</h2>
+      <p class="muted">선생님 현황판 주소 전체(<code>…?dash=…</code>) 또는 알림판 주소를 붙여 넣어 주세요. 같은 브라우저의 알림판 키와 함께 저장됩니다.</p>
+      <div class="row">
+        <input id="dashUrl" class="grow" placeholder="https://script.google.com/macros/s/…/exec?dash=…" aria-label="현황판 주소">
+        <button type="button" class="btn-primary" id="saveKeyBtn">저장하고 열기</button>
+      </div>
+      <p class="err" id="setupErr" role="alert"></p>
+    </section>
+
+    <div id="app" hidden>
+      <p class="err-banner" id="loadErr" hidden role="alert"></p>
+
+      <section class="card controls-card" aria-label="조회 및 채점 설정">
+        <div class="controls-grid">
+          <div class="ctrl-group">
+            <label for="gradeSel">학년</label>
+            <select id="gradeSel"><option value="">전체 학년</option></select>
+          </div>
+          <div class="ctrl-group">
+            <label for="classSel">반</label>
+            <select id="classSel"><option value="">전체 반</option></select>
+          </div>
+          <div class="ctrl-group">
+            <label for="baseInput">기본 점수</label>
+            <input type="number" id="baseInput" step="1" min="0" max="100">
+          </div>
+          <div class="ctrl-group">
+            <label for="perInput">문항당 점수</label>
+            <input type="number" id="perInput" step="0.5" min="0" max="20">
+          </div>
+          <div class="ctrl-group ctrl-end">
+            <button type="button" class="btn-ghost" id="resetScoreBtn">기본값 (10+1×n)</button>
+          </div>
+        </div>
+        <p class="rubric-note" id="rubricNote"></p>
+      </section>
+
+      <section class="card" id="gradeSummarySection">
+        <div class="sec-head">
+          <h2 id="gradeSummaryTitle">학년 반별 요약</h2>
+          <span class="muted">반 줄을 누르면 그 반 상세 표로 이동해요</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>학년·반</th>
+                <th>응시 / 대상</th>
+                <th>평균 환산</th>
+                <th>평균 정답</th>
+                <th>최고 · 최저</th>
+                <th>확인 필요</th>
+              </tr>
+            </thead>
+            <tbody id="gradeSummaryBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="stats-cards" id="statsCards" aria-label="선택 범위 요약">
+        <div class="stat-box"><span>응시 / 미응시</span><b id="stCount">-</b><small id="stRate" class="muted"></small></div>
+        <div class="stat-box"><span>평균 환산 점수</span><b id="stAvg">-</b><small id="stCorrectAvg" class="muted"></small></div>
+        <div class="stat-box"><span>최고 · 최저</span><b id="stMinMax">-</b><small class="muted">공식 점수 기준</small></div>
+        <div class="stat-box warn-box"><span>확인 필요</span><b id="stReview">-</b><small class="muted">중복·세션·이름 차이</small></div>
+      </section>
+
+      <section class="charts-grid">
+        <div class="card">
+          <div class="sec-head">
+            <h2>점수 분포</h2>
+            <span class="muted" id="distNote"></span>
+          </div>
+          <div class="dist-chart" id="distChart"></div>
+        </div>
+        <div class="card">
+          <div class="sec-head">
+            <h2>악기별 정답률 (낮은 순)</h2>
+            <span class="muted">공식 점수 기준</span>
+          </div>
+          <div class="item-bars" id="itemChart"></div>
+        </div>
+      </section>
+
+      <section class="card" id="tableSection">
+        <div class="sec-head">
+          <h2 id="tableTitle">학생별 성적</h2>
+          <div class="row">
+            <button type="button" class="btn-ghost" id="csvBtn">반별 상세 CSV 다운로드</button>
+          </div>
+        </div>
+        <p class="muted" style="margin:0 0 10px">공식 점수는 학생별 첫 제출 기준이에요. 학생 줄을 누르면 20문항 답안·정오를 보고 공식 제출을 바꿀 수 있어요.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>학번</th>
+                <th>이름</th>
+                <th>맞힌 개수</th>
+                <th>환산 점수</th>
+                <th>이탈</th>
+                <th>자동 제출</th>
+                <th>제출 시각</th>
+                <th>걸린 시간</th>
+                <th>확인 필요</th>
+              </tr>
+            </thead>
+            <tbody id="studentBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card neis-card" id="neisSection">
+        <div class="sec-head">
+          <h2>나이스 일괄등록 엑셀 채우기</h2>
+          <span class="muted">원본 파일 서식은 그대로 두고 J열(합계)만 채워요</span>
+        </div>
+        <div class="neis-upload" id="neisDrop">
+          <p><b>나이스에서 받은 반별 엑셀(.xlsx)을 여러 개 올려 주세요.</b></p>
+          <p class="muted">파일 이름의 <code>N학년</code>과 표의 <code>C열(반)</code>·<code>D열(번호)</code>로 학생을 찾아요. 브라우저 안에서만 처리되며 서버로 올리지 않아요.</p>
+          <div class="row" style="justify-content:center">
+            <label class="btn-primary file-btn">
+              엑셀 파일 고르기 (.xlsx)
+              <input type="file" id="neisInput" accept=".xlsx" multiple hidden>
+            </label>
+            <button type="button" class="btn-ghost" id="neisAllBtn" hidden>모두 다운로드</button>
+            <button type="button" class="btn-ghost" id="neisClearBtn" hidden>목록 비우기</button>
+          </div>
+          <label class="overwrite-opt">
+            <input type="checkbox" id="neisOverwriteChk"> J열에 이미 값이 있어도 바로 덮어쓰기 (해제 시 덮어쓰기 전 물어봐요)
+          </label>
+        </div>
+        <div id="neisList" class="neis-list"></div>
+      </section>
+    </div>
+  </main>
+
+  <div class="modal-veil" id="detailModal" hidden role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+    <div class="modal-card detail-card">
+      <div class="modal-top">
+        <div>
+          <h2 id="detailTitle">학생 상세</h2>
+          <p class="muted" id="detailSub"></p>
+        </div>
+        <button type="button" class="btn-ghost" id="detailCloseBtn">닫기</button>
+      </div>
+      <div id="detailSubs" class="detail-subs"></div>
+      <div class="detail-items-wrap">
+        <h3>20문항 답안 · 정오 (<span id="detailSubLabel">선택 제출</span>)</h3>
+        <div class="table-wrap">
+          <table class="mini-table">
+            <thead>
+              <tr><th>번호</th><th>악기 (정답)</th><th>학생 답</th><th>결과</th></tr>
+            </thead>
+            <tbody id="detailItemsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

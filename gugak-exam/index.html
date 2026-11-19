@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>국악기 수행평가</title>
+  <link rel="stylesheet" href="style.css?v=2">
+  <script src="../classroom.js" data-ws="gugak-exam" data-title="국악기 수행평가"></script>
+  <script src="items.js?v=1" defer></script>
+  <script src="app.js?v=2" defer></script>
+</head>
+<body>
+  <header class="exam-top">
+    <div class="top-inner">
+      <div class="title-row">
+        <div>
+          <p class="eyebrow">중학교 음악 · 수행평가</p>
+          <h1>국악기 수행평가</h1>
+        </div>
+        <div class="meta-pills">
+          <span class="pill" id="progressPill">작성 <b id="filledCnt">0</b> / 20</span>
+          <span class="pill teacher-pill" id="teacherBanner" hidden>교사 모드 — 기록되지 않아요</span>
+        </div>
+      </div>
+      <div class="away-bar" id="awayBar" role="status" aria-live="polite">
+        <span class="away-count">화면 이탈 <b id="awayCnt">0</b>/5회</span>
+        <span class="away-note">5회가 되면 지금까지 쓴 답으로 자동 제출돼요</span>
+      </div>
+      <div class="audio-bar" id="audioBar" hidden>
+        <div class="audio-info">
+          <span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span id="audioLabel">소리 재생 중</span>
+        </div>
+        <div class="audio-stage" aria-label="소리 재생 가리개">
+          <div id="audioHost" class="audio-host" aria-hidden="true"></div>
+          <div class="audio-cover">소리만 들려요</div>
+        </div>
+        <button type="button" class="btn-stop" id="stopAudioBtn">멈추기</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="exam-main">
+    <section class="card word-bank-card" id="wordBankWrap" aria-labelledby="bankHeading">
+      <div class="bank-head">
+        <h2 id="bankHeading">보기 (20개)</h2>
+        <p>아래 목록에서 알맞은 이름을 찾아 칸에 직접 쓰세요. 띄어쓰기 없이 써도 맞습니다.</p>
+      </div>
+      <ul class="word-bank" id="wordBank">
+        <li>가야금</li>
+        <li>거문고</li>
+        <li>단소</li>
+        <li>대금</li>
+        <li>박</li>
+        <li>부</li>
+        <li>생황</li>
+        <li>소금</li>
+        <li>아쟁</li>
+        <li>양금</li>
+        <li>어</li>
+        <li>운라</li>
+        <li>장구</li>
+        <li>축</li>
+        <li>태평소</li>
+        <li>편경</li>
+        <li>편종</li>
+        <li>피리</li>
+        <li>해금</li>
+        <li>훈</li>
+      </ul>
+    </section>
+
+    <section id="examSection" aria-label="시험 문항">
+      <ol class="q-grid" id="qGrid"></ol>
+      <div class="submit-bar" id="submitBar">
+        <p class="submit-msg" id="submitMsg" role="status" aria-live="polite"></p>
+        <button type="button" class="btn-primary" id="submitBtn">제출하기</button>
+      </div>
+    </section>
+
+    <section class="card locked-view" id="lockedView" hidden aria-live="polite">
+      <div class="locked-badge">제출 완료</div>
+      <h2 id="lockedTitle">제출 완료</h2>
+      <p class="locked-msg" id="lockedMsg">수행평가 답안을 선생님께 제출했습니다.</p>
+      <dl class="locked-meta">
+        <div><dt>응시자</dt><dd id="lockedWho">-</dd></div>
+        <div><dt>제출 시각</dt><dd id="lockedAt">-</dd></div>
+      </dl>
+      <div class="retry-box" id="autoRetryBox" hidden>
+        <p id="autoRetryMsg">답안을 전송하고 있습니다…</p>
+        <button type="button" class="btn-primary" id="autoRetryBtn">다시 보내기</button>
+      </div>
+      <p class="locked-note">이 기기에서는 다시 제출할 수 없습니다. 점수와 정답은 선생님 안내를 기다려 주세요.</p>
+    </section>
+  </main>
+
+  <div class="modal-veil" id="introModal" hidden role="dialog" aria-modal="true" aria-labelledby="introTitle">
+    <div class="modal-card">
+      <h2 id="introTitle">국악기 수행평가 안내</h2>
+      <ul class="rules-list">
+        <li><b>문제 수</b>: 총 20문항입니다. 사진을 크게 보고, 힌트와 소리를 참고해 이름을 쓰세요.</li>
+        <li><b>보기 목록</b>: 화면 위쪽 '보기'에 20개 이름이 가나다순으로 나와 있습니다.</li>
+        <li><b>띄어쓰기</b>: 답안의 띄어쓰기는 상관없습니다.</li>
+        <li><b>화면 이탈</b>: 다른 화면으로 이동하면 횟수가 기록되며, <b>5회가 되면 자동 제출</b>됩니다.</li>
+        <li><b>제출</b>: 제출은 한 번만 가능하며, 제출 뒤에는 고칠 수 없습니다.</li>
+      </ul>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" id="introStartBtn">시험 시작하기</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-veil" id="zoomModal" hidden role="dialog" aria-modal="true" aria-labelledby="zoomCaption">
+    <div class="modal-card zoom-card">
+      <div class="zoom-top">
+        <b id="zoomCaption">사진 크게 보기</b>
+        <button type="button" class="btn-ghost" id="zoomCloseBtn">닫기</button>
+      </div>
+      <div class="zoom-frame">
+        <img id="zoomImg" alt="확대한 시험 사진">
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-veil" id="confirmModal" hidden role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="modal-card">
+      <h2 id="confirmTitle">답안을 제출할까요?</h2>
+      <p id="confirmText"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="confirmCancelBtn">취소</button>
+        <button type="button" class="btn-primary" id="confirmOkBtn">제출하기</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
