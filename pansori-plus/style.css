@@ -336,6 +336,21 @@ body.class-mode #btnSheet { display: inline-block; }
 .opts span { display: block; padding: 8px 16px; border: 1px solid #cbbfab; border-radius: 999px; background: #fff; font-size: .92rem; }
 .opts input:checked + span { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 700; }
 .opts input:focus-visible + span { outline: 3px solid var(--pacc); outline-offset: 2px; }
+.ord { margin-left: calc(1.7em + 12px); display: grid; gap: 10px; }
+.ord-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.ord-hint { font-size: .82rem; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.ord-reset { background: #fff; color: var(--ink2); border: 1px solid #cbbfab; border-radius: 999px; min-height: 36px; padding: 4px 14px; font-size: .8rem; font-weight: 700; }
+.ord-reset:hover:not(:disabled) { border-color: var(--pacc); color: var(--pacc); }
+.ord-reset:disabled { opacity: .45; cursor: default; }
+.ord-list { display: grid; gap: 8px; }
+.ord-btn { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; min-height: 44px; padding: 10px 14px; border: 1px solid #cbbfab; border-radius: 12px; background: #fff; color: var(--ink); font-size: .92rem; line-height: 1.45; }
+.ord-btn:hover { border-color: var(--ink2); }
+.ord-btn.is-on { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 700; }
+.ord-num { font-style: normal; flex: none; width: 1.65em; height: 1.65em; border-radius: 50%; border: 1.5px solid #cbbfab; display: grid; place-items: center; font-size: .78rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ord-btn.is-on .ord-num { background: var(--pacc); border-color: var(--pacc); color: #fff; }
+.ord-seq { margin: 2px 0 0; font-size: .82rem; color: var(--ink2); line-height: 1.6; }
+.ord-seq b { color: var(--pacc); margin-right: 4px; }
+.ord button:focus-visible { outline: 3px solid var(--pacc); outline-offset: 2px; }
 .mk { display: inline-block; margin: 10px 0 0 calc(1.7em + 12px); font-size: .82rem; font-weight: 700; }
 .mk.ok { color: var(--ok); }
 .mk.no { color: var(--no); }
@@ -343,7 +358,7 @@ body.class-mode #btnSheet { display: inline-block; }
 .q.is-no .q-p i { background: var(--no); }
 @media (max-width: 520px) {
   .q input[type=text], .q select, .q textarea { margin-left: 0; width: 100%; max-width: none; }
-  .opts, .mk { margin-left: 0; }
+  .opts, .ord, .mk { margin-left: 0; }
 }
 
 /* ---------- 제출 쪽 ---------- */

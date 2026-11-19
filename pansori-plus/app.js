@@ -56,16 +56,22 @@
   function toast(msg) { var t = document.getElementById('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(function () { t.classList.remove('on'); }, 2600); }
 
   /* ---------- 채점 ---------- */
-  function val(q) { var v = state.a[q.id]; return q.type === 'multi' ? (Array.isArray(v) ? v : []) : (typeof v === 'string' ? v : ''); }
-  function answered(q) { var v = val(q); return q.type === 'multi' ? v.length > 0 : v.trim() !== ''; }
+  function val(q) {
+    var v = state.a[q.id];
+    if (q.type === 'multi') return Array.isArray(v) ? v : [];
+    if (q.type === 'order') return Array.isArray(v) ? v.filter(function (x, i, a) { return q.opts.indexOf(x) >= 0 && a.indexOf(x) === i; }) : [];
+    return typeof v === 'string' ? v : '';
+  }
+  function answered(q) { var v = val(q); return q.type === 'multi' ? v.length > 0 : q.type === 'order' ? v.length === q.ans.length : v.trim() !== ''; }
   function correct(q) {
     var v = val(q);
     if (q.type === 'blank') { var n = norm(v); return n !== '' && q.ans.some(function (a) { return norm(a) === n; }); }
     if (q.type === 'multi') return v.slice().sort().join('|') === q.ans.slice().sort().join('|');
+    if (q.type === 'order') return v.length === q.ans.length && v.every(function (x, i) { return x === q.ans[i]; });
     return v === q.ans;
   }
-  function ansText(q) { return q.type === 'blank' ? q.ans[0] : q.type === 'multi' ? q.ans.join(', ') : q.ans; }
-  function valText(q) { var v = val(q); return q.type === 'multi' ? q.opts.filter(function (o) { return v.indexOf(o) >= 0; }).join(', ') : v.trim(); }
+  function ansText(q) { return q.type === 'blank' ? q.ans[0] : q.type === 'multi' ? q.ans.join(', ') : q.type === 'order' ? q.ans.join(' → ') : q.ans; }
+  function valText(q) { var v = val(q); return q.type === 'multi' ? q.opts.filter(function (o) { return v.indexOf(o) >= 0; }).join(', ') : q.type === 'order' ? v.join(' → ') : v.trim(); }
   function marking() { return !!state.done || (TEACHER && showAns); }
 
   /* ---------- 수업 화면 조각 ---------- */
@@ -200,6 +206,17 @@
     else if (q.type === 'radio') h = '<div class="opts">' + q.opts.map(function (o) { return '<label><input type="radio" name="' + name + '" data-q="' + q.id + '" value="' + esc(o) + '"' + (o === v ? ' checked' : '') + '><span>' + esc(o) + '</span></label>'; }).join('') + '</div>';
     else if (q.type === 'multi') h = '<div class="opts">' + q.opts.map(function (o) { return '<label><input type="checkbox" data-q="' + q.id + '" value="' + esc(o) + '"' + (v.indexOf(o) >= 0 ? ' checked' : '') + '><span>' + esc(o) + '</span></label>'; }).join('') + '</div>';
     else if (q.type === 'text') h = '<textarea data-q="' + q.id + '" rows="3" maxlength="400" placeholder="' + esc(q.ph || '') + '" aria-label="생각 쓰기">' + esc(v) + '</textarea>';
+    else if (q.type === 'order') {
+      var seq = v.length ? '<p class="ord-seq"><b>내 순서</b> ' + v.map(function (o, k) { return (k + 1) + '. ' + esc(o); }).join(' → ') + '</p>' : '';
+      h = '<div class="ord" role="group" aria-label="순서 맞추기">' +
+        '<div class="ord-bar"><span class="ord-hint">이야기 순서대로 하나씩 눌러요 (' + v.length + ' / ' + q.opts.length + ')</span>' +
+        '<button type="button" class="ord-reset" data-ord-reset="' + q.id + '"' + (v.length ? '' : ' disabled') + '>다시 고르기</button></div>' +
+        '<div class="ord-list">' + q.opts.map(function (o) {
+          var k = v.indexOf(o);
+          return '<button type="button" class="ord-btn' + (k >= 0 ? ' is-on' : '') + '" data-ord-q="' + q.id + '" data-ord-v="' + esc(o) + '" aria-pressed="' + (k >= 0 ? 'true' : 'false') + '">' +
+            '<em class="ord-num" aria-hidden="true">' + (k >= 0 ? (k + 1) : '') + '</em><span>' + esc(o) + '</span></button>';
+        }).join('') + '</div>' + seq + '</div>';
+    }
     var mark = m ? '<span class="mk ' + (ok ? 'ok' : 'no') + '">' + (ok ? '맞았어요' : '정답: ' + esc(ansText(q))) + '</span>' : '';
     return (q.group ? '<h4 class="q-group">' + esc(q.group) + '</h4>' : '') +
       '<div class="q q-' + q.type + (m ? (ok ? ' is-ok' : ' is-no') : '') + '" id="' + name + '"><p class="q-p"><i>' + i + '</i><span>' + q.prompt + '</span></p>' + h + mark + '</div>';
@@ -400,6 +417,46 @@
       Array.prototype.forEach.call(t.parentNode.querySelectorAll('button'), function (b) { b.setAttribute('aria-pressed', String(b === t)); }); return;
     }
     if (t.classList.contains('reveal')) { var open = t.getAttribute('aria-pressed') !== 'true'; t.setAttribute('aria-pressed', String(open)); t.textContent = open ? t.getAttribute('data-a') : '장단은?'; return; }
+    if (t.classList.contains('ord-btn')) {
+      var oq = QBY[t.getAttribute('data-ord-q')];
+      if (oq && oq.type === 'order') {
+        var ov = t.getAttribute('data-ord-v'), curA = val(oq).slice(), pos = curA.indexOf(ov);
+        if (pos >= 0) curA.splice(pos, 1); else curA.push(ov);
+        state.a[oq.id] = curA;
+        save(); refreshCount();
+        var obox = document.getElementById('q-' + oq.id), oc = PAGES[cur()].ch;
+        if (obox && oc) {
+          var ot = document.createElement('div');
+          ot.innerHTML = qHTML(oq, oc.qs.indexOf(oq) + 1);
+          var nextQ = ot.querySelector('.q');
+          if (nextQ) {
+            obox.replaceWith(nextQ);
+            var sameBtn = Array.prototype.filter.call(nextQ.querySelectorAll('.ord-btn'), function (b) { return b.getAttribute('data-ord-v') === ov; })[0];
+            if (sameBtn) sameBtn.focus();
+          }
+        }
+      }
+      return;
+    }
+    if (t.classList.contains('ord-reset')) {
+      var rq = QBY[t.getAttribute('data-ord-reset')];
+      if (rq && rq.type === 'order') {
+        state.a[rq.id] = [];
+        save(); refreshCount();
+        var rbox = document.getElementById('q-' + rq.id), rc = PAGES[cur()].ch;
+        if (rbox && rc) {
+          var rt = document.createElement('div');
+          rt.innerHTML = qHTML(rq, rc.qs.indexOf(rq) + 1);
+          var nextRQ = rt.querySelector('.q');
+          if (nextRQ) {
+            rbox.replaceWith(nextRQ);
+            var firstBtn = nextRQ.querySelector('.ord-btn');
+            if (firstBtn) firstBtn.focus();
+          }
+        }
+      }
+      return;
+    }
     if (t.id === 'btnAns') { showAns = !showAns; route(true); var s = document.getElementById('sheet'); if (s) s.scrollIntoView({ block: 'start' }); return; }
     if (t.id === 'btnSubmit') doSubmit();
   });
