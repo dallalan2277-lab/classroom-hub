@@ -14,3 +14,4 @@ cut-heung-1~4.webp (4장) | 생성: AI 이미지 생성(Gemini), 이 수업용 /
 cut-su-1~4.webp (4장) | 생성: AI 이미지 생성(Gemini), 이 수업용 / 설계: GPT | 학교 수업 자료로 자유 이용
 cut-sim-1~4.webp (4장) | 생성: AI 이미지 생성(Gemini), 이 수업용 / 설계: GPT | 학교 수업 자료로 자유 이용
 cut-jeok-1~4.webp (4장) | 생성: AI 이미지 생성(Gemini), 이 수업용 / 설계: GPT | 학교 수업 자료로 자유 이용
+cut-heung-2.webp, cut-jeok-3.webp | 다시 그림: AI 이미지 생성(GPT), 이 수업용 (2026-11-20) | 학교 수업 자료로 자유 이용
