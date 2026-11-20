@@ -157,10 +157,10 @@
   // ---- 화면 ----------------------------------------------------------------
   var css = '' +
     '.cr-veil{position:fixed;inset:0;z-index:2147483000;background:rgba(20,28,24,.55);display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit}' +
-    '.cr-card{background:#fff;color:#1f2a24;border-radius:14px;max-width:360px;width:100%;padding:24px 22px;box-shadow:0 18px 50px rgba(0,0,0,.25);line-height:1.6}' +
+    '.cr-card{color-scheme:light;background:#fff;color:#1f2a24;border-radius:14px;max-width:360px;width:100%;padding:24px 22px;box-shadow:0 18px 50px rgba(0,0,0,.25);line-height:1.6}' +
     '.cr-card h2{margin:0 0 6px;font-size:19px}.cr-card p{margin:0 0 14px;font-size:14px;color:#55615a}' +
     '.cr-card label{display:block;font-size:13px;font-weight:700;margin:10px 0 4px}' +
-    '.cr-card input{width:100%;box-sizing:border-box;font-size:16px;padding:10px 12px;border:1px solid #c9d1cb;border-radius:8px}' +
+    '.cr-card input{width:100%;box-sizing:border-box;font-size:16px;padding:10px 12px;border:1px solid #c9d1cb;border-radius:8px;background:#fff;color:#1f2a24}' +
     '.cr-card .cr-row{display:flex;gap:8px}' +
     '.cr-card select{flex:1;min-width:0;box-sizing:border-box;font-size:16px;padding:10px 6px;border:1px solid #c9d1cb;border-radius:8px;background:#fff;color:#1f2a24}' +
     '.cr-card .cr-num{margin:6px 0 0;font-size:13px;color:#244b3a;font-weight:700;min-height:1em}' +
