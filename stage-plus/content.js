@@ -11,7 +11,7 @@
     showC: { id: 'ewOAsUWQJvo', title: '공연 C', by: '', start: 0, end: 40, mode: 'board' },
     lesmis: { id: 'iK5b5DNNmdA', title: '레 미제라블 · 장발장과 자베르', by: '류박사 · 한국어 자막', start: 0, end: 120, mode: 'board' },
     queen: { id: 'YuBeBjqKSGQ', title: '마술피리 · 밤의 여왕', by: 'Royal Ballet and Opera', start: 0, end: 90, mode: 'board' },
-    recitative: { id: 'K17mOgxZgow', title: '피가로의 결혼 · 수잔나와 피가로', by: '로마연합교회 · 한국어 자막', start: 0, end: 0, mode: 'board' },
+    recitative: { id: '7J_pXgs-OYQ', title: '사랑의 묘약 · 청년과 약장수', by: '한국어 자막', start: 2435, end: 2535, mode: 'board' },
     pansori: { id: '5PzTVJ_dA2o', title: '흥보가 · 박 타는 대목', by: '국립국악원', start: 0, end: 60, mode: 'board' },
     peking: { id: 'tZwJbLXzIrI', title: '중국의 음악극', by: 'KBS 실험실', start: 136, end: 251, mode: 'board' },
     kabuki: { id: '0yBs870C6Eo', title: '일본의 음악극', by: '뮤직후', start: 0, end: 85, mode: 'board' },
@@ -113,14 +113,13 @@
         {vid:queen|여왕의 목소리가 가장 높아지는 순간을 찾아요.}
         <p class="talk"><b>짝과 30초</b> 말처럼 들렸나요, 노래처럼 들렸나요? 그렇게 느낀 까닭도 말해요.</p>
         <div class="activity">
-          {vid:recitative|두 사람이 주고받는 소리에서 말과 닮은 점을 찾아요.}
-          {teacher:recitative}
+          {vid:recitative|청년과 약장수가 주고받는 소리에서 말과 닮은 점을 찾아요.}
         </div>
         {art:opera}
         <h3>방금 들은 장면에 이름 붙이기</h3>
         <dl class="terms terms-two">
           {term:아리아|여왕에게 귀를 기울여요.|밤의 여왕이 홀로 노래하며 치솟는 음과 빠른 소리로 분노를 드러내요.}
-          {term:레치타티보|두 사람 사이에 무슨 일이 생겼을까요?|수잔나가 묻고 피가로가 답할 때 말하듯 소리가 오가요. 그 소리에는 높낮이가 있고 반주도 들려요.}
+          {term:레치타티보|약장수는 청년을 어떻게 속였을까요?|청년 네모리노가 사랑의 묘약을 찾고 약장수 둘카마라가 둘러댈 때 말하듯 소리가 빠르게 오가요. 그 소리에는 높낮이가 있고 건반 반주도 들려요.}
         </dl>
         <details class="more"><summary>목소리 높낮이 활동 (선택)</summary>
           <p>편한 높이에서 ‘아’를 조금 높게, 조금 낮게 내 봐요. 그림 설명을 읽고 높은 목소리부터 차례로 말해요.</p>
