@@ -24,10 +24,11 @@ const SHEET_ROSTER = '명단';   // (선택) A열 학번(10712 모양), B열 이
 const DASH_SHEETS = [
   ['gugak-exam', '국악기 수행평가'],
   ['gugak-class', '국악기 · 수업과 학습지'],
-  ['stage-class', '음악극 탐험대 · 수업과 학습지'],
-  ['stage-plus', '음악극 탐험대 · 수업과 학습지(개선판)'],
+  ['stage-plus', '세계의 음악극 · 수업과 학습지'],
   ['dance-class', '춤을 세계 음악 속으로 · 수업과 학습지'],
-  ['pansori-plus', '판소리와 창극 · 수업과 학습지(개선판)']
+  ['pansori-plus', '판소리와 창극 · 수업과 학습지(개선판)'],
+  ['world-music', '방구석 세계 음악 여행 · 수업과 학습지'],
+  ['music-festival', '사시사철 음악 축제 · 수업과 학습지']
 ];
 
 // 아래는 내부용이에요.

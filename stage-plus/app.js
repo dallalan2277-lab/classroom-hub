@@ -7,7 +7,7 @@
   var CR = window.Classroom || null;
   var TEACHER = !!(CR && CR.teacher);
   var KEY = 'stage-plus-v1', FS_KEY = 'stage-plus-fs', SIDE_KEY = 'stage-plus-side';
-  var TITLE = '음악극 탐험대 개선판';
+  var TITLE = '세계의 음악극';
   var SPLIT = CH.findIndex(function (c) { return c.split; });
   var PAGES = CH.map(function (c) { return { id: c.id, nav: c.title, ch: c }; });
   PAGES.push({ id: 'submit', nav: '제출' });
