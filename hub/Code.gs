@@ -25,6 +25,7 @@ const DASH_SHEETS = [
   ['gugak-exam', '국악기 수행평가'],
   ['gugak-class', '국악기 · 수업과 학습지'],
   ['stage-class', '음악극 탐험대 · 수업과 학습지'],
+  ['stage-plus', '음악극 탐험대 · 수업과 학습지(개선판)'],
   ['dance-class', '춤을 세계 음악 속으로 · 수업과 학습지'],
   ['pansori-plus', '판소리와 창극 · 수업과 학습지(개선판)']
 ];
