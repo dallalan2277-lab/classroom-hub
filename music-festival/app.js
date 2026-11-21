@@ -6,7 +6,7 @@
   var DATA = window.FESTIVAL, V = DATA.V, CH = DATA.CHAPTERS, FESTS = DATA.FESTIVALS;
   var CR = window.Classroom || null;
   var TEACHER = !!(CR && CR.teacher);
-  var KEY = 'music-festival-v1', FS_KEY = 'music-festival-fs';
+  var KEY = 'music-festival-v2', FS_KEY = 'music-festival-fs', SIDE_KEY = 'music-festival-side';
   var TITLE = '사시사철 음악 축제';
   var PAGES = CH.map(function (c) { return { id: c.id, nav: c.title, ch: c }; });
   PAGES.push({ id: 'submit', nav: '제출' });
@@ -19,6 +19,7 @@
   var GRADED = ALLQ.filter(function (q) { return q.ans !== undefined; });
 
   var view = document.getElementById('view'), nav = document.getElementById('nav');
+  var sideProg = document.getElementById('sideProg');
   var root = document.documentElement, body = document.body;
   var showAns = false, sending = false, lastPage = -1, sheetOn = false, classOn = false;
   var pendingRadio = null;
@@ -136,7 +137,7 @@
     });
   }
 
-  /* ---------- 축제 초대장 미리보기 (4장 체험) ---------- */
+  /* ---------- 축제 초대장 미리보기 (5장 체험) ---------- */
   function renderInvite() {
     var box = document.getElementById('invitePreview');
     if (!box) return;
@@ -235,7 +236,7 @@
     var total = c.sheet.length, n = c.sheet.filter(answered).length;
     var chip = total ? '<a class="sheet-chip' + (n === total ? ' is-done' : '') + '" id="headChip" href="#' + c.id +
       '?sheet">이 장 학습지 <b id="headChipCnt">' + n + '/' + total + '</b> ↓</a>' : '';
-    var head = '<section class="lesson"><header class="ch-head art" style="--art:url(img/head-' + c.id + '.webp)"><p class="eyebrow">' +
+    var head = '<section class="lesson"><header class="ch-head art" style="--art:url(img/head-' + c.id + '.webp?v=2)"><p class="eyebrow">' +
       (idx + 1) + '장 · ' + esc(c.time) + '</p><h1>' + esc(c.title) +
       '</h1><p class="lead">' + esc(c.lead) + '</p>' + chip + '</header>' +
       build(c.lesson) + (total ? '' : nextEndHTML(c, idx)) + '</section>';
@@ -265,7 +266,7 @@
       if (head.isConnected) syncHeadArt();
     };
     probe.onerror = function () { head.dataset.art = 'missing'; };
-    probe.src = 'img/head-' + id + '.webp';
+    probe.src = 'img/head-' + id + '.webp?v=2';
   }
 
   /* ---------- 제출 ---------- */
@@ -340,6 +341,14 @@
     var chapters = PAGES.slice(0, CH.length).map(function (p, k) { return link(p, k); }).join('');
     nav.innerHTML = '<div class="grp"><p>1차시</p>' + chapters + '</div>' + link(PAGES[CH.length], CH.length);
   }
+  function refreshSideProg() {
+    if (!sideProg) return;
+    var done = ALLQ.filter(answered).length, total = ALLQ.length;
+    var pct = total ? Math.round(done / total * 100) : 0;
+    sideProg.innerHTML = '<div class="side-prog-head"><span>학습지 진행</span><b>' + done + ' / ' + total + '</b></div>' +
+      '<span class="side-prog-bar"><i style="width:' + pct + '%"></i></span>' +
+      '<small>1차시 · 45분 · ' + CH.length + '장</small>';
+  }
   function refreshCount() {
     var i = lastPage, c = PAGES[i].ch;
     var total = c ? c.sheet.length : 0, n = total ? c.sheet.filter(answered).length : 0;
@@ -348,6 +357,7 @@
     nx.classList.toggle('is-ready', all);
     if (nextP) nx.setAttribute('aria-label', '다음 장 · ' + nextP.nav + (all ? ' (이 장 학습지 완료)' : ''));
     else nx.removeAttribute('aria-label');
+    refreshSideProg();
     if (!total) return;
     document.getElementById('cnt').textContent = n + ' / ' + total;
     document.getElementById('headChipCnt').textContent = n + '/' + total;
@@ -402,7 +412,7 @@
     view.focus({ preventScroll: true });
   });
 
-  /* ---------- 계절 탭 ---------- */
+  /* ---------- 계절·해외 탭 ---------- */
   function selectTab(tab) {
     if (!tab) return;
     var list = tab.closest('[role="tablist"]');
@@ -547,23 +557,50 @@
     if (e.target.classList && e.target.classList.contains('art-img')) e.target.parentNode.hidden = false;
   }, true);
 
-  /* ---------- 목차·글자 크기·수업 모드 ---------- */
+  /* ---------- 목차·접기·글자 크기·수업 모드 ---------- */
   var side = document.getElementById('side'), burger = document.getElementById('burger'), scrim = document.getElementById('scrim');
+  var btnCollapse = document.getElementById('btnCollapse');
   var mq = window.matchMedia('(max-width: 820px)');
+  var sideClosed = false;
+  try { sideClosed = localStorage.getItem(SIDE_KEY) === '1'; } catch (e) {}
+
   function syncSide() {
     var hidden = (mq.matches || body.classList.contains('side-closed')) && !body.classList.contains('side-open');
     side.inert = hidden;
     if (hidden) side.setAttribute('aria-hidden', 'true'); else side.removeAttribute('aria-hidden');
     burger.setAttribute('aria-expanded', String(!hidden));
   }
+  function setSideClosed(on, persist) {
+    sideClosed = !!on;
+    body.classList.toggle('side-closed', sideClosed);
+    if (sideClosed) body.classList.remove('side-open');
+    if (persist) { try { localStorage.setItem(SIDE_KEY, sideClosed ? '1' : '0'); } catch (e) {} }
+    syncSide();
+  }
   function closeSide() { body.classList.remove('side-open'); scrim.hidden = true; syncSide(); }
+  if (sideClosed) body.classList.add('side-closed');
+
   if (mq.addEventListener) mq.addEventListener('change', syncSide); else if (mq.addListener) mq.addListener(syncSide);
   burger.addEventListener('click', function () {
+    if (!mq.matches && !classOn && body.classList.contains('side-closed')) {
+      setSideClosed(false, true);
+      btnCollapse.focus();
+      return;
+    }
     var on = !body.classList.contains('side-open');
     body.classList.toggle('side-open', on);
     scrim.hidden = !on;
     syncSide();
     if (on) (side.querySelector('a.on') || side.querySelector('a')).focus();
+  });
+  btnCollapse.addEventListener('click', function () {
+    if (mq.matches || classOn) {
+      closeSide();
+      burger.focus();
+    } else {
+      setSideClosed(true, true);
+      burger.focus();
+    }
   });
   scrim.addEventListener('click', closeSide);
   document.addEventListener('keydown', function (e) {
@@ -588,7 +625,7 @@
     showAns = false;
     closeSide();
     body.classList.toggle('class-mode', on);
-    body.classList.toggle('side-closed', on);
+    body.classList.toggle('side-closed', on ? true : sideClosed);
     if (!on && sheetOn) setSheet(false);
     btnClass.textContent = on ? '수업 모드 끄기' : '수업 모드 켜기';
     btnClass.setAttribute('aria-pressed', String(on));
@@ -603,7 +640,7 @@
       if (fsBeforeClass) setFs(fsBeforeClass, true);
       else { fs = 0; root.style.removeProperty('--fs'); }
       try { if (document.fullscreenElement) Promise.resolve(document.exitFullscreen()).catch(function () {}); } catch (e) {}
-      if (mq.matches) burger.focus(); else btnClass.focus();
+      if (mq.matches || sideClosed) burger.focus(); else btnClass.focus();
     }
   }
   btnClass.setAttribute('aria-pressed', 'false');
