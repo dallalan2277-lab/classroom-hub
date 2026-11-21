@@ -4,24 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="icon" href="data:,">
-  <meta name="theme-color" content="#14110e">
+  <meta name="theme-color" content="#f3f8f8">
   <meta name="description" content="세계의 악기와 노래를 듣고 모둠 여행을 계획하는 중학교 음악 수업 화면과 학습지.">
   <title>방구석 세계 음악 여행</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
-  <link rel="stylesheet" href="style.css?v=1">
+  <link rel="stylesheet" href="style.css?v=2">
   <!-- 학습지 허브: 학번·이름, 자리 비움 감지, 보내기, ?교사 모드. 다른 코드보다 먼저 실행되어야 해요 -->
   <script src="../classroom.js" data-ws="world-music" data-title="방구석 세계 음악 여행"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="content.js?v=1" defer></script>
-  <script src="app.js?v=1" defer></script>
-  <script src="../qr-dock.js?v=1" data-url="https://dallalan2277-lab.github.io/classroom-hub/world-music/" data-title="방구석 세계 음악 여행" defer></script>
+  <script src="content.js?v=2" defer></script>
+  <script src="app.js?v=2" defer></script>
+  <script src="../qr-dock.js?v=1" data-url="https://dallalan2277-lab.github.io/classroom-hub/world-music/" data-title="방구석 세계 음악 여행" data-theme="light" defer></script>
 </head>
 <body>
   <a class="skip" href="#view">본문으로 바로가기</a>
   <aside id="side" aria-label="수업 목차">
-    <a class="brand" href="#start"><small>중학교 음악</small><b>방구석 세계 음악 여행</b></a>
+    <div class="side-head">
+      <a class="brand" href="#start"><small>중학교 음악</small><b>방구석 세계 음악 여행</b></a>
+      <button type="button" class="side-toggle" id="btnCollapse" aria-label="목차 접기" title="목차 접기">접기</button>
+    </div>
     <nav id="nav" aria-label="수업 순서"></nav>
     <div class="tools">
       <button type="button" class="mini cls" id="btnClass">수업 모드 켜기</button>

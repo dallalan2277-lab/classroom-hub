@@ -6,7 +6,7 @@
   var DATA = window.WORLD, V = DATA.V, CH = DATA.CHAPTERS;
   var CR = window.Classroom || null;
   var TEACHER = !!(CR && CR.teacher);
-  var KEY = 'world-music-v1', FS_KEY = 'world-music-fs';
+  var KEY = 'world-music-v1', FS_KEY = 'world-music-fs', SIDE_KEY = 'world-music-side';
   var TITLE = '방구석 세계 음악 여행';
   var SPLIT = CH.findIndex(function (c) { return c.split; });
   var PAGES = CH.map(function (c) { return { id: c.id, nav: c.title, ch: c }; });
@@ -506,23 +506,52 @@
     if (e.target.classList && e.target.classList.contains('art-img')) e.target.parentNode.hidden = false;
   }, true);
 
-  /* ---------- 목차·글자 크기·수업 모드 ---------- */
+  /* ---------- 목차·접기·글자 크기·수업 모드 ---------- */
   var side = document.getElementById('side'), burger = document.getElementById('burger'), scrim = document.getElementById('scrim');
+  var btnCollapse = document.getElementById('btnCollapse');
   var mq = window.matchMedia('(max-width: 820px)');
+  var sideClosed = false;
+  try { sideClosed = localStorage.getItem(SIDE_KEY) === '1'; } catch (e) {}
+
   function syncSide() {
     var hidden = (mq.matches || body.classList.contains('side-closed')) && !body.classList.contains('side-open');
     side.inert = hidden;
     if (hidden) side.setAttribute('aria-hidden', 'true'); else side.removeAttribute('aria-hidden');
     burger.setAttribute('aria-expanded', String(!hidden));
   }
+  function setSideClosed(on, persist) {
+    sideClosed = !!on;
+    body.classList.toggle('side-closed', sideClosed);
+    if (sideClosed) body.classList.remove('side-open');
+    if (persist) { try { localStorage.setItem(SIDE_KEY, sideClosed ? '1' : '0'); } catch (e) {} }
+    syncSide();
+  }
   function closeSide() { body.classList.remove('side-open'); scrim.hidden = true; syncSide(); }
-  if (mq.addEventListener) mq.addEventListener('change', syncSide); else if (mq.addListener) mq.addListener(syncSide);
+  if (sideClosed) body.classList.add('side-closed');
+
+  function onSideResize() {
+    if (!mq.matches && !classOn && body.classList.contains('side-open')) {
+      closeSide();
+      if (sideClosed) burger.focus();
+    } else syncSide();
+  }
+  if (mq.addEventListener) mq.addEventListener('change', onSideResize); else if (mq.addListener) mq.addListener(onSideResize);
   burger.addEventListener('click', function () {
+    if (!mq.matches && !classOn && body.classList.contains('side-closed')) {
+      setSideClosed(false, true);
+      btnCollapse.focus();
+      return;
+    }
     var on = !body.classList.contains('side-open');
     body.classList.toggle('side-open', on);
     scrim.hidden = !on;
     syncSide();
     if (on) (side.querySelector('a.on') || side.querySelector('a')).focus();
+  });
+  btnCollapse.addEventListener('click', function () {
+    if (mq.matches || classOn) closeSide();
+    else setSideClosed(true, true);
+    burger.focus();
   });
   scrim.addEventListener('click', closeSide);
   document.addEventListener('keydown', function (e) {
@@ -547,7 +576,7 @@
     showAns = false;
     closeSide();
     body.classList.toggle('class-mode', on);
-    body.classList.toggle('side-closed', on);
+    body.classList.toggle('side-closed', on || sideClosed);
     if (!on && sheetOn) setSheet(false);
     btnClass.textContent = on ? '수업 모드 끄기' : '수업 모드 켜기';
     btnClass.setAttribute('aria-pressed', String(on));
@@ -562,7 +591,7 @@
       if (fsBeforeClass) setFs(fsBeforeClass, true);
       else { fs = 0; root.style.removeProperty('--fs'); }
       try { if (document.fullscreenElement) Promise.resolve(document.exitFullscreen()).catch(function () {}); } catch (e) {}
-      if (mq.matches) burger.focus(); else btnClass.focus();
+      if (mq.matches || sideClosed) burger.focus(); else btnClass.focus();
     }
   }
   btnClass.setAttribute('aria-pressed', 'false');
