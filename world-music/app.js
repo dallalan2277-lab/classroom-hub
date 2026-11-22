@@ -110,16 +110,19 @@
   function vidHTML(key, cap) {
     var v = V[key], title = esc(v.title);
     var mode = v.mode === 'solo' ? '태블릿 · 각자 짧게' : '칠판 · 다 같이';
-    var showThumb = !!(v.id && !v.audioOnly && !v.blind);
-    var attrs = ' data-video="' + esc(key) + '" data-yt="' + esc(v.id) + '" data-start="' + v.start + '" data-end="' + v.end + '"' +
-      (v.audioOnly ? ' data-audio="1"' : '') + (v.blind ? ' data-blind="1"' : '');
+    var hasMedia = !!(v.audioSrc || v.id);
+    var showThumb = !!(v.id && !v.audioOnly && !v.blind && !v.audioSrc);
+    var attrs = ' data-video="' + esc(key) + '" data-yt="' + esc(v.id || '') + '" data-start="' + v.start + '" data-end="' + v.end + '"' +
+      (v.audioOnly ? ' data-audio="1"' : '') + (v.blind ? ' data-blind="1"' : '') + (v.audioSrc ? ' data-audio-src="1"' : '');
     var thumb = showThumb ? '<img class="vid-thumb" src="' + thumbURL(v.id) + '" alt="" loading="lazy" decoding="async">' : '';
-    var player = v.id ? '<button class="vid-play' + (showThumb ? ' has-thumb' : '') + '" type="button" data-label="' + title + '" aria-pressed="false" aria-label="' + title + ' 재생">' +
+    var player = hasMedia ? '<button class="vid-play' + (showThumb ? ' has-thumb' : '') + '" type="button" data-label="' + title + '" aria-pressed="false" aria-label="' + title + ' 재생">' +
       thumb + '<span class="play" aria-hidden="true"></span><span class="vid-mask">' + title + '</span></button>' :
       '<div class="vid-pending"><span class="vid-mask">' + title + '</span><small>영상 준비 중</small></div>';
+    var credit = v.credit ? '<p class="vid-credit"' + (v.blind ? ' hidden' : '') + '>음원: <a href="' + esc(v.credit.page) + '" target="_blank" rel="noopener noreferrer">' +
+      esc(v.credit.title) + '</a> · ' + esc(v.credit.author) + ' · ' + esc(v.credit.license) + '</p>' : '';
     return '<figure class="vid"' + attrs + '>' +
       player + '<figcaption><div class="vid-head"><b>' + title + '</b><span class="play-mode">' + mode + '</span></div>' +
-      (v.by ? '<small>' + esc(v.by) + '</small>' : '') + '<em>' + esc(cap || (v.end - v.start) + '초 듣기') + '</em></figcaption></figure>';
+      (v.by ? '<small>' + esc(v.by) + '</small>' : '') + '<em>' + esc(cap || (v.end - v.start) + '초 듣기') + '</em>' + credit + '</figcaption></figure>';
   }
   function vidInlineHTML(key) {
     var v = V[key];
@@ -128,7 +131,7 @@
     var mode = v.mode === 'solo' ? '태블릿 · 각자 짧게' : '칠판 · 다 같이';
     var label = sec + '초 소리 듣기';
     var meta = title + ' · ' + mode;
-    var player = v.id ? '<button class="vid-play vid-inline-play" type="button" data-label="' + esc(label) + '" data-meta="' + esc(meta) + '" aria-pressed="false" aria-label="' + title + ' ' + sec + '초 소리만 재생">' +
+    var player = v.id ? '<button class="vid-play vid-inline-play" type="button" data-label="' + esc(label) + '" data-meta="' + esc(meta) + '" aria-pressed="false" aria-label="' + title + ' ' + sec + '초 소리 재생">' +
       '<span class="play" aria-hidden="true"></span><span class="vid-mask">' + esc(label) + '</span>' +
       '<span class="vid-inline-meta">' + meta + '</span></button>' :
       '<div class="vid-pending"><span class="vid-mask">' + title + '</span><small>소리 준비 중</small></div>';
@@ -760,11 +763,19 @@
       storeAnswer(pendingRadio);
     }
   });
-  var audioTimer = null;
+  var currentAudio = null;
   function stopVideos() {
-    clearTimeout(audioTimer);
-    audioTimer = null;
-    document.querySelectorAll('.audio-only-frame').forEach(function (el) { el.remove(); });
+    if (currentAudio) {
+      var a = currentAudio;
+      currentAudio = null;
+      a.onloadedmetadata = null;
+      a.onseeked = null;
+      a.ontimeupdate = null;
+      a.onended = null;
+      a.onerror = null;
+      try { a.pause(); } catch (e) {}
+      try { a.removeAttribute('src'); a.load(); } catch (e) {}
+    }
     view.querySelectorAll('.vid.playing').forEach(function (f) {
       var frame = f.querySelector('iframe');
       if (frame) frame.remove();
@@ -780,42 +791,100 @@
       }
     });
   }
-  function playVideo(button) {
-    var f = button.parentNode;
-    if (f.classList.contains('audio-playing')) {
-      stopVideos();
-      return;
-    }
-    stopVideos();
+  function openYouTubePlayer(f, button) {
     var st = Number(f.dataset.start), en = Number(f.dataset.end);
-    var identities = document.getElementById('showIdentities');
-    var blindLocked = f.dataset.blind === '1' && identities && identities.hidden;
-    var audioOnly = f.dataset.audio === '1' || blindLocked;
     var frame = document.createElement('iframe');
     frame.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(f.dataset.yt) +
-      '?autoplay=1&rel=0&playsinline=1' + (audioOnly ? '&controls=0' : '') +
+      '?autoplay=1&rel=0&playsinline=1' +
       (st ? '&start=' + st : '') + (en ? '&end=' + en : '');
-    frame.title = button.getAttribute('aria-label');
-    if (audioOnly) {
-      frame.className = 'audio-only-frame';
-      frame.tabIndex = -1;
-      frame.setAttribute('aria-hidden', 'true');
-      frame.allow = 'autoplay; encrypted-media';
-      document.body.appendChild(frame);
-      f.classList.add('playing', 'audio-playing');
+    frame.title = button.getAttribute('aria-label') || '영상 재생';
+    frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    frame.allowFullscreen = true;
+    f.classList.remove('audio-playing');
+    f.classList.add('playing');
+    if (f.classList.contains('vid-inline')) {
+      button.hidden = false;
       button.setAttribute('aria-pressed', 'true');
       var mask = button.querySelector('.vid-mask');
       if (mask) mask.textContent = '재생 중 · 눌러서 멈추기';
       var meta = button.querySelector('.vid-inline-meta');
-      if (meta) meta.textContent = '소리만 재생 중 (화면 가림)';
-      audioTimer = setTimeout(stopVideos, Math.max(5, (en - st) + 5) * 1000);
+      if (meta) meta.textContent = '다시 누르면 닫혀요';
+      f.appendChild(frame);
       return;
     }
-    frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-    frame.allowFullscreen = true;
     button.hidden = true;
     f.prepend(frame);
-    f.classList.add('playing');
+  }
+  function playAudioClip(f, button, v) {
+    var audioStart = Math.max(0, Number(v.audioStart) || 0);
+    var duration = Math.max(1, (Number(f.dataset.end) - Number(f.dataset.start)) || 15);
+    var stopAt = audioStart + duration;
+    var audio = new Audio();
+    currentAudio = audio;
+    audio.preload = 'auto';
+    var sought = audioStart === 0;
+    if (audioStart > 0) audio.muted = true;
+    audio.src = v.audioSrc;
+
+    var fellBack = false;
+    function fallbackToYouTube() {
+      if (fellBack || currentAudio !== audio) return;
+      fellBack = true;
+      stopVideos();
+      if (f.isConnected && f.dataset.yt) openYouTubePlayer(f, button);
+    }
+    function applyStart() {
+      if (!sought && currentAudio === audio) {
+        sought = true;
+        try { audio.currentTime = audioStart; } catch (e) { audio.muted = false; }
+      }
+    }
+    audio.onloadedmetadata = applyStart;
+    audio.onseeked = function () {
+      if (currentAudio === audio) audio.muted = false;
+    };
+    audio.ontimeupdate = function () {
+      if (currentAudio !== audio) return;
+      if (!sought && audio.readyState >= 1) applyStart();
+      if (sought && audio.muted && audio.currentTime >= audioStart - 0.5) audio.muted = false;
+      if (sought && audio.currentTime >= stopAt) stopVideos();
+    };
+    audio.onended = function () {
+      if (currentAudio === audio) stopVideos();
+    };
+    audio.onerror = fallbackToYouTube;
+
+    f.classList.add('playing', 'audio-playing');
+    button.setAttribute('aria-pressed', 'true');
+    var mask = button.querySelector('.vid-mask');
+    if (mask) mask.textContent = '재생 중 · 눌러서 멈추기';
+    var meta = button.querySelector('.vid-inline-meta');
+    if (meta) meta.textContent = '자유이용 음원 재생 중';
+
+    try {
+      var p = audio.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(function (err) {
+          if (currentAudio === audio && (!err || err.name !== 'AbortError')) fallbackToYouTube();
+        });
+      }
+    } catch (e) {
+      fallbackToYouTube();
+    }
+  }
+  function playVideo(button) {
+    var f = button.parentNode;
+    if (f.classList.contains('playing')) {
+      stopVideos();
+      return;
+    }
+    stopVideos();
+    var v = V[f.dataset.video];
+    if (v && v.audioSrc) {
+      playAudioClip(f, button, v);
+      return;
+    }
+    if (f.dataset.yt) openYouTubePlayer(f, button);
   }
   function pickWarmup(t, group) {
     group.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b === t)); });
@@ -989,6 +1058,9 @@
       t.setAttribute('aria-expanded', String(!identities.hidden));
       t.textContent = identities.hidden ? (t.dataset.labelOpen || '정체 공개') : (t.dataset.labelClose || '정체 숨기기');
       view.querySelectorAll('.vid[data-blind="1"]').forEach(function (card) {
+        var creditEl = card.querySelector('.vid-credit');
+        if (creditEl) creditEl.hidden = identities.hidden;
+        if (card.dataset.audioSrc === '1') return;
         var play = card.querySelector('.vid-play'), yt = card.dataset.yt;
         if (!play || !yt) return;
         var existing = play.querySelector('.vid-thumb');

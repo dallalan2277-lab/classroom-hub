@@ -309,10 +309,10 @@ body.class-mode .ch-head { padding-top: 32px; }
 
 /* 영상은 재생 버튼을 누르기 전까지 글자로만 보여요. */
 .listen-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-.listen-grid.opening-videos { grid-template-columns: repeat(auto-fit, minmax(min(100%, 175px), 1fr)); }
+.listen-grid.opening-videos { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
 .vid { width: 100%; max-width: 720px; min-width: 0; margin: 0 auto; }
 .vid-play, .vid iframe { width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; }
-.vid iframe { display: block; border: 0; background: #000; }
+.vid iframe { display: block; min-height: 200px; border: 0; background: #000; }
 .vid-play { position: relative; display: flex; align-items: center; justify-content: center; gap: 12px; margin: 0; padding: 14px; border: 1px solid var(--dim); background: radial-gradient(ellipse at 48% 100%, var(--bg3), var(--bg2) 80%); color: var(--text); text-align: left; }
 .vid-play:hover { border-color: var(--acc); }
 .vid-play.has-thumb { padding: 0; border-color: var(--line); background: #102021; }
@@ -453,8 +453,7 @@ body.class-mode .cap-status { display: none; }
 .balance-box .bal-talk { margin-top: 14px; padding: 12px 14px; border-top: 0; border-radius: 10px; background: var(--paper); border: 1px dashed var(--line); color: var(--muted); font-size: .92rem; transition: background .2s, border-color .2s; }
 .balance-box .bal-talk.is-active { background: var(--accbg); border: 1px solid var(--acc); border-left: 4px solid var(--acc); color: var(--text); }
 
-/* ④ 글자로 못 푸는 10초 소리 직결 문항 · 블라인드 소리 전용 재생 */
-.audio-only-frame { position: fixed; top: 0; left: -120px; width: 1px; height: 1px; border: 0; opacity: 0; pointer-events: none; }
+/* ④ 10초 소리 직결 문항 · 블라인드 자유이용 음원 재생 */
 .vid.audio-playing .vid-play { border-color: var(--accbtn); background: var(--accbg); box-shadow: 0 0 0 2px rgba(19, 138, 128, .22); }
 .vid.audio-playing .vid-play .play { background: var(--acc2); }
 .vid.audio-playing .vid-play .play::after { left: 14px; top: 14px; width: 12px; height: 12px; border: 0; border-radius: 2px; background: #fff; }
@@ -462,9 +461,14 @@ body.class-mode .cap-status { display: none; }
 .vid-inline-play { aspect-ratio: auto; min-height: 52px; padding: 10px 16px; justify-content: flex-start; border-radius: 12px; background: var(--bg); border: 1.5px solid var(--acc); }
 .vid-inline-play .play { flex: 0 0 34px; height: 34px; }
 .vid-inline-play .play::after { left: 13px; top: 10px; border-width: 7px 0 7px 11px; }
-.vid.vid-inline.audio-playing .vid-inline-play .play::after { left: 11px; top: 11px; width: 12px; height: 12px; border: 0; border-radius: 2px; background: #fff; }
+.vid.vid-inline.playing .vid-inline-play { border-color: var(--accbtn); background: var(--accbg); box-shadow: 0 0 0 2px rgba(19, 138, 128, .22); }
+.vid.vid-inline.playing .vid-inline-play .play { background: var(--acc2); }
+.vid.vid-inline.playing .vid-inline-play .play::after { left: 11px; top: 11px; width: 12px; height: 12px; border: 0; border-radius: 2px; background: #fff; }
+.vid.vid-inline iframe { width: 100%; aspect-ratio: 16 / 9; min-height: 200px; margin-top: 8px; }
 .vid-inline-play .vid-mask { font-family: var(--sans); font-size: .94rem; color: var(--pacc); }
 .vid-inline-meta { margin-left: auto; font-size: .76rem; color: var(--ink2); white-space: nowrap; }
+.vid-credit { margin: 6px 0 0; font-size: .74rem; line-height: 1.45; color: var(--dim); overflow-wrap: anywhere; }
+.vid-credit a { color: var(--acc2); text-decoration: underline; text-underline-offset: 2px; }
 
 /* ⑤ 서술형 음악 감각 어휘 디딤돌 */
 .vocab-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 10px calc(1.7em + 12px); }
@@ -492,7 +496,7 @@ body.class-mode .cap-status { display: none; }
 .map-mission h4 { margin: 8px 0 6px; font-size: 1.15rem; color: var(--text); }
 .map-clue { margin: 0 0 12px; font-size: .96rem; line-height: 1.6; color: var(--text); }
 .map-clue b { color: var(--acc2); margin-right: 6px; }
-.map-mission .vid.vid-inline { margin: 0 0 10px; max-width: 100%; }
+.map-mission .vid.vid-inline { margin: 0 0 10px; max-width: 520px; }
 .map-opts { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .map-opts-prompt { margin: 0 0 10px; font-size: .92rem; color: var(--text); }
 .map-opts-prompt b { color: var(--acc2); margin-right: 6px; }

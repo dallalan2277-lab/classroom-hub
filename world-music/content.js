@@ -29,9 +29,39 @@
   function quizClip(source, title, seconds) {
     return listenAgain(source, title, seconds, { mode: 'board', audioOnly: true });
   }
-  V.mysA = listenAgain(SOLO_DIDG, '소리 1', 15, { blind: true });
-  V.mysB = listenAgain(V.samba, '소리 2', 15, { blind: true });
-  V.mysC = listenAgain(V.shamisen, '소리 3', 15, { blind: true });
+  V.mysA = listenAgain(SOLO_DIDG, '소리 1', 15, {
+    blind: true,
+    audioSrc: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c7/Didgeridoo_sound.ogg/Didgeridoo_sound.ogg.mp3',
+    audioStart: 0,
+    credit: {
+      title: 'Didgeridoo sound',
+      author: 'Cassa342',
+      license: 'CC BY-SA 4.0',
+      page: 'https://commons.wikimedia.org/wiki/File:Didgeridoo_sound.ogg'
+    }
+  });
+  V.mysB = listenAgain(V.samba, '소리 2', 15, {
+    blind: true,
+    audioSrc: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/d/d5/53704_reinsamba_samba-batucada1.wav/53704_reinsamba_samba-batucada1.wav.mp3',
+    audioStart: 2,
+    credit: {
+      title: 'samba-batucada1',
+      author: 'reinsamba (Freesound)',
+      license: 'CC BY 4.0',
+      page: 'https://commons.wikimedia.org/wiki/File:53704_reinsamba_samba-batucada1.wav'
+    }
+  });
+  V.mysC = listenAgain(V.shamisen, '소리 3', 15, {
+    blind: true,
+    audioSrc: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/3/31/Shamisenwithvocals_2006.ogg/Shamisenwithvocals_2006.ogg.mp3',
+    audioStart: 53,
+    credit: {
+      title: 'Shamisenwithvocals 2006',
+      author: 'Nesnad',
+      license: 'CC BY 3.0',
+      page: 'https://commons.wikimedia.org/wiki/File:Shamisenwithvocals_2006.ogg'
+    }
+  });
   V.recallA = listenAgain(V.shamisen, '소리 1', 10, { audioOnly: true });
   V.recallB = listenAgain(V.samba, '소리 2', 10, { audioOnly: true });
   V.recallC = listenAgain(SOLO_DIDG, '소리 3', 10, { audioOnly: true });
