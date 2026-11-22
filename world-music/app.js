@@ -147,7 +147,9 @@
     var w = DATA.WARMUP[key];
     return '<div class="guess" role="group" aria-labelledby="guess-' + key + '">' +
       '<p id="guess-' + key + '">' + esc(w.prompt) + '</p>' +
-      w.opts.map(function (o) { return '<button type="button" aria-pressed="false">' + esc(o) + '</button>'; }).join('') + '</div>';
+      '<div class="guess-opts">' +
+      w.opts.map(function (o) { return '<button type="button" aria-pressed="false">' + esc(o) + '</button>'; }).join('') +
+      '</div></div>';
   }
   function capsuleHTML(key) {
     var c = DATA.CAPSULE && DATA.CAPSULE[key];
@@ -161,7 +163,7 @@
         var on = chosen === o;
         return '<button type="button" class="cap-btn" data-cap-id="' + esc(c.id) + '" data-cap-val="' + esc(o) + '" aria-pressed="' + String(on) + '">' + esc(o) + '</button>';
       }).join('') + '</div>' +
-      '<p class="cap-status" aria-live="polite">' + (chosen ? '저장된 첫 생각: <b>' + esc(chosen) + '</b> (마지막 장에서 다시 열려요)' : '하나를 고르면 마지막 장 타임캡슐에 자동으로 저장돼요.') + '</p>' +
+      '<p class="cap-status" aria-live="polite"' + (chosen ? '' : ' hidden') + '>' + (chosen ? '저장된 첫 생각: <b>' + esc(chosen) + '</b> (마지막 장에서 다시 열려요)' : '') + '</p>' +
       '</aside>';
   }
   function capsuleRecallHTML(key) {
@@ -655,6 +657,7 @@
     document.title = (p.ch ? p.ch.title + ' · ' : '') + TITLE;
     refreshCount();
     syncHeadArt();
+    syncRevealUI();
     if (!keep) jump();
   }
   function setSheet(on) {
@@ -872,6 +875,55 @@
       fallbackToYouTube();
     }
   }
+  function syncRevealUI() {
+    var btn = document.getElementById('btnReveal');
+    var guesses = document.getElementById('showGuesses');
+    var identities = document.getElementById('showIdentities');
+    if (!btn || !guesses || !identities) return;
+    var total = guesses.querySelectorAll('.guess').length;
+    var picked = guesses.querySelectorAll('[aria-pressed="true"]').length;
+    var allPicked = total > 0 && picked === total;
+    var isOpen = !identities.hidden;
+    var ready = allPicked && !isOpen;
+    btn.disabled = !allPicked && !TEACHER && !isOpen;
+    btn.classList.toggle('is-ready', ready);
+    btn.classList.toggle('is-open', isOpen);
+    var bar = btn.closest('[data-reveal-bar]');
+    if (bar) {
+      bar.classList.toggle('is-ready', ready);
+      bar.classList.toggle('is-open', isOpen);
+    }
+    var hint = document.getElementById('revealHint');
+    if (hint) {
+      var msg = isOpen ? btn.dataset.hintOpen
+        : allPicked ? btn.dataset.hintReady
+        : TEACHER ? btn.dataset.hintTeacher
+        : btn.dataset.hintWait;
+      if (!isOpen && !allPicked && !TEACHER && total > 1 && msg) {
+        msg += ' (' + picked + ' / ' + total + ' 선택)';
+      }
+      hint.textContent = msg || '';
+    }
+    var flow = btn.closest('[data-reveal-flow]');
+    if (flow) {
+      var listened = flow.dataset.listened === '1' || picked > 0 || isOpen;
+      var s1 = flow.querySelector('.flow-steps [data-step="1"]');
+      var s2 = flow.querySelector('.flow-steps [data-step="2"]');
+      var s3 = flow.querySelector('.flow-steps [data-step="3"]');
+      if (s1) {
+        s1.classList.toggle('is-done', listened);
+        s1.classList.toggle('is-current', !listened);
+      }
+      if (s2) {
+        s2.classList.toggle('is-done', allPicked || isOpen);
+        s2.classList.toggle('is-current', listened && !allPicked && !isOpen);
+      }
+      if (s3) {
+        s3.classList.toggle('is-done', isOpen);
+        s3.classList.toggle('is-current', allPicked && !isOpen);
+      }
+    }
+  }
   function playVideo(button) {
     var f = button.parentNode;
     if (f.classList.contains('playing')) {
@@ -879,6 +931,8 @@
       return;
     }
     stopVideos();
+    var flow = f.closest('[data-reveal-flow]');
+    if (flow) { flow.dataset.listened = '1'; syncRevealUI(); }
     var v = V[f.dataset.video];
     if (v && v.audioSrc) {
       playAudioClip(f, button, v);
@@ -888,10 +942,7 @@
   }
   function pickWarmup(t, group) {
     group.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b === t)); });
-    var guesses = document.getElementById('showGuesses');
-    if (guesses) {
-      document.getElementById('btnReveal').disabled = guesses.querySelectorAll('[aria-pressed=true]').length !== guesses.querySelectorAll('.guess').length;
-    }
+    syncRevealUI();
   }
   function pickCapsule(btn) {
     var box = btn.closest('.capsule-box'), capId = btn.dataset.capId, capVal = btn.dataset.capVal;
@@ -900,7 +951,10 @@
     save();
     box.querySelectorAll('.cap-btn').forEach(function (b) { b.setAttribute('aria-pressed', String(b === btn)); });
     var status = box.querySelector('.cap-status');
-    if (status) status.innerHTML = '저장된 첫 생각: <b>' + esc(capVal) + '</b> (마지막 장에서 다시 열려요)';
+    if (status) {
+      status.hidden = false;
+      status.innerHTML = '저장된 첫 생각: <b>' + esc(capVal) + '</b> (마지막 장에서 다시 열려요)';
+    }
   }
   function toggleCue(btn) {
     var key = btn.dataset.cueKey, idx = Number(btn.dataset.cueIdx), c = DATA.CUES && DATA.CUES[key];
@@ -1050,7 +1104,7 @@
     else if (t.classList.contains('map-pin')) clickMapPin(t);
     else if (t.classList.contains('map-opt')) clickMapOpt(t);
     else if (t.classList.contains('map-reset')) resetMapGame(t.dataset.mapReset);
-    else if (t.parentNode.classList.contains('guess')) pickWarmup(t, t.parentNode);
+    else if (t.closest('.guess')) pickWarmup(t, t.closest('.guess'));
     else if (t.id === 'btnReveal') {
       stopVideos();
       var identities = document.getElementById('showIdentities');
@@ -1080,6 +1134,7 @@
         }
       });
       syncHeadArt();
+      syncRevealUI();
     } else if (t.id === 'btnAns' && TEACHER && !classOn) {
       showAns = !showAns;
       refreshMarks();

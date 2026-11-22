@@ -250,8 +250,15 @@
     }
   };
 
-  var reveal = '<button type="button" class="mini cls reveal-shows" id="btnReveal" aria-expanded="false" aria-controls="showIdentities" disabled>정체 공개</button>';
-  var revealAsia = '<button type="button" class="mini cls reveal-shows" id="btnReveal" data-label-open="악기 이름 공개" data-label-close="악기 이름 숨기기" aria-expanded="false" aria-controls="showIdentities" disabled>악기 이름 공개</button>';
+  function flowStepsHTML(step1, step2, step3) {
+    return '<ol class="flow-steps" aria-label="활동 순서">' +
+      '<li data-step="1"><i>1</i><span>' + step1 + '</span></li>' +
+      '<li data-step="2"><i>2</i><span>' + step2 + '</span></li>' +
+      '<li data-step="3"><i>3</i><span>' + step3 + '</span></li>' +
+      '</ol>';
+  }
+  var reveal = '<button type="button" class="mini cls reveal-shows" id="btnReveal" aria-expanded="false" aria-controls="showIdentities" data-hint-wait="소리 3개를 모두 고르면 정체 공개 버튼이 열려요." data-hint-teacher="소리를 듣고 골라 보거나, 교사 모드에서 바로 공개할 수 있어요." data-hint-ready="모두 골랐어요! 버튼을 눌러 세 소리의 정체를 확인해요." data-hint-open="아래에서 세 소리의 정체와 세계 지도를 확인해 봐요." disabled>정체 공개</button>';
+  var revealAsia = '<button type="button" class="mini cls reveal-shows" id="btnReveal" data-label-open="악기 이름 공개" data-label-close="악기 이름 숨기기" aria-expanded="false" aria-controls="showIdentities" data-hint-wait="먼저 위에서 악기를 골라 보세요." data-hint-teacher="영상을 보고 골라 보거나, 교사 모드에서 바로 공개할 수 있어요." data-hint-ready="골랐어요! 이제 버튼을 눌러 악기 이름을 확인해요." data-hint-open="아래에서 두 악기의 이름과 특징을 확인해 봐요." disabled>악기 이름 공개</button>';
 
   function graded(id, type, prompt, opts, ans, group, listen) {
     var q = { id: id, type: type, prompt: prompt, opts: opts, ans: ans, accept: [ans], group: group };
@@ -281,11 +288,17 @@
         <div class="goals"><b>학습 목표</b><ol><li>세계 여러 나라의 악기·음악·노래를 듣고 음색과 특징을 구별할 수 있다.</li><li>각 지역의 음악과 문화를 세계 지도 위에 연결하며 다양성을 존중할 수 있다.</li></ol></div>
         {capsule:q1}
         {teacher:plan}
-        <section class="activity"><h2>어디서 온 소리일까?</h2>
-          <p>눈을 감고 15초씩 들어 봐요. 세 소리가 어느 대륙에서 왔을지 하나씩 골라요.</p>
+        <section class="activity reveal-flow" data-reveal-flow="start">
+          <div class="flow-head">
+            <h2>어디서 온 소리일까?</h2>
+            ${flowStepsHTML('소리 듣기', '대륙 고르기', '정체 공개')}
+          </div>
+          <p class="flow-lead">눈을 감고 15초씩 들어 봐요. 세 소리가 어느 대륙에서 왔을지 하나씩 골라요.</p>
           <div class="listen-grid opening-videos">{vid:mysA}{vid:mysB}{vid:mysC}</div>
-          <div id="showGuesses">{warmup:mysA}{warmup:mysB}{warmup:mysC}</div>
-          ${reveal}
+          <div class="guess-reveal-card">
+            <div id="showGuesses" class="guess-step guess-rows"><span class="step-tag">2단계 · 대륙 고르기</span>{warmup:mysA}{warmup:mysB}{warmup:mysC}</div>
+            <div class="reveal-bar" data-reveal-bar><div class="reveal-bar-copy"><span class="step-tag">3단계 · 정체 공개</span><p class="reveal-hint" id="revealHint" aria-live="polite">소리 3개를 모두 고르면 정체 공개 버튼이 열려요.</p></div>${reveal}</div>
+          </div>
           <div id="showIdentities" hidden><ul class="identities"><li><b>소리 1</b> 오세아니아(호주)</li><li><b>소리 2</b> 아메리카(브라질)</li><li><b>소리 3</b> 아시아(일본)</li></ul>
             {art:world-map}<p>오늘은 지도 위 열 곳의 정거장을 차례로 들러요.</p></div>
         </section>
@@ -296,15 +309,24 @@
       id: 'asia', title: '아시아 정거장', time: '11분', task: '줄과 징의 소리를 비교하고 입으로 흉내 내요.',
       lead: '소리가 시작되는 순간과 사라지는 순간에 귀를 기울여요.',
       lesson: `
-        <div id="showGuesses">{warmup:asia}</div>
-        <div class="listen-grid">{vid:shamisen}{vid:pipa}</div>
-        ${revealAsia}
-        <div id="showIdentities" hidden>
-          <ul class="identities"><li><b>악기 1</b> 샤미센 · 일본</li><li><b>악기 2</b> 비파 · 중국</li></ul>
-          <dl class="terms terms-two">
-          {term:샤미센|일본|가죽을 씌운 네모난 나무 몸통 위에 세 줄이 걸려 있어요. 은행잎처럼 생긴 큰 채인 바치로 튕기면 소리가 단단하게 울리고 뚝 끊겨요. 가부키와 민요의 반주에서도 들을 수 있어요.}
-          {term:비파|중국|물방울처럼 생긴 몸통에 줄 네 개가 걸려 있어요. 손톱으로 줄을 튕겨 소리를 내요. 손가락을 빠르게 굴리며 소리를 이어 가는 연주법을 윤지라고 해요.}
-        </dl><details class="more"><summary>더 알아보기 · 우리나라의 비파</summary><p>우리나라에도 향비파와 당비파가 있었어요.</p></details></div>
+        <section class="activity reveal-flow" data-reveal-flow="asia">
+          <div class="flow-head">
+            <h2>두 악기 소리 비교</h2>
+            ${flowStepsHTML('영상 듣기', '악기 고르기', '이름 공개')}
+          </div>
+          <p class="flow-lead">두 악기 영상을 차례로 보고 소리의 차이를 귀로 비교해 봐요.</p>
+          <div class="listen-grid">{vid:shamisen}{vid:pipa}</div>
+          <div class="guess-reveal-card">
+            <div id="showGuesses" class="guess-step"><span class="step-tag">2단계 · 악기 고르기</span>{warmup:asia}</div>
+            <div class="reveal-bar" data-reveal-bar><div class="reveal-bar-copy"><span class="step-tag">3단계 · 이름 공개</span><p class="reveal-hint" id="revealHint" aria-live="polite">먼저 위에서 악기를 골라 보세요.</p></div>${revealAsia}</div>
+          </div>
+          <div id="showIdentities" hidden>
+            <ul class="identities"><li><b>악기 1</b> 샤미센 · 일본</li><li><b>악기 2</b> 비파 · 중국</li></ul>
+            <dl class="terms terms-two">
+            {term:샤미센|일본|가죽을 씌운 네모난 나무 몸통 위에 세 줄이 걸려 있어요. 은행잎처럼 생긴 큰 채인 바치로 튕기면 소리가 단단하게 울리고 뚝 끊겨요. 가부키와 민요의 반주에서도 들을 수 있어요.}
+            {term:비파|중국|물방울처럼 생긴 몸통에 줄 네 개가 걸려 있어요. 손톱으로 줄을 튕겨 소리를 내요. 손가락을 빠르게 굴리며 소리를 이어 가는 연주법을 윤지라고 해요.}
+          </dl><details class="more"><summary>더 알아보기 · 우리나라의 비파</summary><p>우리나라에도 향비파와 당비파가 있었어요.</p></details></div>
+        </section>
         {vid:kulintang}<dl class="terms terms-one">{term:쿨린탕|필리핀 남부 민다나오 등|틀 위에 작은 징을 눕히고 음높이 순서로 늘어놓아요. 보통 여덟 개 안팎의 징을 두 손에 든 나무 채로 쳐요. 북과 큰 징도 함께 어울려요.}</dl>
         <div class="talk"><b>입으로 소리 내기</b>다 같이 샤미센은 “팅”, 비파는 “또롱”, 쿨린탕은 “동동” 하고 흉내 내요.</div>
         <div class="talk"><b>짝과 30초</b>세 악기 가운데 가장 마음에 든 소리는 무엇인가요? 그 까닭을 짝에게 말해요.</div>{art:world-asia}`,
