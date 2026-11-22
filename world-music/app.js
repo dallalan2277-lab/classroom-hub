@@ -104,13 +104,18 @@
   }
 
   /* ---------- 수업 화면 조각 ---------- */
+  function thumbURL(yt) {
+    return 'https://i.ytimg.com/vi/' + encodeURIComponent(yt) + '/hqdefault.jpg';
+  }
   function vidHTML(key, cap) {
     var v = V[key], title = esc(v.title);
     var mode = v.mode === 'solo' ? '태블릿 · 각자 짧게' : '칠판 · 다 같이';
+    var showThumb = !!(v.id && !v.audioOnly && !v.blind);
     var attrs = ' data-video="' + esc(key) + '" data-yt="' + esc(v.id) + '" data-start="' + v.start + '" data-end="' + v.end + '"' +
       (v.audioOnly ? ' data-audio="1"' : '') + (v.blind ? ' data-blind="1"' : '');
-    var player = v.id ? '<button class="vid-play" type="button" data-label="' + title + '" aria-pressed="false" aria-label="' + title + ' 재생">' +
-      '<span class="play" aria-hidden="true"></span><span class="vid-mask">' + title + '</span></button>' :
+    var thumb = showThumb ? '<img class="vid-thumb" src="' + thumbURL(v.id) + '" alt="" loading="lazy" decoding="async">' : '';
+    var player = v.id ? '<button class="vid-play' + (showThumb ? ' has-thumb' : '') + '" type="button" data-label="' + title + '" aria-pressed="false" aria-label="' + title + ' 재생">' +
+      thumb + '<span class="play" aria-hidden="true"></span><span class="vid-mask">' + title + '</span></button>' :
       '<div class="vid-pending"><span class="vid-mask">' + title + '</span><small>영상 준비 중</small></div>';
     return '<figure class="vid"' + attrs + '>' +
       player + '<figcaption><div class="vid-head"><b>' + title + '</b><span class="play-mode">' + mode + '</span></div>' +
@@ -982,21 +987,26 @@
       var identities = document.getElementById('showIdentities');
       identities.hidden = !identities.hidden;
       t.setAttribute('aria-expanded', String(!identities.hidden));
-      t.textContent = identities.hidden ? '정체 공개' : '정체 숨기기';
-      if (PAGES[lastPage].id === 'asia') {
-        var names = { shamisen: '샤미센', pipa: '비파' };
-        Object.keys(names).forEach(function (key) {
-          var card = view.querySelector('[data-video="' + key + '"]');
-          var title = identities.hidden ? V[key].title : names[key];
-          card.querySelector('.vid-mask').textContent = card.querySelector('.vid-head b').textContent = title;
-          var play = card.querySelector('.vid-play'), frame = card.querySelector('iframe');
-          if (play) {
-            play.dataset.label = title;
-            play.setAttribute('aria-label', title + ' 재생');
+      t.textContent = identities.hidden ? (t.dataset.labelOpen || '정체 공개') : (t.dataset.labelClose || '정체 숨기기');
+      view.querySelectorAll('.vid[data-blind="1"]').forEach(function (card) {
+        var play = card.querySelector('.vid-play'), yt = card.dataset.yt;
+        if (!play || !yt) return;
+        var existing = play.querySelector('.vid-thumb');
+        if (!identities.hidden) {
+          if (!existing) {
+            var img = document.createElement('img');
+            img.className = 'vid-thumb';
+            img.src = thumbURL(yt);
+            img.alt = '';
+            img.decoding = 'async';
+            play.prepend(img);
           }
-          if (frame) frame.title = title + ' 재생';
-        });
-      }
+          play.classList.add('has-thumb');
+        } else {
+          if (existing) existing.remove();
+          play.classList.remove('has-thumb');
+        }
+      });
       syncHeadArt();
     } else if (t.id === 'btnAns' && TEACHER && !classOn) {
       showAns = !showAns;

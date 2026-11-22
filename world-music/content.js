@@ -6,8 +6,8 @@
     return Object.assign({ id: id, title: title, by: by, start: start, end: start + seconds, mode: mode || 'board' }, extra || {});
   }
   var V = {
-    shamisen: clip('m-9bVMKlfJM', '소리 1', 65, 35, 'Yoshida Brothers Live', 'board', { blind: true }),
-    pipa: clip('6fMEaj7kkDA', '소리 2', 45, 35, 'Liu Dehai & Students Live', 'board', { blind: true }),
+    shamisen: clip('m-9bVMKlfJM', '악기 1', 65, 35, '', 'board'),
+    pipa: clip('6fMEaj7kkDA', '악기 2', 45, 35, '', 'board'),
     kulintang: clip('Czh1oqx0Bpw', '필리핀의 작은 징 합주', 12, 30, 'Harold Andre'),
     banjo: clip('fnMhUPewk6c', '미국의 줄 악기', 3, 30, 'WillowOsborne'),
     mariachi: clip('zPIeuoaOrTY', '멕시코의 악단', 120, 40, 'Mariachi San Francisco Live'),
@@ -70,7 +70,7 @@
     mysA: { prompt: '소리 1', opts: continents },
     mysB: { prompt: '소리 2', opts: continents },
     mysC: { prompt: '소리 3', opts: continents },
-    asia: { prompt: '줄을 뜯는 두 악기, 어느 쪽 소리가 더 단단하고 짧게 끊길까?', opts: ['소리 1', '소리 2'] },
+    asia: { prompt: '줄을 뜯는 두 악기 영상을 보고, 어느 쪽 소리가 더 단단하고 짧게 끊기는지 골라요.', opts: ['악기 1', '악기 2'] },
     faraway: { prompt: '긴 나무 대롱 하나로 어떤 소리가 날까?', opts: ['높고 맑은 소리', '낮게 계속 울리는 소리', '짧게 톡톡 끊기는 소리'] },
     jambo: { prompt: '이 노래는 어떤 때 부를 것 같나요?', opts: ['만나서 인사할 때', '잠들기 전', '슬플 때'] }
   };
@@ -221,6 +221,7 @@
   };
 
   var reveal = '<button type="button" class="mini cls reveal-shows" id="btnReveal" aria-expanded="false" aria-controls="showIdentities" disabled>정체 공개</button>';
+  var revealAsia = '<button type="button" class="mini cls reveal-shows" id="btnReveal" data-label-open="악기 이름 공개" data-label-close="악기 이름 숨기기" aria-expanded="false" aria-controls="showIdentities" disabled>악기 이름 공개</button>';
 
   function graded(id, type, prompt, opts, ans, group, listen) {
     var q = { id: id, type: type, prompt: prompt, opts: opts, ans: ans, accept: [ans], group: group };
@@ -267,8 +268,10 @@
       lesson: `
         <div id="showGuesses">{warmup:asia}</div>
         <div class="listen-grid">{vid:shamisen}{vid:pipa}</div>
-        ${reveal}
-        <div id="showIdentities" hidden><dl class="terms terms-two">
+        ${revealAsia}
+        <div id="showIdentities" hidden>
+          <ul class="identities"><li><b>악기 1</b> 샤미센 · 일본</li><li><b>악기 2</b> 비파 · 중국</li></ul>
+          <dl class="terms terms-two">
           {term:샤미센|일본|가죽을 씌운 네모난 나무 몸통 위에 세 줄이 걸려 있어요. 은행잎처럼 생긴 큰 채인 바치로 튕기면 소리가 단단하게 울리고 뚝 끊겨요. 가부키와 민요의 반주에서도 들을 수 있어요.}
           {term:비파|중국|물방울처럼 생긴 몸통에 줄 네 개가 걸려 있어요. 손톱으로 줄을 튕겨 소리를 내요. 손가락을 빠르게 굴리며 소리를 이어 가는 연주법을 윤지라고 해요.}
         </dl><details class="more"><summary>더 알아보기 · 우리나라의 비파</summary><p>우리나라에도 향비파와 당비파가 있었어요.</p></details></div>
