@@ -20,6 +20,8 @@ const SHEET_SUBMIT = '제출';   // 제출 결과를 쌓는 시트
 const SHEET_STATUS = '현황';   // 학습지·학번·이름별 최신 상태
 const SHEET_ARCHIVE = '시험보관'; // 시험 제출 원본 보관(지우기·초기화로도 삭제 안 됨)
 const SHEET_ROSTER = '명단';   // (선택) A열 학번(10712 모양), B열 이름. 있으면 현황판 자리표에 이름과 '안 온 학생'을 보여 줘요.
+const EXAM_WORKSHEETS = ['gugak-exam'];
+const EXAM_CLOCK_SKEW_MS_ = 15 * 60 * 1000;
 // 현황판 '학습지' 목록에 보일 학습지(학습지 모음 첫 화면과 같은 순서). 여기 없는 학습지 기록은 시트에는 남지만 현황판에는 안 보여요.
 const DASH_SHEETS = [
   ['gugak-exam', '국악기 수행평가'],
@@ -202,6 +204,8 @@ function handle_(contents) {
     locked = lock.tryLock(10000);
     if (!locked) return {ok: false, error: '요청이 몰렸어요. 잠시 후 다시 보내 주세요.'};
 
+    if (request.exam && isStaleExamSubmission_(request)) return {ok: true, dup: true, stale: true};
+
     const book = openBook_();
     if (!book) return {ok: false, error: '선생님이 먼저 setup을 실행해야 해요.'};
     const log = book.getSheetByName(SHEET_LOG);
@@ -215,29 +219,39 @@ function handle_(contents) {
     // 같은 신호를 다시 받았거나(재전송) 더 나중 신호보다 늦게 도착했는지 먼저 봐요.
     const current = findStatus_(status, request);
     const order = eventOrder_(current.row, request);
-    if (order === 'dup') return {ok: true, dup: true};
-    if (request.exam && hasExamSubmission_(submissions, request)) {
-      if (!current.row || (current.row[4] !== '제출함' && current.row[8].split(' ')[0] === request.sid)) {
-        writeStatus_(status, current, request, serverTime, order);
-        SpreadsheetApp.flush();
+    if (!request.exam && order === 'dup') return {ok: true, dup: true};
+
+    const d = request.data;
+    let submission = request.type === 'submit' ? [serverTime, request.ws, request.num, request.name,
+      d.score, d.total, request.away, d.minutes, d.attempt, d.wrong.join(', '), request.answersJson, request.sid] : null;
+    if (request.exam) {
+      const saved = findExamAttempt_(submissions, HEADERS_SUBMIT_.length, request);
+      const archived = ensureExamAttemptArchive_(book, request, saved || submission);
+      if (saved || order === 'dup') {
+        if (saved && order !== 'dup' &&
+            (!current.row || (current.row[4] !== '제출함' && current.row[8].split(' ')[0] === request.sid))) {
+          d.score = Number(saved[4]);
+          writeStatus_(status, current, request, serverTime, order);
+          SpreadsheetApp.flush();
+        }
+        return {ok: true, dup: true};
       }
-      return {ok: true, dup: true};
+      if (archived) {
+        // 보관 후 제출 시트 쓰기에 실패했다면, 처음 받은 답안과 시각을 써요.
+        const wrong = gradeExam_(examKey_(request.ws), readExamAnswers_(archived[10])).wrong;
+        submission = archived.slice(0, 4).concat(archived.slice(4, 9).map(Number),
+          [wrong.join(', '), archived[10], archived[11]]);
+        d.score = submission[4];
+        d.total = submission[5];
+      }
+      appendRow_(submissions, submission);
     }
     sendAlert = Boolean(ALERT_EMAIL) && request.type === 'away' && request.away === ALERT_AT &&
       !hasAlertRecord_(log, request);
     const details = eventDetails_(request);
     appendRow_(log, [serverTime, request.ws, request.num, request.name, details.kind,
       request.away, details.text + (order === 'late' ? ' (늦게 도착해 현황에는 반영 안 함)' : ''), request.sid]);
-    if (request.type === 'submit') {
-      const d = request.data;
-      appendRow_(submissions, [serverTime, request.ws, request.num, request.name, d.score, d.total,
-        request.away, d.minutes, d.attempt, d.wrong.join(', '), request.answersJson, request.sid]);
-      if (request.exam) {
-        appendRow_(ensureArchiveSheet_(book), [serverTime, request.ws, request.num, request.name,
-          d.score, d.total, request.away, d.minutes, d.attempt, request.auto ? '예' : '아니요',
-          request.answersJson, request.sid, '제출']);
-      }
-    }
+    if (submission && !request.exam) appendRow_(submissions, submission);
     if (order !== 'late' || request.type === 'submit') writeStatus_(status, current, request, serverTime, order);
     SpreadsheetApp.flush();
   } catch (error) {
@@ -318,6 +332,9 @@ function parseRequest_(contents) {
     request.data = {seconds: integer_(data.seconds, 'seconds', 0)};
   } else {
     const exam = examKey_(request.ws);
+    if (!exam && EXAM_WORKSHEETS.indexOf(request.ws) >= 0) {
+      throw new Error('시험 정답표가 허브에 없어요. 선생님께 알려 주세요.');
+    }
     request.data = {
       minutes: integer_(data.minutes, 'minutes', 0),
       attempt: integer_(data.attempt, 'attempt', 1)
@@ -332,7 +349,7 @@ function parseRequest_(contents) {
     if (exam) {
       const grade = gradeExam_(exam, data.answers);
       request.exam = true;
-      request.auto = data.answers._auto === '1';
+      request.createdAtMs = Date.parse(data.answers._created);
       request.data.score = grade.correct;
       request.data.total = exam.items.length;
       request.data.wrong = grade.wrong;
@@ -532,11 +549,32 @@ function examSheetRows_(sheet, width) {
 }
 
 // Classroom.submit은 다시 보낼 때 시각이 달라져요. 같은 세션의 같은 제출 차수는 한 번만 기록해요.
-function hasExamSubmission_(sheet, request) {
-  return examSheetRows_(sheet, HEADERS_SUBMIT_.length).some(function (r) {
+function findExamAttempt_(sheet, width, request) {
+  return examSheetRows_(sheet, width).find(function (r) {
     return r[1] === request.ws && r[2] === request.num && r[3] === request.name &&
-      Number(r[8]) === request.data.attempt && r[11] === request.sid;
+      Number(r[8]) === request.data.attempt && r[11] === request.sid && (!r[12] || r[12] === '제출');
   });
+}
+
+function readExamAnswers_(json) {
+  try {
+    const answers = JSON.parse(json);
+    if (isObject_(answers)) return answers;
+  } catch (error) {}
+  return {};
+}
+
+function ensureExamAttemptArchive_(book, request, submission) {
+  const sheet = ensureArchiveSheet_(book);
+  const archived = findExamAttempt_(sheet, HEADERS_ARCHIVE_.length, request);
+  if (archived) return archived;
+
+  const auto = readExamAnswers_(submission[10])._auto === '1';
+  const row = submission.slice(0, 4).concat(submission.slice(4, 9).map(Number),
+    [auto ? '예' : '아니요', submission[10], submission[11], '제출']);
+  appendRow_(sheet, row);
+  SpreadsheetApp.flush();
+  return null;
 }
 
 function ensureArchiveSheet_(book) {
@@ -562,6 +600,20 @@ function isValidExamNum_(num) {
   return typeof num === 'string' && /^(?:[1-3]0[1-9](?:0[1-9]|[12]\d|30)|[0-9]{4,10})$/.test(num);
 }
 
+function examResetSids_(properties, suffix) {
+  return JSON.parse(properties.getProperty('EXAM_RESET_SIDS:' + suffix) || '[]');
+}
+
+function isStaleExamSubmission_(request) {
+  const properties = PropertiesService.getScriptProperties();
+  const suffix = request.ws + ':' + request.num;
+  const resetAtMs = Date.parse(properties.getProperty('EXAM_RESET:' + suffix));
+  // 태블릿 시계가 몇 분 틀려도 새 응시를 버리지 않게, 초기화보다 넉넉히(15분) 앞선 답안만 옛 답안으로 봐요.
+  // (초기화 전에 신호를 보낸 세션은 아래 세션 목록으로 걸러요.)
+  return request.createdAtMs < resetAtMs - EXAM_CLOCK_SKEW_MS_ ||
+    examResetSids_(properties, suffix).indexOf(request.sid) >= 0;
+}
+
 function examReset_(input) {
   if (!checkKey_(input.key)) return {ok: false, error: '현황판 키가 올바르지 않아요.'};
   const ws = typeof input.ws === 'string' ? input.ws.trim() : '';
@@ -578,22 +630,43 @@ function examReset_(input) {
     if (!book) return {ok: false, error: '먼저 setup을 실행하세요.'};
     const wanted = {};
     wanted[num] = true;
-    const removedStatus = deleteMatching_(book.getSheetByName(SHEET_STATUS), 1, ws, wanted, true).length;
-    const removedLog = deleteMatching_(book.getSheetByName(SHEET_LOG), 2, ws, wanted, true).length;
-    const removedSubmit = deleteMatching_(book.getSheetByName(SHEET_SUBMIT), 2, ws, wanted, true).length;
+    const statusSheet = book.getSheetByName(SHEET_STATUS);
+    const logSheet = book.getSheetByName(SHEET_LOG);
+    const submitSheet = book.getSheetByName(SHEET_SUBMIT);
+    const statusHits = findMatchingRows_(statusSheet, 1, ws, wanted, true);
+    const logHits = findMatchingRows_(logSheet, 2, ws, wanted, true);
+    const submitHits = findMatchingRows_(submitSheet, 2, ws, wanted, true);
+
+    const properties = PropertiesService.getScriptProperties();
+    const suffix = ws + ':' + num;
+    const resetSids = new Set(examResetSids_(properties, suffix));
+    const sessions = statusHits.map(function (h) { return {sid: (h.row[8] || '').split(' ')[0], time: h.row[6] || ''}; })
+      .concat(submitHits.map(function (h) { return {sid: h.row[11], time: h.row[0]}; }),
+        logHits.map(function (h) { return {sid: h.row[7], time: h.row[0]}; }));
+    sessions.sort(function (a, b) { return a.time.localeCompare(b.time); }).forEach(function (session) {
+      if (!session.sid) return;
+      resetSids.delete(session.sid);
+      resetSids.add(session.sid);
+    });
 
     const now = new Date();
     const resetAt = now.toISOString();
     const serverTime = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
-    PropertiesService.getScriptProperties().setProperty('EXAM_RESET:' + ws + ':' + num, resetAt);
+    // 줄을 지우다 실패해도 그 세션의 답안이 다시 들어오지 않게 먼저 기억해요.
+    properties.setProperties({
+      ['EXAM_RESET:' + suffix]: resetAt,
+      ['EXAM_RESET_SIDS:' + suffix]: JSON.stringify(Array.from(resetSids).slice(-50))
+    });
+    deleteMatchedRows_(statusSheet, statusHits);
+    deleteMatchedRows_(logSheet, logHits);
+    deleteMatchedRows_(submitSheet, submitHits);
 
-    const logSheet = book.getSheetByName(SHEET_LOG);
     if (logSheet) {
-      appendRow_(logSheet, [serverTime, ws, num, '(선생님)', '재응시 초기화', 0, '지운 제출 ' + removedSubmit + '줄', '']);
+      appendRow_(logSheet, [serverTime, ws, num, '(선생님)', '재응시 초기화', 0, '지운 제출 ' + submitHits.length + '줄', '']);
     }
     appendRow_(ensureArchiveSheet_(book), [serverTime, ws, num, '(선생님)', '', '', 0, '', '', '', '', '', '재응시 초기화']);
     SpreadsheetApp.flush();
-    return {ok: true, removed: {submit: removedSubmit, log: removedLog, status: removedStatus}, resetAt: resetAt};
+    return {ok: true, removed: {submit: submitHits.length, log: logHits.length, status: statusHits.length}, resetAt: resetAt};
   } catch (error) {
     return {ok: false, error: error.message};
   } finally {
@@ -634,9 +707,7 @@ function examRestore_(input) {
     });
     if (existingSub) return {ok: true, dup: true, restored: false};
 
-    let stored = {};
-    try { stored = JSON.parse(hit[10]); } catch (err) { stored = {}; }
-    if (!isObject_(stored)) stored = {};
+    const stored = readExamAnswers_(hit[10]);
     const grade = gradeExam_(exam, stored);
     const num = hit[2];
     const name = hit[3];
@@ -677,9 +748,7 @@ function examData_(ws) {
   if (!book) throw new Error('먼저 setup을 실행하세요.');
   const rows = examSheetRows_(book.getSheetByName(SHEET_SUBMIT), HEADERS_SUBMIT_.length)
     .filter(function (r) { return r[1] === ws; }).map(function (r) {
-      let stored;
-      try { stored = JSON.parse(r[10]); } catch (error) { stored = {}; }
-      if (!isObject_(stored)) stored = {};
+      const stored = readExamAnswers_(r[10]);
       const answers = {};
       Object.keys(stored).forEach(function (key) { if (/^q:/.test(key)) answers[key] = stored[key]; });
       const grade = gradeExam_(exam, answers);
@@ -841,7 +910,13 @@ function dashboardRestore(key, rows) {
 
 // wsCol 열이 ws이고 (학번, 이름)이 wanted에 있는 줄을 지우고, 지운 줄(현황 형식 문자열)을 돌려줘요.
 // 이웃한 줄은 한 번에 지워서 빠르게 처리해요.
-function deleteMatching_(sheet, wsCol, ws, wanted, matchByNumOnly) {
+function deleteMatching_(sheet, wsCol, ws, wanted) {
+  const hits = findMatchingRows_(sheet, wsCol, ws, wanted, false);
+  deleteMatchedRows_(sheet, hits);
+  return hits.map(function (hit) { return hit.row.slice(0, HEADERS_STATUS_.length); });
+}
+
+function findMatchingRows_(sheet, wsCol, ws, wanted, matchByNumOnly) {
   if (!sheet) return [];
   const count = sheet.getLastRow() - 1;
   if (count < 1) return [];
@@ -851,16 +926,19 @@ function deleteMatching_(sheet, wsCol, ws, wanted, matchByNumOnly) {
   values.forEach(function (row, i) {
     if (row[wsCol - 1] !== ws) return;
     const key = matchByNumOnly ? row[2] : (row[2] + '\u0000' + row[3]);
-    if (wanted[key]) hits.push(i);
+    if (wanted[key]) hits.push({index: i, row: row});
   });
+  return hits;
+}
+
+function deleteMatchedRows_(sheet, hits) {
   for (let k = hits.length - 1; k >= 0;) {
-    let start = hits[k];
+    let start = hits[k].index;
     let n = 1;
-    while (k - n >= 0 && hits[k - n] === start - 1) { start--; n++; }
+    while (k - n >= 0 && hits[k - n].index === start - 1) { start--; n++; }
     sheet.deleteRows(start + 2, n);
     k -= n;
   }
-  return hits.map(function (i) { return values[i].slice(0, HEADERS_STATUS_.length); });
 }
 
 function dashboardHtml_(key) {

@@ -25,6 +25,8 @@ FALLBACK_EXAM_KEYS = {
 
 
 def load_exam_keys():
+    if '--fake-exam' in sys.argv[1:]:
+        return FALLBACK_EXAM_KEYS
     key_path = Path(__file__).resolve().parent.parent / 'hub' / 'ExamKey.gs'
     if not key_path.is_file():
         return FALLBACK_EXAM_KEYS

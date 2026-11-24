@@ -102,7 +102,9 @@ const selfClosingXml = origXml.replace('<c r="J3" s="7"></c>', '<c r="J3" s="7"/
 const patchedSelfClose = NeisExcel.patchSheetXml(selfClosingXml, {3: 28}, {overwriteExisting: false});
 assert(patchedSelfClose.includes('<c r="J3" s="7" t="inlineStr"><is><t>28</t></is></c>'), 'self-closing cell patched');
 
-const existingXml = origXml.replace('<c r="J4" s="7"></c>', '<c r="J4" s="7" t="inlineStr"><is><t>15</t></is></c>');
+const existingXml = origXml
+  .replace('<c r="J4" s="7"></c>', '<c r="J4" s="7" t="inlineStr"><is><t>15</t></is></c>')
+  .replace('<c r="J7" s="7"></c>', '<c r="J7" s="7" t="inlineStr"><is><t>19</t></is></c>');
 const parsedExisting = NeisExcel.parseSheetXml(existingXml, filename);
 assert.strictEqual(parsedExisting.rows[1].hasExistingJ, true);
 assert.strictEqual(parsedExisting.rows[1].existingJ, '15');
@@ -111,22 +113,28 @@ const partialMap = {
   '20101': {num: '20101', name: '학생01', submitted: true, score: 27, needsReview: false},
   '20102': {num: '20102', name: '학생02', submitted: true, score: 29, needsReview: false},
   '20103': {num: '20103', name: '다른이름', submitted: true, score: 25, needsReview: false},
-  '20104': {num: '20104', name: '학생04', submitted: true, score: 22, needsReview: true, reviewReasons: ['제출 2회']}
+  '20104': {num: '20104', name: '학생04', submitted: true, score: 22, needsReview: true, reviewReasons: ['제출 2회']},
+  '20105': {num: '20105', name: '가상학생', submitted: true, score: 28, needsReview: true}
 };
 const partialPlan = NeisExcel.planNeisFill(parsedExisting, 2, partialMap, 25);
 assert.strictEqual(partialPlan.maxScoreMismatch, true, 'detects F1 max score mismatch (30 vs 25)');
-assert.strictEqual(partialPlan.fills.length, 3);
-assert.strictEqual(partialPlan.missing.length, 18);
+assert.strictEqual(partialPlan.fills.length, 2);
+assert.strictEqual(partialPlan.missing.length, 17);
 assert.strictEqual(partialPlan.needsReview.length, 1);
-assert.strictEqual(partialPlan.nameMismatches.length, 1);
+assert.deepStrictEqual(partialPlan.nameMismatches.map(m => m.num), ['20103', '20105']);
 assert.strictEqual(partialPlan.existingCells.length, 1);
 
-const keepExistingXml = NeisExcel.patchSheetXml(existingXml, {3: 27, 4: 29}, {overwriteExisting: false});
+const plannedScores = Object.fromEntries(partialPlan.fills.map(f => [f.row, f.score]));
+const keepExistingXml = NeisExcel.patchSheetXml(existingXml, plannedScores, {overwriteExisting: false});
 assert(keepExistingXml.includes('<c r="J3" s="7" t="inlineStr"><is><t>27</t></is></c>'));
 assert(keepExistingXml.includes('<c r="J4" s="7" t="inlineStr"><is><t>15</t></is></c>'), 'existing J4 kept when overwriteExisting=false');
 
-const overwriteXml = NeisExcel.patchSheetXml(existingXml, {3: 27, 4: 29}, {overwriteExisting: true});
+const overwriteXml = NeisExcel.patchSheetXml(existingXml, plannedScores, {overwriteExisting: true});
 assert(overwriteXml.includes('<c r="J4" s="7" t="inlineStr"><is><t>29</t></is></c>'), 'existing J4 overwritten when overwriteExisting=true');
+for (const xml of [keepExistingXml, overwriteXml]) {
+  assert(xml.includes('<c r="J5" s="7"></c>'), 'name mismatch leaves blank J5 unchanged');
+  assert(xml.includes('<c r="J7" s="7" t="inlineStr"><is><t>19</t></is></c>'), 'name mismatch protects existing J7');
+}
 
 // 3) sharedStrings.xml (t="s") 파싱 및 패치 검증 (엑셀 재저장 파일 대응)
 const sstXml = `<?xml version="1.0" encoding="UTF-8"?>

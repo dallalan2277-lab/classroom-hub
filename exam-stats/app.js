@@ -732,7 +732,7 @@
       var rec = byNum[num];
       map[num] = {
         num: num,
-        name: rec.displayName,
+        name: rec.official ? rec.official.name : rec.displayName,
         submitted: rec.submitted,
         score: rec.convertedScore,
         needsReview: rec.needsReview,
@@ -827,7 +827,7 @@
         ['muted', '미응시 ' + plan.missing.length + '명'],
         [plan.needsReview.length ? 'warn' : 'muted', '확인 필요 ' + plan.needsReview.length + '명']
       ];
-      if (plan.nameMismatches.length) badges.push(['warn', '성명 다름 ' + plan.nameMismatches.length + '명']);
+      if (plan.nameMismatches.length) badges.push(['warn', '이름 다름 ' + plan.nameMismatches.length + '명']);
       if (plan.existingCells.length) badges.push(['warn', '기존 J값 ' + plan.existingCells.length + '칸']);
       if (entry.parsed.maxScore !== null) badges.push([plan.maxScoreMismatch ? 'danger' : 'muted', '파일 영역만점 ' + entry.parsed.maxScore]);
       badges.forEach(function (pair) {
@@ -861,7 +861,7 @@
       if (plan.nameMismatches.length) {
         var wNm = document.createElement('div');
         wNm.className = 'warn-box-inline';
-        wNm.textContent = '반·번호는 맞지만 이름이 다른 학생: ' + plan.nameMismatches.map(function (m) {
+        wNm.textContent = '이름이 달라 비워 둠 (기존 점수 유지) · ' + plan.nameMismatches.map(function (m) {
           return m.num + ' 엑셀("' + m.neisName + '") ≠ 시험("' + m.examName + '")';
         }).join(', ');
         warns.appendChild(wNm);

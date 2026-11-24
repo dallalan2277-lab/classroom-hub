@@ -6,6 +6,7 @@
   var VIDEO_ID = window.EXAM_VIDEO_ID || '';
   var TEACHER = !!(CR && CR.teacher);
   var MAX_AWAY = 5;
+  var SUBMIT_TIMEOUT_MS = 20000;
   var LAST_KEY = 'gugak-exam:last';
   var RESET_ACK_PREFIX = 'gugak-exam:reset-ack:';
   var HUB_URL = 'https://script.google.com/macros/s/AKfycbyIvmwidYjUqyMIx5SdVP4NhY5tsqAhuWOGzOhtRUI4NSYAoQkKMt-6s7DFud7s5aMN/exec';
@@ -57,7 +58,7 @@
   var student = { num: '00000', name: '교사 모드' };
   var sid = 'teacher';
   var orderedItems = ITEMS.slice();
-  var draft = { sid: '', answers: {}, locked: false, auto: false, submittedAt: '', introSeen: false, ackAt: '', createdAt: '' };
+  var draft;
   var playingCode = '';
   var audioTimer = null;
   var submitting = false;
@@ -110,7 +111,7 @@
   }
 
   function loadDraft(num) {
-    var base = { sid: sid, answers: {}, locked: false, auto: false, submittedAt: '', introSeen: false, ackAt: '', createdAt: '' };
+    var base = { sid: sid, answers: {}, locked: false, auto: false, submittedAt: '', introSeen: false, awayBase: 0, ackAt: '', createdAt: '' };
     var exists = false;
     try {
       var raw = localStorage.getItem(draftKey(num));
@@ -123,6 +124,7 @@
           base.auto = !!o.auto;
           base.submittedAt = typeof o.submittedAt === 'string' ? o.submittedAt : '';
           base.introSeen = !!o.introSeen;
+          if (Number.isInteger(o.awayBase) && o.awayBase >= 0) base.awayBase = o.awayBase;
           base.ackAt = typeof o.ackAt === 'string' ? o.ackAt : '';
           base.createdAt = typeof o.createdAt === 'string' ? o.createdAt : '';
           if (typeof o.sid === 'string') base.sid = o.sid;
@@ -158,10 +160,14 @@
     filledCnt.textContent = String(filledCount());
   }
 
+  function examAway() {
+    var away = CR ? CR.away : 0;
+    return draft.introSeen ? Math.max(0, away - draft.awayBase) : 0;
+  }
+
   function updateAwayUI(away) {
-    var n = Number(away) || 0;
-    awayCnt.textContent = String(n);
-    awayBar.classList.toggle('danger', n >= 3);
+    awayCnt.textContent = String(away);
+    awayBar.classList.toggle('danger', away >= 3);
   }
 
   function stopAudio() {
@@ -370,12 +376,12 @@
     out._auto = isAuto ? '1' : '0';
     out._order = orderedItems.map(function (x) { return x.code; }).join(',');
     out._ack = draft.ackAt || '';
+    out._created = draft.createdAt;
     return out;
   }
 
   function submitExam(isAuto) {
-    if (submitting || draft.locked) return;
-    if (!isAuto && !TEACHER && !draft.introSeen) return;
+    if (!draft || submitting || draft.locked || (!TEACHER && !draft.introSeen)) return;
     if (autoRetryTimer) {
       clearTimeout(autoRetryTimer);
       autoRetryTimer = null;
@@ -418,7 +424,7 @@
         return;
       }
       var errText = (res && res.error) || '전송에 실패했습니다. 잠시 후 다시 시도하세요.';
-      if (isAuto || (!TEACHER && (CR ? CR.away : 0) >= MAX_AWAY)) {
+      if (isAuto || examAway() >= MAX_AWAY) {
         setInputsDisabled(true);
         showLockedView(true, true, errText + ' 5초 뒤 자동으로 다시 보냅니다.');
         autoRetryTimer = setTimeout(function () {
@@ -437,15 +443,28 @@
       finish({ ok: true, offline: true });
       return;
     }
-    Promise.resolve()
-      .then(function () { return CR.submit(payload); })
-      .then(finish, function (e) { finish({ ok: false, error: e && e.message }); });
+    var timer;
+    var deadline = new Promise(function (resolve) {
+      timer = setTimeout(function () {
+        resolve({ ok: false, error: '전송 결과를 확인하지 못했습니다.' });
+      }, SUBMIT_TIMEOUT_MS);
+    });
+    var response = Promise.resolve().then(function () {
+      // 기다리는 동안 앞선 응답이 성공했다면 새 제출 차수를 만들지 않아요.
+      return !TEACHER && CR.submitted ? { ok: true } : CR.submit(payload);
+    });
+    Promise.race([response, deadline])
+      .catch(function (e) { return { ok: false, error: e && e.message }; })
+      .then(function (res) {
+        clearTimeout(timer);
+        finish(res);
+      });
   }
 
   stopAudioBtn.addEventListener('click', stopAudio);
 
   submitBtn.addEventListener('click', function () {
-    if (submitting || draft.locked) return;
+    if (!draft || submitting || draft.locked) return;
     if (!TEACHER && !draft.introSeen) return;
     var left = ITEMS.length - filledCount();
     confirmText.textContent = left > 0
@@ -466,15 +485,18 @@
   });
 
   autoRetryBtn.addEventListener('click', function () {
-    if (!submitting && !draft.locked) submitExam(true);
+    submitExam(true);
   });
 
   introStartBtn.addEventListener('click', function () {
+    if (!draft || draft.introSeen) return;
+    draft.awayBase = CR ? CR.away : 0;
     draft.introSeen = true;
     draft.ackAt = formatNow(); // 시작 경고 창에서 '이해했습니다'를 누른 시각(답안과 함께 전송)
     saveDraft();
     introModal.hidden = true;
     setBackgroundInert(false);
+    updateAwayUI(examAway());
   });
 
   zoomCloseBtn.addEventListener('click', function () {
@@ -513,11 +535,10 @@
     }
   });
 
-  document.addEventListener('classroom:away', function (e) {
+  document.addEventListener('classroom:away', function () {
     stopAudio();
-    var away = (e && e.detail && typeof e.detail.away === 'number')
-      ? e.detail.away
-      : (CR ? CR.away : 0);
+    if (!draft) return;
+    var away = examAway();
     updateAwayUI(away);
     if (!TEACHER && !draft.locked && away >= MAX_AWAY) {
       submitExam(true);
@@ -597,6 +618,7 @@
     if (!draft.createdAt) {
       draft.createdAt = new Date().toISOString();
     }
+    if (draft.sid !== sid) draft.awayBase = 0;
     draft.sid = sid;
     saveDraft();
 
@@ -608,7 +630,8 @@
     }
 
     var locked = !TEACHER && ((CR && CR.submitted) || draft.locked);
-    updateAwayUI(CR ? CR.away : 0);
+    var away = examAway();
+    updateAwayUI(away);
 
     if (locked) {
       draft.locked = true;
@@ -618,7 +641,7 @@
     }
 
     renderCards();
-    if (!TEACHER && (CR ? CR.away : 0) >= MAX_AWAY) {
+    if (!TEACHER && away >= MAX_AWAY) {
       submitExam(true);
       if (hadSaved) checkExamReset(refTime);
       return;

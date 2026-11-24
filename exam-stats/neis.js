@@ -187,6 +187,16 @@
         continue;
       }
 
+      if (normName(r.name) !== normName(st.name)) {
+        nameMismatches.push({
+          row: r.row,
+          num: num,
+          neisName: r.name,
+          examName: st.name || ''
+        });
+        continue;
+      }
+
       if (st.needsReview) {
         needsReview.push({
           row: r.row,
@@ -198,15 +208,6 @@
           reasons: st.reviewReasons || []
         });
         continue;
-      }
-
-      if (normName(r.name) !== normName(st.name)) {
-        nameMismatches.push({
-          row: r.row,
-          num: num,
-          neisName: r.name,
-          examName: st.name || ''
-        });
       }
 
       if (r.hasExistingJ) {

@@ -5,10 +5,20 @@ const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
+let failNextWriteTo = '';
+let serverTime = '2026-11-10 10:00:00';
+const writeErrors = [];
 function makeSheet(name) {
   const sh = {name, cells: [], maxRows: 1000, maxCols: 26, rules: []};
   const range = (r, c, nr, nc) => ({
-    setValues(v) { v.forEach((row, i) => row.forEach((val, j) => { (sh.cells[r - 1 + i] = sh.cells[r - 1 + i] || [])[c - 1 + j] = val; })); return this; },
+    setValues(v) {
+      if (name === failNextWriteTo) {
+        failNextWriteTo = '';
+        throw new Error('가짜 쓰기 실패');
+      }
+      v.forEach((row, i) => row.forEach((val, j) => { (sh.cells[r - 1 + i] = sh.cells[r - 1 + i] || [])[c - 1 + j] = val; }));
+      return this;
+    },
     getDisplayValues() { return Array.from({length: nr}, (_, i) => Array.from({length: nc}, (_, j) => { const v = (sh.cells[r - 1 + i] || [])[c - 1 + j]; return v === undefined ? '' : String(v).replace(/^'/, ''); })); },
     setNumberFormats() { return this; }, setBackground() { return this; }, setFontColor() { return this; }, setFontWeight() { return this; }
   });
@@ -35,11 +45,15 @@ const mails = [];
 const who = {active: 'teacher@school'};
 const ruleBuilder = () => { const b = {whenFormulaSatisfied: () => b, setBackground: () => b, setRanges: () => b, build: () => ({getBooleanCondition: () => null})}; return b; };
 const ctx = {
-  console: {log() {}, warn() {}, error: (...a) => console.error('[hub error]', ...a)},
+  console: {log() {}, warn() {}, error: message => writeErrors.push(message)},
   SpreadsheetApp: {getActiveSpreadsheet: () => book, openById: () => book, flush() {}, newConditionalFormatRule: ruleBuilder, BooleanCriteria: {CUSTOM_FORMULA: 'CF'}},
   LockService: {getScriptLock: () => ({tryLock: () => true, releaseLock() {}})},
-  PropertiesService: {getScriptProperties: () => ({getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }})},
-  Utilities: {formatDate: () => '2026-11-10 10:00:00', getUuid: () => '1234abcd-1234-abcd-1234-abcd1234abcd'},
+  PropertiesService: {getScriptProperties: () => ({
+    getProperty: k => props[k] || null,
+    setProperty: (k, v) => { props[k] = v; },
+    setProperties: values => { Object.assign(props, values); }
+  })},
+  Utilities: {formatDate: () => serverTime, getUuid: () => '1234abcd-1234-abcd-1234-abcd1234abcd'},
   Session: {getScriptTimeZone: () => 'Asia/Seoul', getActiveUser: () => ({getEmail: () => who.active}), getEffectiveUser: () => ({getEmail: () => 'teacher@school'})},
   MailApp: {sendEmail: m => mails.push(m)},
   ContentService: {createTextOutput: t => ({t, setMimeType() { return JSON.parse(t); }}), MimeType: {JSON: 'json'}},
@@ -58,6 +72,11 @@ run('setup()'); // 다시 실행해도 키 유지
 assert.strictEqual(props.HUB_TEACHER_KEY, key);
 
 const post = obj => run('doPost')({postData: {contents: JSON.stringify(obj)}});
+const attemptRows = (tab, sid) => {
+  const sheet = sheets[tab];
+  const count = sheet ? sheet.getLastRow() - 1 : 0;
+  return count > 0 ? sheet.getRange(2, 1, count, 13).getDisplayValues().filter(r => r[11] === sid) : [];
+};
 const base = {v: 1, ws: 'gugak-instruments', title: '국악기 학습지', sid: 's1', num: '010712', name: '홍길동', t: new Date().toISOString(), away: 0};
 assert.deepStrictEqual(post({...base, type: 'start'}), {ok: true});
 assert.deepStrictEqual(post({...base, type: 'away', away: 1, data: {reason: 'hidden'}}), {ok: true});
@@ -223,6 +242,20 @@ assert.strictEqual(sheets['명단'].getRange(1, 1, 1, 2).getDisplayValues()[0][0
 // 9) 시험 서버 채점·중복 제출 방지·exam JSON
 {
   const T = sec => new Date(Date.UTC(2026, 10, 19, 1, 0, sec)).toISOString();
+  const noKey = {v: 1, ws: 'gugak-exam', sid: 'nk-exam', num: '20301', name: '가상학생', away: 0};
+  assert.deepStrictEqual(post({...noKey, t: T(1), type: 'start'}), {ok: true});
+  assert.deepStrictEqual(post({...noKey, t: T(2), type: 'away', away: 1, data: {reason: 'hidden'}}), {ok: true});
+  assert.deepStrictEqual(post({...noKey, t: T(3), type: 'back', away: 1, data: {seconds: 2}}), {ok: true});
+  const beforeNoKeySubmit = logRows().length;
+  const noKeySubmit = {...noKey, t: T(4), type: 'submit',
+    data: {score: 3, total: 3, minutes: 5, attempt: 1, wrong: [], answers: {}}};
+  assert.deepStrictEqual(post(noKeySubmit),
+    {ok: false, error: '시험 정답표가 허브에 없어요. 선생님께 알려 주세요.'});
+  assert.strictEqual(logRows().length, beforeNoKeySubmit);
+  assert.strictEqual(statusRows().find(r => r[0] === noKey.ws && r[2] === noKey.num)[4], '풀이 중');
+  assert.strictEqual(attemptRows('제출', noKey.sid).length, 0);
+  assert.strictEqual(attemptRows('시험보관', noKey.sid).length, 0);
+
   // EXAM_KEYS 가 없을 때도 일반 제출은 정상 동작하고 exam JSON 요청은 깨지지 않음
   assert.deepStrictEqual(
     post({v: 1, ws: 'no-key-exam', title: '키 없음 시험', sid: 'nk1', num: '20101', name: '김시험', t: T(1), away: 0, type: 'submit',
@@ -245,6 +278,7 @@ assert.strictEqual(sheets['명단'].getRange(1, 1, 1, 2).getDisplayValues()[0][0
       ]
     }
   };
+  assert.strictEqual(post(noKeySubmit).ok, false, 'known exam without its own key must be rejected');
   const submitCountBefore = sheets['제출'].getLastRow();
   const baseEx = {v: 1, ws: 'fake-exam', title: '가짜 국악기 시험', sid: 'ex1', num: '20102', name: '이시험', away: 0};
   assert.deepStrictEqual(post({...baseEx, t: T(1), type: 'start'}), {ok: true});
@@ -380,6 +414,11 @@ assert.strictEqual(sheets['명단'].getRange(1, 1, 1, 2).getDisplayValues()[0][0
   post({v: 1, ws: 'fake-exam', title: '가짜 국악기 시험', sid: 't7s2', num: '20102', name: '이시험2', t: T(4), away: 2, type: 'submit',
     data: {score: 0, total: 3, minutes: 2, attempt: 1, wrong: [], answers: {'q:f1111': '가짜악기1', _auto: '1'}}});
 
+  run('appendRow_')(sheets['기록'], [serverTime, 'fake-exam', '20102', '가상학생', '시작', 0, '', 'log-only']);
+  run('appendRow_')(sheets['현황'], ['fake-exam', '가상 시험', '20102', '가상학생', '풀이 중', 0,
+    serverTime, '', 'status-only ' + T(5) + ' start']);
+  run('appendRow_')(sheets['제출'], [serverTime, 'fake-exam', '20102', '가상학생', 0, 3, 0, 1, 1, '', '{}', 'submit-only']);
+
   const resetRes = post({type: 'examReset', key: key, ws: 'fake-exam', num: '20102'});
   assert.strictEqual(resetRes.ok, true);
   assert(resetRes.removed.submit >= 2 && resetRes.resetAt, 'removed submissions and returned resetAt');
@@ -412,12 +451,29 @@ assert.strictEqual(sheets['명단'].getRange(1, 1, 1, 2).getDisplayValues()[0][0
   assert.strictEqual(run('doGet')({parameter: {examstate: 'fake-exam', num: '20109'}}).resetAt, '');
   assert.strictEqual(run('doGet')({parameter: {examstate: 'fake-exam', num: 'bad'}}).ok, false);
 
+  // 세 시트 중 한 곳에만 있던 세션과 한 번도 도착하지 않았던 옛 답안을 모두 막아요.
+  const createdBeforeReset = new Date(Date.parse(resetRes.resetAt) - 16 * 60 * 1000).toISOString();
+  const createdSlowClock = new Date(Date.parse(resetRes.resetAt) - 3 * 60 * 1000).toISOString();
+  const createdAfterReset = new Date(Date.parse(resetRes.resetAt) + 1).toISOString();
+  const answer = {v: 1, ws: 'fake-exam', sid: 't7new', num: '20102', name: '이시험', t: T(20), away: 0, type: 'submit',
+    data: {score: 0, total: 3, minutes: 3, attempt: 1, wrong: [],
+      answers: {'q:f1111': '가짜악기1', 'q:f2222': '가짜악기2', 'q:f3333': '장고', _auto: '0'}}};
+  const stale = {ok: true, dup: true, stale: true};
+  for (const sid of ['t7s1', 't7s2', 'log-only', 'status-only', 'submit-only']) {
+    assert.deepStrictEqual(post({...answer, sid}), stale, 'old sessions must be rejected even without _created');
+  }
+  assert.deepStrictEqual(post({...answer, sid: 'status-only', data: {...answer.data, answers: {_created: createdAfterReset}}}), stale);
+  assert.deepStrictEqual(post({...answer, sid: 'unseen', data: {...answer.data, answers: {_created: createdBeforeReset}}}), stale);
+  assert.strictEqual(logRows().length, logNow.length);
+  assert.strictEqual(statusRows().length, statusNow.length);
+  assert.strictEqual(sheets['제출'].getLastRow(), subRowsNow.length + 1);
+  assert.strictEqual(archRows().length, archAfterReset.length);
+
   // 초기화 뒤 새 세션(t7new) 제출이 1건(첫 제출)으로 잡히는지 확인
   assert.deepStrictEqual(
-    post({v: 1, ws: 'fake-exam', title: '가짜 국악기 시험', sid: 't7new', num: '20102', name: '이시험', t: T(20), away: 0, type: 'submit',
-      data: {score: 0, total: 3, minutes: 3, attempt: 1, wrong: [], answers: {'q:f1111': '가짜악기1', 'q:f2222': '가짜악기2', 'q:f3333': '장고', _auto: '0'}}}),
-    {ok: true}
-  );
+    // 태블릿 시계가 3분 느려도 새 세션 제출은 받아야 해요.
+    post({...answer, data: {...answer.data, answers: {...answer.data.answers, _created: createdSlowClock}}}),
+    {ok: true});
   const afterRetake = run('doGet')({parameter: {dash: key, format: 'json', exam: 'fake-exam'}});
   const retakeSubs = afterRetake.rows.filter(r => r.num === '20102');
   assert.strictEqual(retakeSubs.length, 1);
@@ -425,6 +481,222 @@ assert.strictEqual(sheets['명단'].getRange(1, 1, 1, 2).getDisplayValues()[0][0
   assert.strictEqual(retakeSubs[0].correct, 3);
   assert(afterRetake.archive.some(a => a.sid === 't7s1' && a.status === '제출'), 'archive exposed in examData');
 
+  assert.strictEqual(post({type: 'examReset', key, ws: answer.ws, num: answer.num}).ok, true);
+  assert.deepStrictEqual(post({...answer, sid: 'log-only'}), stale, 'earlier reset session kept');
+  assert.deepStrictEqual(post(answer), stale, 'most recent reset session added');
+
+  const recent = Array.from({length: 51}, (_, i) => 'history-' + i);
+  for (const sid of recent) post({...answer, type: 'start', num: '20309', sid});
+  assert.strictEqual(post({type: 'examReset', key, ws: answer.ws, num: '20309'}).ok, true);
+  assert.deepStrictEqual(JSON.parse(props['EXAM_RESET_SIDS:fake-exam:20309']), recent.slice(-50));
+
   delete ctx.EXAM_KEYS;
 }
-console.log('hub harness: all checks passed');
+ctx.EXAM_KEYS = {
+  'gugak-exam': {title: '가상 시험', base: 10, per: 1, items: [{code: 'example-1', answer: '예시답'}]}
+};
+
+// 11) 시험보관을 먼저 쓰고, 두 시트 중 한쪽만 남아도 재전송으로 복구해요.
+{
+  const T = sec => new Date(Date.UTC(2026, 10, 19, 1, 1, sec)).toISOString();
+  const original = {v: 1, ws: 'gugak-exam', type: 'submit', sid: 'write-retry', num: '20302', name: '가상학생',
+    t: T(1), away: 5, data: {score: 0, total: 1, minutes: 7, attempt: 1, wrong: [],
+      answers: {'q:example-1': '예시답', _auto: '1'}}};
+  const dup = {ok: true, dup: true};
+  failNextWriteTo = '시험보관';
+  assert.strictEqual(post(original).ok, false);
+  assert.strictEqual(attemptRows('제출', original.sid).length, 0, 'no official row after archive write fails');
+  assert.strictEqual(attemptRows('시험보관', original.sid).length, 0);
+  assert(!logRows().some(r => r[7] === original.sid), 'failed write leaves no duplicate submission log');
+  assert.deepStrictEqual(post(original), {ok: true});
+  assert.deepStrictEqual(post({...original, t: T(2)}), dup);
+  assert.strictEqual(attemptRows('제출', original.sid).length, 1);
+  assert.strictEqual(attemptRows('시험보관', original.sid).length, 1);
+
+  const archiveFirst = {...original, sid: 'archive-first', t: T(3)};
+  failNextWriteTo = '제출';
+  assert.strictEqual(post(archiveFirst).ok, false);
+  assert.strictEqual(attemptRows('제출', archiveFirst.sid).length, 0);
+  const firstArchive = attemptRows('시험보관', archiveFirst.sid);
+  assert.strictEqual(firstArchive.length, 1, 'archive exists before the official row');
+  const earlierServerTime = serverTime;
+  serverTime = '2026-11-10 10:00:01';
+  const changed = {...archiveFirst, t: T(4), away: 6, data: {...archiveFirst.data, minutes: 8, answers: {_auto: '0'}}};
+  assert.deepStrictEqual(post(changed), {ok: true});
+  const saved = attemptRows('제출', archiveFirst.sid);
+  assert.strictEqual(saved.length, 1);
+  assert.deepStrictEqual(saved[0].slice(0, 9), firstArchive[0].slice(0, 9));
+  assert.strictEqual(saved[0][10], firstArchive[0][10], 'retry keeps the original answers');
+  assert.strictEqual(logRows().filter(r => r[7] === archiveFirst.sid && r[4] === '제출').length, 1);
+  assert.deepStrictEqual(attemptRows('시험보관', archiveFirst.sid), firstArchive);
+
+  // 예전 코드에서 제출만 남은 상태를 만들고 같은 시각·새 시각의 중복 경로를 모두 확인해요.
+  const archive = sheets['시험보관'];
+  for (const t of [changed.t, T(5)]) {
+    archive.deleteRows(archive._cells.findIndex(r => r[11] === archiveFirst.sid) + 1, 1);
+    assert.deepStrictEqual(post({...changed, t}), dup);
+    assert.deepStrictEqual(attemptRows('제출', archiveFirst.sid), saved);
+    assert.deepStrictEqual(attemptRows('시험보관', archiveFirst.sid), firstArchive);
+  }
+  assert.deepStrictEqual(post({...changed, t: T(6), data: {...changed.data, attempt: 2}}), {ok: true});
+  assert.deepStrictEqual(attemptRows('제출', archiveFirst.sid).map(r => r[8]), ['1', '2']);
+  assert.deepStrictEqual(attemptRows('시험보관', archiveFirst.sid).map(r => r[8]), ['1', '2']);
+  assert.deepStrictEqual(writeErrors, Array(2).fill('학습지 기록 실패: 가짜 쓰기 실패'));
+  serverTime = earlierServerTime;
+}
+
+// 12) 실제 시험·공용 스크립트를 가짜 브라우저와 허브에 연결해 이탈과 응답 지연을 시험해요.
+const root = path.join(__dirname, '..');
+const classroomJs = fs.readFileSync(path.join(root, 'classroom.js'), 'utf8');
+const examJs = fs.readFileSync(path.join(root, 'gugak-exam', 'app.js'), 'utf8');
+const ws = 'gugak-exam';
+const classroomKey = 'classroom:' + ws;
+const settle = () => new Promise(resolve => setImmediate(resolve));
+
+function mountExamPage(storage) {
+  const origin = 'http://localhost:8768';
+  const timers = new Map();
+  const elements = new Map();
+  const submissions = [];
+  let timerId = 0;
+  let draftWrites = 0;
+  const node = () => Object.assign(new EventTarget(), {
+    hidden: true, classList: {remove() {}, toggle() {}}, focus() {}, appendChild() {},
+    setAttribute() {}, removeAttribute() {}, querySelectorAll: () => []
+  });
+  const element = id => {
+    if (!elements.has(id)) elements.set(id, node());
+    return elements.get(id);
+  };
+  const script = {getAttribute: name => name === 'data-ws' ? ws : null};
+  const document = Object.assign(new EventTarget(), {
+    head: node(), body: node(), hidden: false, hasFocus: () => true,
+    getElementById: element, createElement: node, createTextNode() {},
+    querySelector: sel => sel === 'script[data-ws]' ? script : null
+  });
+  const window = Object.assign(new EventTarget(), {innerWidth: 1024, innerHeight: 768});
+  const page = vm.createContext({
+    window, document, URLSearchParams, Blob, AbortController,
+    CustomEvent: class extends Event {},
+    location: {hostname: 'localhost', search: '?hub=' + origin + '/', hash: ''},
+    screen: {orientation: {type: 'landscape-primary'}},
+    navigator: {onLine: true, sendBeacon: () => true},
+    setInterval() {},
+    setTimeout(fn, delay) { timers.set(++timerId, {fn, delay}); return timerId; },
+    clearTimeout(id) { timers.delete(id); },
+    localStorage: {
+      getItem: k => storage.get(k) || null,
+      removeItem: k => storage.delete(k),
+      setItem(k, value) {
+        if (k.startsWith(ws + ':draft:')) draftWrites++;
+        storage.set(k, value);
+      }
+    },
+    fetch(url, options) {
+      const target = new URL(url);
+      assert.strictEqual(target.origin, origin, 'every request stays on the fake hub');
+      if (options.method !== 'POST') {
+        return Promise.resolve({json: () => run('doGet')({parameter: Object.fromEntries(target.searchParams)})});
+      }
+      const entry = JSON.parse(options.body);
+      const result = post(entry);
+      const reply = {json: () => result};
+      if (entry.type !== 'submit') return Promise.resolve(reply);
+      return new Promise(resolve => submissions.push({entry, result, respond: () => resolve(reply)}));
+    }
+  });
+  vm.runInContext(classroomJs, page);
+  vm.runInContext(examJs, page);
+  return {
+    element, submissions, draftWrites: () => draftWrites,
+    click: id => element(id).dispatchEvent(new Event('click')),
+    leaveAndReturn() {
+      document.hidden = true;
+      document.dispatchEvent(new Event('visibilitychange'));
+      document.hidden = false;
+      document.dispatchEvent(new Event('visibilitychange'));
+    },
+    runTimer(delay) {
+      const pending = Array.from(timers).find(([, timer]) => timer.delay === delay);
+      assert(pending, 'missing timer for ' + delay + ' ms');
+      timers.delete(pending[0]);
+      pending[1].fn();
+    }
+  };
+}
+
+async function checkExamPage() {
+  const student = {sid: 'page-retry', num: '20303', name: '가상학생', startAt: Date.now()};
+  const draftKey = ws + ':draft:' + student.num;
+  const storage = new Map([[classroomKey, JSON.stringify(student)]]);
+  let page = mountExamPage(storage);
+  await settle();
+  for (let i = 0; i < 6; i++) page.leaveAndReturn();
+  await settle();
+  assert.strictEqual(page.element('awayCnt').textContent, '0');
+  assert.strictEqual(page.submissions.length, 0, 'no auto-submit while the intro is open');
+
+  page = mountExamPage(storage);
+  await settle();
+  assert.strictEqual(page.element('introModal').hidden, false);
+  assert.strictEqual(page.submissions.length, 0, 'reload before acknowledging the intro does not auto-submit');
+  page.click('introStartBtn');
+  const confirmed = JSON.parse(storage.get(draftKey));
+  assert.strictEqual(confirmed.awayBase, 6);
+  assert.strictEqual(new Date(confirmed.createdAt).toISOString(), confirmed.createdAt);
+  for (let i = 0; i < 4; i++) page.leaveAndReturn();
+  await settle();
+  page = mountExamPage(storage);
+  await settle();
+  assert.strictEqual(page.element('awayCnt').textContent, '4');
+  assert.strictEqual(page.submissions.length, 0, 'saved baseline survives reload');
+  page.leaveAndReturn();
+  await settle();
+  assert.strictEqual(page.element('awayCnt').textContent, '5');
+  assert.strictEqual(page.submissions.length, 1);
+  assert.strictEqual(page.submissions[0].entry.data.answers._created, confirmed.createdAt);
+  assert.strictEqual(page.submissions[0].entry.data.answers._auto, '1');
+
+  page.runTimer(20000);
+  await settle();
+  assert(page.element('autoRetryMsg').textContent.includes('5초 뒤 자동으로 다시'));
+  page.runTimer(5000);
+  await settle();
+  assert.strictEqual(page.submissions.length, 2);
+  assert.deepStrictEqual(page.submissions.map(s => s.entry.data.attempt), [1, 1]);
+  assert.deepStrictEqual(page.submissions[1].result, {ok: true, dup: true});
+  page.submissions[1].respond();
+  await settle();
+  assert.strictEqual(page.element('lockedTitle').textContent, '제출 완료');
+  const writes = page.draftWrites();
+  page.submissions[0].respond();
+  await settle();
+  assert.strictEqual(page.draftWrites(), writes, 'late success must not finish the old attempt again');
+  assert.strictEqual(attemptRows('제출', student.sid).length, 1);
+  assert.strictEqual(attemptRows('시험보관', student.sid).length, 1);
+
+  // 첫 응답이 재시도 5초 대기 중에 오면 공용 코드에서 차수가 이미 올라가 있어요.
+  const late = {...student, sid: 'page-late-ack', num: '20304', away: 11};
+  const lateDraft = {...confirmed, sid: late.sid};
+  const lateStorage = new Map([[classroomKey, JSON.stringify(late)], [ws + ':draft:' + late.num, JSON.stringify(lateDraft)]]);
+  page = mountExamPage(lateStorage);
+  await settle();
+  assert.strictEqual(page.element('awayCnt').textContent, '5');
+  assert.strictEqual(page.submissions.length, 1, 'auto-submit on reload after five counted absences');
+  page.runTimer(20000);
+  await settle();
+  page.submissions[0].respond();
+  await settle();
+  assert.strictEqual(JSON.parse(lateStorage.get(classroomKey)).attempt, 1);
+  page.runTimer(5000);
+  await settle();
+  assert.strictEqual(page.submissions.length, 1, 'no new attempt after receiving the earlier success');
+  assert.strictEqual(page.element('lockedTitle').textContent, '제출 완료');
+  assert.strictEqual(attemptRows('제출', late.sid).length, 1);
+  assert.strictEqual(attemptRows('시험보관', late.sid).length, 1);
+}
+
+checkExamPage().then(() => console.log('hub harness: all checks passed'), error => {
+  console.error(error);
+  process.exitCode = 1;
+});
