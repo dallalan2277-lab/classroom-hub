@@ -16,7 +16,7 @@
   }
 
   const { V, ART, SESSIONS, RULER, CAPSULE, BALANCE, JUKEBOX, BOARD, INTRO_QUIZ, CHAPTERS } = DATA;
-  const KEY = 'kpop-history-v1';
+  const KEY = 'kpop-history-v2';
   const FS_KEY = 'kpop-history-fs';
   const SIDE_KEY = 'kpop-history-side';
   const groups = [];
@@ -118,13 +118,13 @@
 
   function videoHTML(clip, { label = clip.title, compact = false, masked = false } = {}) {
     const thumb = !compact && !masked;
-    return `<figure class="vid${compact ? ' vid-inline' : ''}" data-yt="${clip.id}" data-start="${clip.start}" data-end="${clip.end}">
+    return `<figure class="vid${compact ? ' vid-inline' : ''}${masked ? ' vid-masked' : ''}" data-yt="${clip.id}" data-start="${clip.start}" data-end="${clip.end}"${masked ? ' data-masked="1"' : ''}>
       <button class="vid-play${thumb ? ' has-thumb' : ''}" type="button" aria-label="${esc(label)} 재생">
         ${videoButton(clip, label, thumb)}
       </button>
       <div class="vid-slot" hidden></div>
       <figcaption class="vid-meta"><div class="vid-caption">${videoCaption(clip, label, masked)}</div>
-        <button class="mini vid-stop" type="button" hidden>영상 닫기</button></figcaption>
+        <button class="mini vid-stop" type="button" hidden>${masked ? '소리 멈추기' : '영상 닫기'}</button></figcaption>
     </figure>`;
   }
 
@@ -151,15 +151,36 @@
   function playVideo(button) {
     stopVideos();
     const card = button.closest('.vid');
+    const masked = card.dataset.masked === '1';
     const frame = document.createElement('iframe');
     frame.src = 'https://www.youtube-nocookie.com/embed/' + card.dataset.yt +
-      '?autoplay=1&controls=1&rel=0&playsinline=1&start=' + card.dataset.start + '&end=' + card.dataset.end;
-    frame.title = card.querySelector('figcaption b').textContent;
-    frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-    frame.allowFullscreen = true;
+      (masked
+        ? '?autoplay=1&controls=0&modestbranding=1&disablekb=1&fs=0&rel=0&playsinline=1&start=' + card.dataset.start + '&end=' + card.dataset.end
+        : '?autoplay=1&controls=1&rel=0&playsinline=1&start=' + card.dataset.start + '&end=' + card.dataset.end);
     frame.referrerPolicy = 'strict-origin-when-cross-origin';
     const slot = card.querySelector('.vid-slot');
-    slot.append(frame);
+    if (masked) {
+      frame.title = '소리 재생';
+      frame.tabIndex = -1;
+      frame.setAttribute('aria-hidden', 'true');
+      frame.allow = 'autoplay; encrypted-media';
+      const stage = document.createElement('div');
+      stage.className = 'vid-audio-stage';
+      const host = document.createElement('div');
+      host.className = 'vid-audio-host';
+      host.append(frame);
+      const cover = document.createElement('div');
+      cover.className = 'vid-cover';
+      cover.setAttribute('aria-hidden', 'true');
+      cover.innerHTML = '<span class="wave"><i></i><i></i><i></i><i></i></span><b>소리 재생 중 · 안 나오면 누르기</b>';
+      stage.append(host, cover);
+      slot.append(stage);
+    } else {
+      frame.title = card.querySelector('figcaption b').textContent;
+      frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+      frame.allowFullscreen = true;
+      slot.append(frame);
+    }
     slot.hidden = false;
     const hadFocus = document.activeElement === button;
     button.hidden = true;
@@ -201,11 +222,26 @@
   }
 
   function recapHTML(keys) {
-    const clips = keys.map((key, i) => shortListen(V[key], 10, '소리 ' + (i + 1))).join('');
+    if (!TEACHER) {
+      return `<section class="recap">
+        <h2>소리로 떠올리기 · 칠판 다 같이</h2>
+        <p>선생님이 칠판에서 들려주는 세 곡을 차례로 듣고, 지난 시간에 만난 노래와 시대를 말해 봐요.</p>
+        <div class="recap-slots" aria-label="칠판 듣기 순서">
+          ${keys.map((_, i) => `<div class="recap-slot"><b>소리 ${i + 1}</b><span>어떤 노래일까?</span></div>`).join('')}
+        </div>
+      </section>`;
+    }
+    const clips = keys.map((key, i) => `<div class="recap-teacher-item">
+      ${shortListen(V[key], 10, '소리 ' + (i + 1))}
+      <a class="mini recap-ext" href="https://youtu.be/${V[key].id}?t=${V[key].start}" target="_blank" rel="noopener">유튜브 열기 ↗</a>
+    </div>`).join('');
     return `<section class="recap">
-      <h2>소리로 떠올리기</h2>
-      <p>세 소리를 차례로 듣고 지난 시간에 만난 노래를 말해 봐요.</p>
-      <div class="listen-grid">${clips}</div>
+      <h2>소리로 떠올리기 · 칠판 다 같이</h2>
+      <p>선생님이 칠판에서 들려주는 세 곡을 차례로 듣고, 지난 시간에 만난 노래와 시대를 말해 봐요.</p>
+      <div class="recap-teacher">
+        <p class="eyebrow">교사 모드 · 칠판 재생용 (학생 화면에는 보이지 않아요)</p>
+        <div class="listen-grid">${clips}</div>
+      </div>
     </section>`;
   }
 
@@ -356,17 +392,16 @@
 
   function introHTML(keys) {
     return `<section class="intro-quiz">
-      <h2>인트로 퀴즈</h2>
+      <h2>가사·단서로 맞히는 대표곡 퀴즈</h2>
       <div class="intro-cards${keys.length > 1 ? ' intro-pair' : ''}">
         ${keys.map((key, index) => {
           const clip = V[key];
           const record = introState(key);
           const ready = Boolean(record.picked || TEACHER);
-          const label = record.revealed ? clip.title : '12초 소리 듣기';
           return `<article class="guess-reveal-card intro-card" data-intro="${key}" data-revealed="${record.revealed}"
-            aria-label="인트로 퀴즈 ${index + 1}">
-            <p class="flow-steps">1 듣기 → 2 고르기 → 3 공개</p>
-            ${videoHTML(clip, { label, compact: !record.revealed, masked: !record.revealed })}
+            aria-label="가사·단서로 맞히는 대표곡 퀴즈 ${index + 1}">
+            <p class="flow-steps">1 단서 읽기 → 2 고르기 → 3 공개 · 감상</p>
+            <p class="intro-clue">${esc(INTRO_QUIZ[key].clue)}</p>
             <div class="chip-row intro-options" role="group" aria-label="곡 이름 고르기">
               ${INTRO_QUIZ[key].opts.map(song => `<button class="chip intro-opt" type="button" data-song="${song}"
                 aria-pressed="${record.picked === V[song].title}">${esc(V[song].title)}</button>`).join('')}
@@ -376,6 +411,7 @@
               <small class="reveal-hint"${ready ? ' hidden' : ''}>먼저 곡 이름을 골라요.</small>
             </div>
             <div class="intro-result" role="status">${introResult(key, record)}</div>
+            <div class="intro-video">${record.revealed ? videoHTML(clip, { label: clip.title, compact: false, masked: false }) : ''}</div>
           </article>`;
         }).join('')}
       </div>
@@ -406,13 +442,7 @@
     card.querySelector('.intro-result').innerHTML = introResult(key, record);
     if (record.revealed && card.dataset.revealed === 'false') {
       const clip = V[key];
-      const figure = card.querySelector('.vid');
-      const play = figure.querySelector('.vid-play');
-      play.classList.add('has-thumb');
-      play.innerHTML = videoButton(clip, clip.title, true);
-      play.setAttribute('aria-label', clip.title + ' 재생');
-      figure.classList.remove('vid-inline');
-      figure.querySelector('.vid-caption').innerHTML = videoCaption(clip, clip.title, false);
+      card.querySelector('.intro-video').innerHTML = videoHTML(clip, { label: clip.title, compact: false, masked: false });
       card.dataset.revealed = 'true';
     }
   }
@@ -424,38 +454,35 @@
   }
 
   function boardState(key) {
-    const pins = BOARD[key].pins;
+    const board = BOARD[key];
+    const pins = board.pins;
     const done = new Set(finishedPins(key).map(pin => pin.song));
-    const target = pins.find(pin => !done.has(pin.song));
+    const order = board.order || pins.map(pin => pin.song);
+    const nextSong = order.find(song => !done.has(song));
+    const target = pins.find(pin => pin.song === nextSong);
     const selected = boardUI.get(key);
     return { done, target, selected, pins };
   }
 
-  function songOptions(pins, target) {
-    const i = pins.indexOf(target);
-    const options = [...pins.slice(i + 1), ...pins.slice(0, i)].slice(0, 2);
-    options.splice((i + 1) % 3, 0, target);
-    return options.map(pin => `<button class="chip map-opt" type="button" data-match="${pin.song}"
-      aria-pressed="false">${esc(V[pin.song].title)}</button>`).join('');
+  function pinLabel(pin, isDone) {
+    return `${esc(pin.era)}${isDone ? `<small class="pin-song">${esc(V[pin.song].title)}</small>` : ''}`;
   }
 
   function boardTask(key) {
-    const { target, selected, pins } = boardState(key);
+    const { done, target, selected, pins } = boardState(key);
     if (!target) {
       const pin = pins.find(item => item.song === selected);
-      return `<h3 tabindex="-1" class="map-task-title">시대와 소리를 모두 이었어요.</h3>
-        <p>핀을 누르면 그 시대의 노래를 다시 들을 수 있어요.</p>
-        ${pin ? `<div class="map-inspect"><b>${esc(V[pin.song].title)}</b><p>${esc(pin.detail)}</p>
-          ${shortListen(V[pin.song], 10, V[pin.song].title)}</div>` : ''}`;
+      return `<h3 tabindex="-1" class="map-task-title">줄자에 모든 노래를 꽂았어요!</h3>
+        <p>아래 시대 핀을 누르면 그 시대의 설명과 노래 영상을 바로 감상할 수 있어요.</p>
+        ${pin ? `<div class="map-inspect"><b>${esc(V[pin.song].title)} · ${esc(pin.era)}</b><p>${esc(pin.detail)}</p>
+          ${videoHTML(V[pin.song], { label: V[pin.song].title, compact: false, masked: false })}</div>` : ''}`;
     }
-    if (selected === target.song) {
-      return `<h3 tabindex="-1" class="map-task-title">2 소리와 곡 이름 잇기</h3>
-        <p>${esc(target.era)}의 소리를 듣고 곡 이름을 골라요.</p>
-        ${shortListen(V[target.song], 10)}
-        <div class="chip-row" role="group" aria-label="소리와 어울리는 곡 이름">${songOptions(pins, target)}</div>`;
-    }
-    return `<h3 tabindex="-1" class="map-task-title">1 시대 핀 찾기</h3>
-      <p>줄자에서 <b>${esc(target.era)}</b> 핀을 눌러요.</p>`;
+    return `<h3 tabindex="-1" class="map-task-title">곡과 단서를 보고 시대 줄자에 꽂기 (${done.size + 1} / ${pins.length})</h3>
+      <div class="map-clue-card">
+        <b>${esc(V[target.song].title)}</b>
+        <p>${esc(target.clue)}</p>
+      </div>
+      <p class="map-guide">아래 줄자에서 이 노래에 어울리는 <b>시대 핀</b>을 눌러 꽂아요.</p>`;
   }
 
   function boardHTML(key) {
@@ -472,7 +499,7 @@
       <div class="map-board" role="group" aria-label="시대 핀">
         <div class="map-stage" style="--pin-count:${pins.length}">
           ${pins.map(pin => `<button class="chip map-pin" type="button" data-pin="${pin.song}"
-            data-done="${done.has(pin.song)}" aria-pressed="${selected === pin.song}">${esc(pin.era)}</button>`).join('')}
+            data-done="${done.has(pin.song)}" aria-pressed="${selected === pin.song}">${pinLabel(pin, done.has(pin.song))}</button>`).join('')}
         </div>
       </div>
       <p class="map-scroll-hint">옆으로 밀어서 뒤 시대의 핀도 살펴봐요.</p>
@@ -485,10 +512,15 @@
     stopVideos(task);
     task.innerHTML = boardTask(key);
     const { done, selected, pins } = boardState(key);
+    const pinBySong = new Map(pins.map(pin => [pin.song, pin]));
     box.querySelector('.map-counter').textContent = `${done.size} / ${pins.length}`;
-    for (const pin of box.querySelectorAll('.map-pin')) {
-      pin.dataset.done = String(done.has(pin.dataset.pin));
-      pin.setAttribute('aria-pressed', String(pin.dataset.pin === selected));
+    for (const btn of box.querySelectorAll('.map-pin')) {
+      const song = btn.dataset.pin;
+      const isDone = done.has(song);
+      btn.dataset.done = String(isDone);
+      btn.setAttribute('aria-pressed', String(song === selected));
+      const pin = pinBySong.get(song);
+      if (pin) btn.innerHTML = pinLabel(pin, isDone);
     }
   }
 
@@ -503,25 +535,20 @@
     const key = box.dataset.board;
     const song = button.dataset.pin;
     const { target, selected, done } = boardState(key);
-    if (song === selected) return;
-    if (target && song !== target.song) {
-      mapFeedback(box, done.has(song) ? '이미 이은 시대예요.' : '찾는 시대와 달라요. 시대 이름을 비교해 봐요.', 'no');
+    if (!target) {
+      if (song === selected) boardUI.delete(key);
+      else boardUI.set(key, song);
+      updateBoardTask(box);
+      mapFeedback(box, '', '');
+      if (keyboard) box.querySelector('.map-task-title').focus();
       return;
     }
-    boardUI.set(key, song);
-    updateBoardTask(box);
-    mapFeedback(box, target ? '시대를 찾았어요. 위에서 10초 소리를 들어요.' : '', 'ok');
-    if (keyboard) box.querySelector('.map-task-title').focus();
-  }
-
-  function matchSong(button, keyboard) {
-    const box = button.closest('[data-board]');
-    const key = box.dataset.board;
-    const { target, selected, done } = boardState(key);
-    if (!target || selected !== target.song) return;
-    if (button.dataset.match !== target.song) {
-      box.querySelectorAll('.map-opt').forEach(opt => opt.setAttribute('aria-pressed', String(opt === button)));
-      mapFeedback(box, '다른 곡이에요. 소리를 한 번 더 들어 봐요.', 'no');
+    if (done.has(song)) {
+      mapFeedback(box, '이미 노래를 꽂은 시대예요. 비어 있는 시대 핀을 골라 봐요.', 'no');
+      return;
+    }
+    if (song !== target.song) {
+      mapFeedback(box, '다른 시대예요. 노래와 핵심 단서를 다시 살펴봐요.', 'no');
       return;
     }
     done.add(target.song);
@@ -529,7 +556,7 @@
     boardUI.delete(key);
     save();
     updateBoardTask(box);
-    mapFeedback(box, `${V[target.song].title}의 시대와 소리를 이었어요.`, 'ok');
+    mapFeedback(box, `${V[target.song].title}을(를) ${target.era}에 꽂았어요!`, 'ok');
     if (keyboard) box.querySelector('.map-task-title').focus();
   }
 
@@ -917,7 +944,6 @@
     else if (button.matches('.cue-chip, .cue-check')) updateCue(button);
     else if (button.matches('.intro-opt, .intro-check')) updateIntro(button);
     else if (classList.contains('map-pin')) pickPin(button, event.detail === 0);
-    else if (classList.contains('map-opt')) matchSong(button, event.detail === 0);
     else if (classList.contains('vocab-chip')) insertVocabulary(button);
     else if (button.id === 'btnSheet') {
       setSheet(!sheetOn);
