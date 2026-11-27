@@ -476,6 +476,22 @@ function writeRow_(sheet, rowNumber, values) {
   range.setValues([values.map(safeCell_)]);
 }
 
+// 여러 줄을 한 번에 써요(줄마다 칸 수가 같아야 해요). writeRow_와 같은 규칙으로 저장해요.
+function writeRows_(sheet, startRow, rows) {
+  if (!rows.length) return;
+  const last = startRow + rows.length - 1;
+  if (last > sheet.getMaxRows()) {
+    sheet.insertRowsAfter(sheet.getMaxRows(), Math.max(100, last - sheet.getMaxRows()));
+    refreshRules_(sheet);
+  }
+  ensureColumns_(sheet, rows[0].length);
+  const range = sheet.getRange(startRow, 1, rows.length, rows[0].length);
+  range.setNumberFormats(rows.map(function (values) {
+    return values.map(function (v) { return typeof v === 'number' ? '0' : '@'; });
+  }));
+  range.setValues(rows.map(function (values) { return values.map(safeCell_); }));
+}
+
 // 수식으로 해석될 수 있는 값 앞에는 작은따옴표를 붙여요.
 function safeCell_(value) {
   return typeof value === 'string' && /^[\s\u0000-\u001f\u007f]*[=+\-@']/.test(value) ? "'" + value : value;
@@ -875,10 +891,38 @@ function dashboardDelete(key, ws, people, hard) {
   }
 }
 
+// 현황판 '정리 ▸ 모든 학습지 학생 현황 지우기'. 현황 탭의 학생 줄을 학습지와 상관없이 모두 지워요.
+// 기록·제출·시험보관 탭은 건드리지 않아요. 지운 줄을 돌려줘서 '되돌리기'에 써요.
+function dashboardDeleteAll(key) {
+  if (!checkKey_(key)) throw new Error('현황판 주소가 올바르지 않아요.');
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) throw new Error('학생 기록을 저장하는 중이에요. 잠시 후 다시 눌러 주세요.');
+  try {
+    const book = openBook_();
+    if (!book) throw new Error('먼저 setup을 실행하세요.');
+    const sheet = book.getSheetByName(SHEET_STATUS);
+    if (!sheet) return {removed: [], worksheets: 0};
+    ensureColumns_(sheet, HEADERS_STATUS_.length);
+    const count = sheet.getLastRow() - 1;
+    if (count < 1) return {removed: [], worksheets: 0};
+    const removed = sheet.getRange(2, 1, count, HEADERS_STATUS_.length).getDisplayValues()
+      .filter(function (r) { return r[0] !== ''; });
+    const names = {};
+    removed.forEach(function (r) { names[r[0]] = true; });
+    // 고정한 머리글 아래 줄을 전부 지우면 시트가 거절하므로, 빈 줄을 하나 남겨 둬요.
+    if (sheet.getMaxRows() <= count + 1) sheet.insertRowsAfter(sheet.getMaxRows(), 1);
+    sheet.deleteRows(2, count);
+    SpreadsheetApp.flush();
+    return {removed: removed, worksheets: Object.keys(names).length};
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 // '되돌리기': 방금 지운 현황 줄을 다시 넣어요(그사이 학생이 다시 들어와 줄이 생겼으면 그대로 둬요).
 function dashboardRestore(key, rows) {
   if (!checkKey_(key)) throw new Error('현황판 주소가 올바르지 않아요.');
-  if (!Array.isArray(rows) || rows.length > 500) throw new Error('되돌릴 내용이 올바르지 않아요.');
+  if (!Array.isArray(rows) || rows.length > 5000) throw new Error('되돌릴 내용이 올바르지 않아요.');
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(15000)) throw new Error('학생 기록을 저장하는 중이에요. 잠시 후 다시 눌러 주세요.');
   try {
@@ -890,19 +934,22 @@ function dashboardRestore(key, rows) {
     (count > 0 ? sheet.getRange(2, 1, count, 4).getDisplayValues() : []).forEach(function (r) {
       existing[r[0] + '\u0000' + r[2] + '\u0000' + r[3]] = true;
     });
-    let restored = 0;
+    const out = [];
     rows.forEach(function (r) {
       // 예전 현황판(8칸)에서 지운 줄도 되돌릴 수 있게 8칸이면 빈 칸을 하나 붙여요.
       if (Array.isArray(r) && r.length === HEADERS_STATUS_.length - 1) r = r.concat(['']);
       if (!Array.isArray(r) || r.length !== HEADERS_STATUS_.length) return;
       const v = r.map(function (x) { return String(x == null ? '' : x).slice(0, 200); });
-      if (!/^[a-z0-9-]{1,40}$/.test(v[0]) || existing[v[0] + '\u0000' + v[2] + '\u0000' + v[3]]) return;
-      writeRow_(sheet, sheet.getLastRow() + 1, [v[0], v[1], v[2], v[3], v[4],
+      const k = v[0] + '\u0000' + v[2] + '\u0000' + v[3];
+      if (!/^[a-z0-9-]{1,40}$/.test(v[0]) || existing[k]) return;
+      existing[k] = true;
+      out.push([v[0], v[1], v[2], v[3], v[4],
         /^\d+$/.test(v[5]) ? Number(v[5]) : v[5], v[6], /^\d+$/.test(v[7]) ? Number(v[7]) : v[7], v[8]]);
-      restored++;
     });
+    // 많이 되돌려도(모든 학습지 지우기) 빠르게 한 번에 써요.
+    writeRows_(sheet, sheet.getLastRow() + 1, out);
     SpreadsheetApp.flush();
-    return {restored: restored};
+    return {restored: out.length};
   } finally {
     lock.releaseLock();
   }
@@ -986,7 +1033,8 @@ function dashboardHtml_(key) {
     '<div class="menu" id="menu" hidden role="menu">' +
     '<button data-bulk="old" role="menuitem">오늘 이전 줄 지우기</button>' +
     '<button data-bulk="test" role="menuitem">시험용 학생(00000) 지우기</button>' +
-    '<button data-bulk="all" class="danger" role="menuitem">이 학습지 현황 모두 지우기</button></div></div>' +
+    '<button data-bulk="all" class="danger" role="menuitem">이 학습지 현황 모두 지우기</button>' +
+    '<button id="bulkEvery" class="danger" role="menuitem">모든 학습지 학생 현황 지우기</button></div></div>' +
     '<div class="sum"><div>접속<b id="nAll">0</b></div><div class="red">자리 비움<b id="nAway">0</b></div><div class="green">제출<b id="nDone">0</b></div><div class="gray" id="noneBox" hidden>안 옴<b id="nNone">0</b></div></div>' +
     '<div class="selbar" id="selbar" hidden><span id="selTxt"></span><span class="grow"></span><button id="selClear">선택 해제</button><button id="selDel" class="danger">현황에서 지우기</button></div>' +
     '<p class="legend">색: <i style="background:#fde8e6;border:1px solid #e9b7b2"></i>자리 비움 <i style="background:#fff1e0;border:1px solid #efc58f"></i>자리 비움(창이 작아짐 · 화면 분할·팝업 의심)</p>' +
@@ -994,15 +1042,16 @@ function dashboardHtml_(key) {
     '<div class="wrap" id="listWrap"><table><thead><tr><th><input type="checkbox" id="all" aria-label="모두 선택"></th><th>학번</th><th>이름</th><th>상태</th><th>이탈</th><th>마지막 소식</th><th>점수</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>' +
     '<div class="veil" id="confirm" hidden role="dialog" aria-modal="true" aria-labelledby="cTitle"><div class="box"><h2 id="cTitle"></h2>' +
     '<p>현황판에서만 사라져요. 시트의 기록·제출 탭에는 그대로 남아요. 지금 접속 중인 학생은 다음 신호를 보내면 다시 나타나요.</p>' +
-    '<label><input type="checkbox" id="hard"> 기록·제출 탭에서도 완전히 지우기 <span style="color:var(--red)">(되돌릴 수 없어요)</span></label>' +
+    '<label id="hardWrap"><input type="checkbox" id="hard"> 기록·제출 탭에서도 완전히 지우기 <span style="color:var(--red)">(되돌릴 수 없어요)</span></label>' +
     '<div class="row"><button id="cNo">취소</button><button id="cYes" class="danger">지우기</button></div></div></div>' +
     '<div class="veil" id="alertBox" hidden role="dialog" aria-modal="true" aria-labelledby="aTitle"><div class="box" style="text-align:center"><h2 id="aTitle">선생님 알림판</h2>' +
     '<p>휴대폰 카메라로 비추면 알림판이 열려요. 오래 자리를 비운 학생이 생기면 소리와 빨간 화면으로 알려 줘요. 이 QR에는 비밀 키가 있으니 학생에게 보여 주지 마세요.</p>' +
+    '<p>지켜볼 곳: <b id="aWhere"></b> (알림판에서 바꿀 수 있어요)</p>' +
     '<div id="qr" style="display:inline-block;margin:4px 0 12px"></div><div class="row" style="justify-content:center"><a id="alertLink" class="abtn" target="_blank" rel="noopener">이 컴퓨터에서 열기</a><button id="aCopy">주소 복사</button><button id="aClose">닫기</button></div>' +
     '<p id="aMsg" role="status"></p><input id="aUrl" readonly aria-label="알림판 주소" hidden></div></div>' +
     '<div class="toast" id="toast" hidden role="status"><span id="tTxt"></span><button id="undo">되돌리기</button></div>' +
     '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script>' +
-    'var SHEETS=' + JSON.stringify(DASH_SHEETS) + ',KEY=' + JSON.stringify(key) + ',data=null,picked="",cls="",view="list",sel={},pending=null,undoRows=null,busy=false,toastTimer=null;' +
+    'var SHEETS=' + JSON.stringify(DASH_SHEETS) + ',KEY=' + JSON.stringify(key) + ',data=null,picked="",cls="",view="list",sel={},pending=null,pendingEvery=false,undoRows=null,busy=false,toastTimer=null;' +
     'var MEM={};function ls(k,v){if(v!==undefined)MEM[k]=v;try{if(v===undefined)return localStorage.getItem(k)||MEM[k]||null;localStorage.setItem(k,v)}catch(e){return MEM[k]||null}}' +
     'view=ls("hub:view")==="seat"?"seat":"list";cls=ls("hub:cls")||"";' +
     'function clsOf(n){return /^[1-3][0-9]{4}$/.test(n)?n.slice(0,3):""}' +
@@ -1045,10 +1094,13 @@ function dashboardHtml_(key) {
     'ws.forEach(function(w){var e=document.createElement("span");e.className="warn";e.textContent=w;d.appendChild(e)});d.title=k+"번 "+nm.textContent+" "+t.textContent;box.appendChild(d)});' +
     '$("nNone").textContent=none}' +
     'var loading=false;function load(){if(busy||loading)return;loading=true;google.script.run.withSuccessHandler(function(d){loading=false;if(busy)return;data=d;draw()}).withFailureHandler(function(e){loading=false;$("stamp").textContent="불러오기 실패: "+e.message}).dashboardData(KEY)}' +
-    'function ask(people,title){if(!people.length){toast("지울 학생이 없어요.",false);return}pending=people;$("cTitle").textContent=title;$("hard").checked=false;$("menu").hidden=true;$("moreBtn").setAttribute("aria-expanded","false");$("confirm").hidden=false;$("cNo").focus()}' +
+    // every: 모든 학습지 지우기. 성적이 한꺼번에 사라지지 않게 '완전히 지우기'는 숨겨요(되돌리기 가능).
+    'function ask(people,title,every){$("menu").hidden=true;$("moreBtn").setAttribute("aria-expanded","false");if(!people.length){toast("지울 학생이 없어요.",false);return}pending=people;pendingEvery=!!every;$("cTitle").textContent=title;$("hard").checked=false;$("hardWrap").hidden=!!every;$("confirm").hidden=false;$("cNo").focus()}' +
     'function toast(t,canUndo){$("tTxt").textContent=t;$("undo").hidden=!canUndo;$("toast").hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(function(){$("toast").hidden=true;undoRows=null},10000)}' +
-    '$("cNo").onclick=function(){$("confirm").hidden=true;pending=null};' +
-    '$("cYes").onclick=function(){if(!pending)return;var hard=$("hard").checked,people=pending.map(function(r){return{num:r.num,name:r.name}}),ws=picked;' +
+    '$("cNo").onclick=function(){$("confirm").hidden=true;pending=null;pendingEvery=false};' +
+    '$("cYes").onclick=function(){if(!pending)return;if(pendingEvery){pending=null;pendingEvery=false;$("confirm").hidden=true;busy=true;$("stamp").textContent="지우는 중…";data.rows=[];sel={};draw();' +
+    'google.script.run.withSuccessHandler(function(res){busy=false;undoRows=res.removed;toast("학습지 "+res.worksheets+"개에서 학생 "+res.removed.length+"줄을 현황에서 지웠어요",res.removed.length>0);load()})' +
+    '.withFailureHandler(function(e){busy=false;toast("지우지 못했어요: "+e.message,false);load()}).dashboardDeleteAll(KEY);return}var hard=$("hard").checked,people=pending.map(function(r){return{num:r.num,name:r.name}}),ws=picked;' +
     '$("confirm").hidden=true;busy=true;$("stamp").textContent="지우는 중…";' +
     'var gone={};people.forEach(function(p){gone[pk(p)]=1});data.rows=data.rows.filter(function(r){return !(r.ws===ws&&gone[pk(r)])});sel={};draw();' +
     'google.script.run.withSuccessHandler(function(res){busy=false;undoRows=hard?null:res.removed;' +
@@ -1061,7 +1113,9 @@ function dashboardHtml_(key) {
     '$("all").onchange=function(){sel={};if(this.checked)current().forEach(function(r){sel[pk(r)]=1});draw()};' +
     '$("moreBtn").onclick=function(e){e.stopPropagation();var m=$("menu");m.hidden=!m.hidden;this.setAttribute("aria-expanded",String(!m.hidden))};' +
     'document.addEventListener("click",function(e){if(!$("menu").contains(e.target)){$("menu").hidden=true;$("moreBtn").setAttribute("aria-expanded","false")}});' +
-    'document.addEventListener("keydown",function(e){if(e.key==="Escape"){$("menu").hidden=true;$("confirm").hidden=true;pending=null}});' +
+    'document.addEventListener("keydown",function(e){if(e.key==="Escape"){$("menu").hidden=true;$("confirm").hidden=true;pending=null;pendingEvery=false}});' +
+    '$("bulkEvery").onclick=function(){if(!data)return;var n={};data.rows.forEach(function(r){n[r.ws]=1});' +
+    'ask(data.rows,"모든 학습지(학습지 "+Object.keys(n).length+"개)의 학생 현황 "+data.rows.length+"줄을 모두 지울까요?",true)};' +
     'Array.prototype.forEach.call(document.querySelectorAll("[data-bulk]"),function(b){b.onclick=function(){if(!data)return;var k=b.getAttribute("data-bulk"),all=data.rows.filter(function(r){return r.ws===picked}),t=picked;SHEETS.forEach(function(w){if(w[0]===picked)t=w[1]});' +
     'var people=k==="old"?all.filter(function(r){return r.last.slice(0,10)<data.today}):k==="test"?all.filter(function(r){return r.num==="00000"}):all;' +
     'ask(people,k==="all"?"「"+t+"」 현황 "+people.length+"명을 모두 지울까요?":k==="old"?"오늘 이전 "+people.length+"명을 지울까요?":"시험용 학생 "+people.length+"명을 지울까요?")}});' +
@@ -1070,8 +1124,10 @@ function dashboardHtml_(key) {
     '$("vList").onclick=function(){view="list";ls("hub:view",view);draw()};$("vSeat").onclick=function(){view="seat";ls("hub:view",view);draw()};' +
     'function fillN(){var s=$("seatN");if(!s.options.length)for(var i=1;i<=30;i++){var o=document.createElement("option");o.value=String(i);o.textContent=i+"명";s.appendChild(o)}s.value=String(seatN())}fillN();' +
     '$("seatN").onchange=function(){ls("hub:n:"+cls,this.value);draw()};' +
-    'var ALERT_URL="https://dallalan2277-lab.github.io/classroom-hub/teacher/#k="+encodeURIComponent(KEY);$("alertLink").href=ALERT_URL;' +
-    '$("alertBtn").onclick=function(){$("alertBox").hidden=false;var q=$("qr");q.textContent="";if(window.QRCode)new QRCode(q,{text:ALERT_URL,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});else q.textContent="QR을 불러오지 못했어요. 아래 버튼을 쓰세요."};' +
+    // 알림판 주소에 지금 고른 학습지·반을 실어 보내요(알림판이 같은 곳만 지켜봐요).
+    'var ALERT_BASE="https://dallalan2277-lab.github.io/classroom-hub/teacher/#k="+encodeURIComponent(KEY),ALERT_URL=ALERT_BASE;$("alertLink").href=ALERT_URL;' +
+    'function alertUrl(){return ALERT_BASE+(picked?"&ws="+encodeURIComponent(picked):"")+(cls?"&cls="+encodeURIComponent(cls):"")}' +
+    '$("alertBtn").onclick=function(){ALERT_URL=alertUrl();$("alertLink").href=ALERT_URL;$("aWhere").textContent=(cls?clsName(cls):"가장 최근에 신호가 온 반")+" · "+($("ws").selectedOptions[0]?$("ws").selectedOptions[0].textContent:picked);$("alertBox").hidden=false;var q=$("qr");q.textContent="";if(window.QRCode)new QRCode(q,{text:ALERT_URL,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});else q.textContent="QR을 불러오지 못했어요. 아래 버튼을 쓰세요."};' +
     '$("aClose").onclick=function(){$("alertBox").hidden=true;$("aMsg").textContent="";$("aUrl").hidden=true};' +
     'function showUrl(){var u=$("aUrl");u.value=ALERT_URL;u.hidden=false;u.focus();u.select()}' +
     'function copyUrl(done){var ok=function(){$("aMsg").textContent=done||"주소를 복사했어요. 새 탭 주소창에 붙여 넣어 주세요."};' +

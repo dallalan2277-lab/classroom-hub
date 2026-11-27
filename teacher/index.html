@@ -71,12 +71,17 @@ li.small,li.small .t{color:#b35c00}
       <button id="pipBtn" hidden>작은 창으로 띄우기</button>
     </div>
 
+    <div class="row card" style="padding:10px 12px">
+      <label>학습지 <select id="wsSel" aria-label="지켜볼 학습지"></select></label>
+      <label>반 <select id="clsSel" aria-label="지켜볼 반"></select></label>
+    </div>
+
     <div class="stats"><div>접속<b id="nAll">0</b></div><div>자리 비움<b id="nAway">0</b></div><div>제출<b id="nDone">0</b></div></div>
 
     <section class="card"><div class="muted" style="margin-bottom:4px">오래 자리를 비운 학생</div><ul class="list" id="longList"></ul></section>
     <section class="card"><div class="muted" style="margin-bottom:4px">잠깐 자리를 비운 학생</div><ul class="list" id="shortList"></ul></section>
     <p class="muted" id="stamp">불러오는 중…</p>
-    <p class="muted">오늘 활동한 모든 학습지를 지켜봐요. 학생이 학습지로 돌아와 '돌아가기'를 누르면 목록에서 사라져요. <button id="forget" style="padding:2px 8px;font-size:12px">이 기기에서 키 지우기</button></p>
+    <p class="muted">고른 학습지·반의 오늘 기록만 지켜봐요('자동'이면 가장 최근에 신호가 온 학습지·반). 학생이 학습지로 돌아오면 목록에서 사라져요. 수업이 끝나면 현황판 '정리 ▾ → 모든 학습지 학생 현황 지우기'로 비워 두세요. <button id="forget" style="padding:2px 8px;font-size:12px">이 기기에서 키 지우기</button></p>
   </div>
 </main>
 
@@ -90,16 +95,30 @@ li.small,li.small .t{color:#b35c00}
 var HUB = 'https://script.google.com/macros/s/AKfycbyIvmwidYjUqyMIx5SdVP4NhY5tsqAhuWOGzOhtRUI4NSYAoQkKMt-6s7DFud7s5aMN/exec';
 // 시험용: 이 컴퓨터(localhost)에서 열 때만 ?hub=주소 로 바꿔 볼 수 있어요.
 try { var qh = new URLSearchParams(location.search).get('hub'); if (qh && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) HUB = qh; } catch (e) {}
-var KEY_STORE = 'classroom-hub:dash-key', SET_STORE = 'classroom-hub:alert-settings';
+var KEY_STORE = 'classroom-hub:dash-key', SET_STORE = 'classroom-hub:alert-settings', VIEW_STORE = 'classroom-hub:alert-view';
 var $ = function (id) { return document.getElementById(id); };
 function store(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
 function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 
+// ---- 지켜볼 학습지·반: 'auto'(가장 최근에 신호가 온 곳) · '*'(모두) · 학습지 이름 / 반(학번 앞 3자리, 예 204) ----
+var WS_RE = /^[a-z0-9-]{1,40}$/, CLS_RE = /^[1-3]\d{2}$/;
+var view = {ws: 'auto', cls: 'auto'};
+try { var v0 = JSON.parse(load(VIEW_STORE) || 'null'); if (v0) { if (v0.ws === '*' || WS_RE.test(v0.ws)) view.ws = v0.ws; if (v0.cls === '*' || CLS_RE.test(v0.cls)) view.cls = v0.cls; } } catch (e) {}
+function saveView() { store(VIEW_STORE, JSON.stringify(view)); }
+
 // ---- 키: 주소의 #k=… (서버로 보내지지 않음) → 이 기기에 기억 ----
+// 현황판의 '알림판 열기'는 고른 학습지·반도 함께 넘겨요(#k=…&ws=…&cls=…).
 var key = null;
 (function () {
-  var m = location.hash.match(/[#&]k=([^&]+)/);
-  if (m) { key = decodeURIComponent(m[1]); store(KEY_STORE, key); history.replaceState(null, '', location.pathname + location.search); }
+  var hp = {};
+  location.hash.replace(/^#/, '').split('&').forEach(function (p) {
+    var i = p.indexOf('='); if (i > 0) { try { hp[p.slice(0, i)] = decodeURIComponent(p.slice(i + 1)); } catch (e) {} }
+  });
+  if (hp.k) {
+    key = hp.k; store(KEY_STORE, key);
+    if (hp.ws !== 'auto' && WS_RE.test(hp.ws || '')) { view.ws = hp.ws; view.cls = CLS_RE.test(hp.cls || '') ? hp.cls : 'auto'; saveView(); }
+    history.replaceState(null, '', location.pathname + location.search);
+  }
   else key = load(KEY_STORE);
 })();
 function keyFromUrl(text) { var m = String(text).match(/[?&#](?:dash|k)=([A-Za-z0-9%]+)/); return m ? decodeURIComponent(m[1]) : null; }
@@ -171,10 +190,52 @@ function rowsToday() {
   if (!data) return [];
   return data.rows.filter(function (r) { return r.last.slice(0, 10) === data.today; });
 }
+function clsOf(num) { return /^[1-3]\d{4}$/.test(num) ? num.slice(0, 3) : ''; }
+function clsName(c) { return c.charAt(0) + '학년 ' + Number(c.slice(1)) + '반'; }
+function latest(rows) { var b = null; rows.forEach(function (r) { if (!b || r.last > b.last) b = r; }); return b; }
+// 실제로 지켜보는 학습지·반과 그 줄. 자동이면 가장 최근에 신호가 온 학습지·반이에요
+// (앞 시간 수업에서 자리 비움인 채 나간 학생이 지금 반과 섞이지 않게).
+function scope() {
+  var rows = rowsToday(), ws = view.ws, cls = view.cls;
+  if (ws === 'auto') { var l = latest(rows); ws = l ? l.ws : '*'; }
+  var inWs = ws === '*' ? rows : rows.filter(function (r) { return r.ws === ws; });
+  if (cls === 'auto') { var l2 = latest(inWs.filter(function (r) { return clsOf(r.num); })); cls = l2 ? clsOf(l2.num) : '*'; }
+  return {ws: ws, cls: cls, rows: cls === '*' ? inWs : inWs.filter(function (r) { return clsOf(r.num) === cls; })};
+}
+function wsTitle(ws) {
+  var t = ws; (data ? data.rows : []).forEach(function (r) { if (r.ws === ws && r.title) t = r.title; }); return t;
+}
+function scopeLabel(sc) {
+  return (sc.cls === '*' ? '모든 반' : clsName(sc.cls)) + ' · ' + (sc.ws === '*' ? '모든 학습지' : wsTitle(sc.ws));
+}
+// 고르기 칸: 고를 것이 바뀔 때만 다시 만들어요(1초마다 다시 그려도 열어 둔 목록이 닫히지 않게).
+var selSig = '';
+function fillSelect(sel, opts, value) {
+  sel.textContent = '';
+  opts.forEach(function (o) { var e = document.createElement('option'); e.value = o[0]; e.textContent = o[1]; sel.appendChild(e); });
+  sel.value = value;
+}
+function drawSelects(sc) {
+  var rows = rowsToday(), wsSeen = {}, clsSeen = {};
+  rows.forEach(function (r) { wsSeen[r.ws] = 1; });
+  if (view.ws !== 'auto' && WS_RE.test(view.ws)) wsSeen[view.ws] = 1;
+  rows.forEach(function (r) { if ((sc.ws === '*' || r.ws === sc.ws) && clsOf(r.num)) clsSeen[clsOf(r.num)] = 1; });
+  if (CLS_RE.test(view.cls)) clsSeen[view.cls] = 1;
+  var wsOpts = [['auto', '자동' + (view.ws === 'auto' && sc.ws !== '*' ? ' · ' + wsTitle(sc.ws) : '')]]
+    .concat(Object.keys(wsSeen).sort().map(function (w) { return [w, wsTitle(w)]; }), [['*', '모든 학습지']]);
+  var clsOpts = [['auto', '자동' + (view.cls === 'auto' && sc.cls !== '*' ? ' · ' + clsName(sc.cls) : '')]]
+    .concat(Object.keys(clsSeen).sort().map(function (c) { return [c, clsName(c)]; }), [['*', '모든 반']]);
+  var sig = JSON.stringify([wsOpts, clsOpts, view]);
+  if (sig === selSig) return;
+  selSig = sig;
+  fillSelect($('wsSel'), wsOpts, view.ws); fillSelect($('clsSel'), clsOpts, view.cls);
+}
+$('wsSel').onchange = function () { view.ws = this.value; if (view.ws !== 'auto') view.cls = 'auto'; saveView(); evaluate(); render(); };
+$('clsSel').onchange = function () { view.cls = this.value; saveView(); evaluate(); render(); };
 function awayRows() {
   if (!data) return [];
   var now = parseTime(data.nowFull) + (Date.now() - receivedAt);
-  return rowsToday().filter(function (r) { return r.state === '자리 비움'; }).map(function (r) {
+  return scope().rows.filter(function (r) { return r.state === '자리 비움'; }).map(function (r) {
     var sec = Math.max(0, Math.round((now - parseTime(r.last)) / 1000));
     // 같은 학생이라도 자리를 비운 시각이 다르면 새 경고예요(다른 날·다른 로그인에서 횟수가 같아도 놓치지 않게).
     return {r: r, sec: isNaN(sec) ? 0 : sec, id: r.ws + '|' + r.num + '|' + r.name + '|' + r.last};
@@ -211,7 +272,8 @@ function setStatus(box, big, sub, cls, text, subText) {
 }
 function render() {
   var stale = data && Date.now() - lastOk > 30000;
-  var rows = rowsToday(), away = awayRows();
+  var sc = scope(), rows = sc.rows, away = awayRows();
+  drawSelects(sc);
   var long = away.filter(function (a) { return a.sec >= settings.threshold; }), short = away.filter(function (a) { return a.sec < settings.threshold; });
   $('nAll').textContent = rows.length; $('nAway').textContent = away.length;
   $('nDone').textContent = rows.filter(function (r) { return r.state === '제출함'; }).length;
@@ -230,7 +292,7 @@ function render() {
   else { cls = 'ok'; text = '모두 학습지에 있어요'; sub = away.length ? '잠깐 자리 비움 ' + away.length + '명' : '접속 ' + rows.length + '명'; }
   setStatus($('status'), $('statusBig'), $('statusSub'), cls, text, sub);
   setStatus(MINI.status, MINI.big, MINI.sub, cls, long.length ? '자리 비움 ' + long.length + '명' : (cls === 'ok' ? '모두 있어요' : text), long.length ? '' : sub);
-  if (data) $('stamp').textContent = '마지막 확인 ' + data.now + ' · 5초마다 자동 확인 · 경고 기준 ' + settings.threshold + '초';
+  if (data) $('stamp').textContent = '지켜보는 곳: ' + scopeLabel(sc) + ' · 마지막 확인 ' + data.now + ' · 5초마다 자동 확인 · 경고 기준 ' + settings.threshold + '초';
   if (lastErr && /키/.test(lastErr)) { $('app').hidden = true; $('setup').hidden = false; $('setupErr').textContent = lastErr + ' 현황판 주소를 다시 붙여 넣어 주세요.'; }
 }
 setInterval(render, 1000);

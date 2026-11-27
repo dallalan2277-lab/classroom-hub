@@ -155,6 +155,41 @@ assert.throws(() => run('dashboardRestore')('nope', []));
 const j = run('doGet')({parameter: {dash: key, format: 'json'}});
 assert.strictEqual(j.ok, true); assert(Array.isArray(j.rows) && j.rows.length > 0); assert(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(j.nowFull));
 assert.strictEqual(run('doGet')({parameter: {dash: 'nope', format: 'json'}}).ok, false);
+// 4c) 모든 학습지 학생 현황 지우기 · 되돌리기 (2026-11-27)
+{
+  const before = statusRows();
+  const wsN = new Set(before.map(r => r[0])).size;
+  assert(wsN >= 2, 'several worksheets before delete-all');
+  const logN = logRows().length, subN = sheets['제출'].getLastRow();
+  const all = run('dashboardDeleteAll')(key);
+  assert.strictEqual(all.removed.length, before.length);
+  assert.strictEqual(all.worksheets, wsN);
+  assert.strictEqual(statusRows().length, 0, 'status emptied across all worksheets');
+  assert.strictEqual(sheets['현황'].getRange(1, 1, 1, 1).getDisplayValues()[0][0], run('HEADERS_STATUS_')[0], 'header kept');
+  assert.strictEqual(logRows().length, logN, 'log untouched');
+  assert.strictEqual(sheets['제출'].getLastRow(), subN, 'submissions untouched');
+  assert.strictEqual(run('dashboardData')(key).rows.length, 0, 'dashboard/alert board see nothing');
+  assert.strictEqual(JSON.stringify(run('dashboardDeleteAll')(key)), '{"removed":[],"worksheets":0}', 'empty sheet is fine');
+  assert.throws(() => run('dashboardDeleteAll')('nope'));
+  // 되돌리기: 그대로, 두 번 해도 겹치지 않게
+  assert.strictEqual(run('dashboardRestore')(key, all.removed).restored, before.length);
+  assert.deepStrictEqual(statusRows().map(r => r.join('|')).sort(), before.map(r => r.join('|')).sort(), 'restore puts rows back');
+  assert.strictEqual(run('dashboardRestore')(key, all.removed).restored, 0, 'no duplicates on second restore');
+  // 예전 한도(500줄)보다 많아도 지우고 되돌릴 수 있어요
+  const many = Array.from({length: 650}, (_, i) => ['bulk-test', '대량', String(10101 + i), '학생' + i, '자리 비움', '1', '2026-11-27 15:00:00', '', 's t away']);
+  assert.strictEqual(run('dashboardRestore')(key, many).restored, 650);
+  const big = run('dashboardDeleteAll')(key);
+  assert.strictEqual(big.removed.length, before.length + 650);
+  assert.strictEqual(statusRows().length, 0);
+  assert.strictEqual(run('dashboardRestore')(key, big.removed.filter(r => r[0] !== 'bulk-test')).restored, before.length);
+  assert.deepStrictEqual(statusRows().map(r => r.join('|')).sort(), before.map(r => r.join('|')).sort());
+  // 지운 뒤 학생이 신호를 보내면 다시 나타나요
+  run('dashboardDeleteAll')(key);
+  assert.deepStrictEqual(post({...base, num: '10703', name: '박들', sid: 's9', type: 'back', away: 1, data: {seconds: 3}}), {ok: true});
+  assert.deepStrictEqual(statusRows().map(r => [r[2], r[4]]), [['10703', '풀이 중']]);
+  run('dashboardDeleteAll')(key);
+  assert.strictEqual(run('dashboardRestore')(key, before).restored, before.length);
+}
 // 5) 현황판 HTML 안의 스크립트 문법
 const html = run('doGet')({parameter: {dash: key}}).h;
 const inline = html.match(/<script>([\s\S]*)<\/script>/)[1];
