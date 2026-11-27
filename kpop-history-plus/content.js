@@ -51,7 +51,8 @@
     danbalListen: excerpt(V.danbal, 10, 40),
     jaehaListen: excerpt(V.jaeha, 10, 1),
     nanalayoListen: excerpt(V.nanalayo, 10, 40),
-    hayeogaListen: excerpt(V.hayeoga, 15, 212),
+    // 뮤직비디오 208~253초에는 태평소가 없어 15초 듣기만 공식 앨범 음원의 태평소 구간으로 (T037)
+    hayeogaListen: { ...V.hayeoga, id: 'QNQI5J2gHl4', by: '서태지와 아이들 · 2집 앨범 음원', start: 94, end: 109, mode: 'board' },
     classroomListen: excerpt(V.classroom, 15, 30),
     letterListen: excerpt(V.letter, 10, 35),
     brownListen: excerpt(V.brown, 10, 86),
@@ -232,7 +233,7 @@
       title: '서태지와 아이들, 앨범마다 달라진 소리',
       tracks: [
         ['nanalayo', '1집', '빠른 랩과 춤을 한 무대에서 선보였어요.'],
-        ['hayeoga', '2집', '2집 노래예요. 랩 사이로 끼어드는 소리를 들어 봐요.'],
+        ['hayeoga', '2집', '2집 노래예요. 랩과 록에 무엇을 섞었는지는 학습지 소리 A에서 들어 봐요.'],
         ['classroom', '3집', '3집 노래예요. 곡의 바탕에 깔린 소리를 들어 봐요.'],
         ['comeback', '4집', '랩으로 기성세대를 비판하는 목소리를 전했어요.']
       ],
