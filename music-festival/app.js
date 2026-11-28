@@ -22,7 +22,7 @@
   var sideProg = document.getElementById('sideProg');
   var root = document.documentElement, body = document.body;
   var showAns = false, sending = false, lastPage = -1, sheetOn = false, classOn = false;
-  var pendingRadio = null;
+  var pendingRadio = null, sheetObserver = null, sheetVisible = false, submitConfirm = false;
 
   var QSIG = ALLQ.map(function (q) { return q.id; }).join(',');
   var saveOk = true, saveWarned = false;
@@ -170,7 +170,10 @@
   }
 
   /* ---------- 학습지 문항 ---------- */
-  function qHTML(q, i, marks) {
+  function isWideQuestion(q) {
+    return q.type === 'text' || q.type === 'multi' || (q.opts && q.opts.length > 4);
+  }
+  function qHTML(q, i, marks, wide) {
     var v = val(q), h = '', name = 'q-' + q.id, label = ' aria-labelledby="' + name + '-prompt"';
     if (q.type === 'pick') {
       h = '<select data-q="' + q.id + '"' + label + '><option value="">고르기</option>' + q.opts.map(function (o) {
@@ -188,7 +191,7 @@
     }
     var group = q.group ? '<h3 class="pick-group">' + esc(q.group) + '</h3>' : '';
     var prompt = esc(q.prompt).replace(/&lt;(\/?b)&gt;/g, '<$1>');
-    return group + '<div class="q q-' + q.type + '" id="' + name + '"><p class="q-p" id="' + name + '-prompt">' +
+    return group + '<div class="q q-' + q.type + (wide ? ' q-wide' : '') + '" id="' + name + '"><p class="q-p" id="' + name + '-prompt">' +
       (i ? '<i aria-hidden="true">' + i + '</i>' : '') + '<span>' + prompt + '</span></p>' + h + markHTML(q, marks) + '</div>';
   }
   function refreshMarks() {
@@ -213,41 +216,54 @@
   }
   function nextEndHTML(c, idx) {
     var nextP = PAGES[idx + 1], total = c.sheet.length, left = total - c.sheet.filter(answered).length;
-    var label = nextP.id === 'submit' ? '제출 화면으로 →' : '다음 장 · ' + esc(nextP.nav) + ' →';
+    var ready = left === 0;
+    var label = nextP.id === 'submit' ? '제출하기 →' : '다음 장 · ' + (idx + 2) + '장 ' + esc(nextP.nav) + ' →';
     var box = total ? 'sheet-end' : 'lesson-end';
     var msg = total ? progressMessage(total, left) : '활동을 마치면 다음 장으로 가요.';
-    return '<div class="' + box + (left ? '' : ' is-done') + '" id="sheetEnd"><div class="sheet-end-row">' +
-      '<p class="end-msg" id="endMsg">' + msg + '</p><a class="end-go' + (left ? '' : ' is-done') +
+    return '<div class="' + box + (ready ? ' is-done' : '') + '" id="sheetEnd"><div class="sheet-end-row">' +
+      '<p class="end-msg" id="endMsg">' + msg + '</p><a class="end-go' + (ready ? ' is-ready' : '') +
       '" id="endGo" href="#' + nextP.id + '">' + label + '</a></div></div>';
   }
   function sheetHTML(c, idx) {
     var total = c.sheet.length, n = c.sheet.filter(answered).length, marks = marking();
-    return '<section class="sheet" id="sheet" aria-label="' + esc(c.title) + ' 학습지"><header><p class="eyebrow">학습지</p><h2>' +
-      esc(c.title) + '</h2><span class="cnt" id="cnt">' + n + ' / ' + total + '</span></header>' +
+    var units = c.sheet.map(function (q, i) { return { q: q, i: i, wide: isWideQuestion(q) }; });
+    for (var start = 0; start < units.length; ) {
+      if (units[start].wide) { start++; continue; }
+      var end = start;
+      while (end < units.length && !units[end].wide) end++;
+      if ((end - start) % 2 === 1) units[end - 1].wide = true;
+      start = end;
+    }
+    var qsHTML = units.map(function (u) { return qHTML(u.q, u.i + 1, marks, u.wide); }).join('');
+    return '<section class="sheet" id="sheet" aria-labelledby="sheetTitle">' +
+      '<header class="sheet-head"><div><p class="eyebrow">' + (idx + 1) + '장 · ' + esc(c.title) + '</p>' +
+      '<h2 id="sheetTitle">이 장 학습지 · ' + total + '문항</h2></div><span class="cnt" id="cnt">' + n + ' / ' + total + '</span></header>' +
+      '<div class="sheet-body">' +
       '<p class="warn" id="saveWarn"' + (saveOk ? ' hidden' : '') + '>이 기기에 답이 저장되지 않아요. 제출할 때까지 이 화면을 닫거나 새로고침하지 마세요.</p>' +
       (TEACHER ? '<p class="t-note">교사 모드예요. <button type="button" class="mini" id="btnAns" aria-pressed="' +
         showAns + '">' + (showAns ? '정답 숨기기' : '정답 보기') + '</button></p>' : '') +
-      c.sheet.map(function (q, i) { return qHTML(q, i + 1, marks); }).join('') +
-      (c.after ? '' : nextEndHTML(c, idx)) + '</section>';
+      '<div class="sheet-qs">' + qsHTML + '</div>' +
+      (c.after ? '' : nextEndHTML(c, idx)) + '</div></section>';
   }
 
   /* ---------- 쪽 ---------- */
   function chapterHTML(c, idx) {
     var total = c.sheet.length, n = c.sheet.filter(answered).length;
+    var guide = total ? '이 장: 위에서 보고 듣기 → 아래 학습지 ' + total + '문항' : '이 장은 학습지 없이 세 축제의 소리를 듣고 짐작해요';
     var chip = total ? '<a class="sheet-chip' + (n === total ? ' is-done' : '') + '" id="headChip" href="#' + c.id +
       '?sheet">이 장 학습지 <b id="headChipCnt">' + n + '/' + total + '</b> ↓</a>' : '';
     var head = '<section class="lesson"><header class="ch-head art" style="--art:url(img/head-' + c.id + '.webp?v=2)"><p class="eyebrow">' +
-      (idx + 1) + '장 · ' + esc(c.time) + '</p><h1>' + esc(c.title) +
-      '</h1><p class="lead">' + esc(c.lead) + '</p>' + chip + '</header>' +
+      (idx + 1) + '장 · ' + esc(c.time) + '</p><h1 class="ch-title"><span class="ch-num">' + (idx + 1) + '장</span><span>' + esc(c.title) +
+      '</span></h1><p class="lead">' + esc(c.lead) + '</p><p class="ch-guide">' + guide + '</p>' + chip + '</header>' +
       build(c.lesson) + (total ? '' : nextEndHTML(c, idx)) + '</section>';
     if (!total) return head;
     return head +
       '<div class="bridge"><div class="bridge-card"><div class="bridge-copy">' +
         '<p class="bridge-norm"><b>여기까지 봤으면</b> 아래 학습지에서 ' + total + '문항을 풀어요.</p>' +
-        '<p class="bridge-cls"><b>수업 모드</b> 함께 풀려면 학습지를 펼쳐요.</p></div>' +
+        '<p class="bridge-cls">태블릿 아래 ‘이 장 학습지’ ' + total + '문항을 풀어요</p></div>' +
         '<div class="bridge-acts"><a class="bridge-go" href="#' + c.id + '?sheet">학습지로 ↓</a>' +
         '<button type="button" class="mini cls" id="btnSheet" aria-pressed="' + sheetOn + '">' +
-          (sheetOn ? '학습지 숨기기' : '학습지 함께 보기') + '</button></div></div></div>' +
+          (sheetOn ? '칠판에서 학습지 접기' : '칠판에 학습지 펼치기') + '</button></div></div></div>' +
       sheetHTML(c, idx) + (c.after ? '<section class="lesson after-sheet">' + build(c.after) +
         nextEndHTML(c, idx) + '</section>' : '');
   }
@@ -278,29 +294,43 @@
     return { score: score, total: GRADED.length, wrong: wrong, answers: answers };
   }
   function submitHTML() {
-    var left = GRADED.filter(function (q) { return !answered(q); }), d = state.done;
+    var left = GRADED.filter(function (q) { return !answered(q); }).length, d = state.done;
     var current = submittedAnswers(), changed = d && d.sig && !current;
     var rows = CH.map(function (c, k) {
       var n = c.qs.filter(answered).length;
       var g = c.sheet.filter(function (q) { return q.ans !== undefined; });
       var hits = !classOn && current && g.length ? '<span class="sum-correct"> · ' + g.filter(correct).length + ' / ' + g.length + ' 맞음</span>' : '';
-      return '<li><a href="#' + c.id + (c.sheet.length ? '?sheet' : '') + '"><i>' + (k + 1) + '</i><b>' + esc(c.title) +
+      return '<li><a href="#' + c.id + (c.sheet.length ? '?sheet' : '') + '"><i>' + (k + 1) + '장</i><b>' + esc(c.title) +
         '</b><span>' + (c.qs.length ? n + ' / ' + c.qs.length + ' 답함' : '듣기·말하기') + hits + '</span></a></li>';
     }).join('');
+    var showConfirm = submitConfirm && left > 0 && !sending;
+    var btnLabel = sending ? '보내는 중…' : d ? '다시 제출하기' : '채점하고 제출하기';
     return '<section class="lesson"><header class="ch-head"><p class="eyebrow">마무리</p><h1>제출하기</h1></header>' +
       (d ? '<div class="score"><b>' + d.score + '</b><span>/ ' + d.total + '점</span></div><p>' + esc(d.msg || '') + '</p>' +
            (changed ? '<p class="warn">제출한 뒤에 답을 고쳤어요. 위 점수는 전에 낸 답의 점수예요. 고친 답을 다시 제출할 수 있어요.</p>' : '')
          : '<p class="lead">고르기 ' + GRADED.length + '문항을 채점해요. 축제 초대장과 생각 한 줄은 쓴 만큼 점수 없이 함께 보내요. 빈 글 칸이 있어도 제출할 수 있어요.</p>') +
       '<ul class="sum">' + rows + '</ul>' +
-      (left.length ? '<p class="warn">아직 답하지 않은 채점 문항이 <b>' + left.length + '개</b> 있어요. 장 이름을 눌러 돌아갈 수 있어요.</p>' :
+      (left ? '<p class="warn">아직 답하지 않은 채점 문항이 <b>' + left + '개</b> 있어요. 장 이름을 눌러 돌아갈 수 있어요.</p>' :
         '<p class="fine">채점 문항에 모두 답했어요.</p>') +
-      '<button type="button" class="go" id="btnSubmit"' + (sending ? ' disabled' : '') + '>' +
-        (sending ? '보내는 중…' : d ? '다시 제출하기' : '채점하고 제출하기') + '</button></section>';
+      (showConfirm ? '<div class="submit-confirm" role="alert">' +
+        '<p class="warn">아직 답하지 않은 채점 문항이 <b>' + left + '개</b> 있어요. 빈 문항은 0점 처리돼요. 그래도 제출할까요?</p>' +
+        '<div class="submit-confirm-btns">' +
+          '<button type="button" class="mini is-ready" id="btnSubmitForce">그래도 제출하기</button>' +
+          '<button type="button" class="mini" id="btnSubmitCancel">돌아가서 풀기</button>' +
+        '</div></div>'
+        : '<button type="button" class="go" id="btnSubmit"' + (sending ? ' disabled' : '') + '>' + btnLabel + '</button>') + '</section>';
   }
-  function doSubmit() {
+  function doSubmit(force) {
     if (sending) return;
     var left = GRADED.filter(function (q) { return !answered(q); }).length;
-    if (left && !window.confirm('아직 답하지 않은 채점 문항이 ' + left + '개 있어요. 그래도 제출할까요?')) return;
+    if (left && !force) {
+      submitConfirm = true;
+      route(true);
+      var cancel = document.getElementById('btnSubmitCancel');
+      if (cancel) cancel.focus({ preventScroll: true });
+      return;
+    }
+    submitConfirm = false;
     var r = result(), sig = answerSig(), sendingState = state;
     sending = true;
     route(true);
@@ -312,7 +342,11 @@
         '보내지 못했어요. 인터넷을 확인하고 다시 제출해 주세요.' + (res.error ? ' (' + res.error + ')' : '');
       state.done = { score: r.score, total: r.total, msg: msg, at: Date.now(), sig: res && res.ok ? sig : '' };
       save();
-      if (PAGES[cur()].id === 'submit') route(true); else { toast(msg); refreshMarks(); }
+      if (PAGES[cur()].id === 'submit') {
+        route(true);
+        var btn = document.getElementById('btnSubmit');
+        if (btn) btn.focus({ preventScroll: true });
+      } else { toast(msg); refreshMarks(); }
     };
     if (!CR || !CR.submit) return finish(null);
     Promise.resolve().then(function () { return CR.submit(r); }).then(finish, function (e) { finish({ ok: false, error: e && e.message }); });
@@ -340,6 +374,8 @@
     };
     var chapters = PAGES.slice(0, CH.length).map(function (p, k) { return link(p, k); }).join('');
     nav.innerHTML = '<div class="grp"><p>1차시</p>' + chapters + '</div>' + link(PAGES[CH.length], CH.length);
+    var p = PAGES[i];
+    document.getElementById('burger').textContent = p && p.ch ? (i + 1) + '장 · 목차' : '제출 · 목차';
   }
   function refreshSideProg() {
     if (!sideProg) return;
@@ -349,16 +385,111 @@
       '<span class="side-prog-bar"><i style="width:' + pct + '%"></i></span>' +
       '<small>1차시 · 45분 · ' + CH.length + '장</small>';
   }
+  function closePagerPrompt() {
+    var prompt = document.getElementById('pagerPrompt');
+    if (!prompt || prompt.hidden) return;
+    prompt.hidden = true;
+    prompt.replaceChildren();
+  }
+  function showPagerPrompt(left) {
+    var prompt = document.getElementById('pagerPrompt');
+    if (!prompt) return;
+    prompt.innerHTML = '<span class="prompt-msg" id="pagerPromptMsg">이 장 학습지 <b>' + left + '문항</b>이 남았어요</span>' +
+      '<span class="prompt-acts">' +
+        '<button type="button" class="mini is-ready prompt-sheet" aria-describedby="pagerPromptMsg">학습지로 ↓</button>' +
+        '<button type="button" class="mini prompt-skip" aria-describedby="pagerPromptMsg">그냥 넘어가기 →</button>' +
+      '</span>';
+    prompt.hidden = false;
+    var btn = prompt.querySelector('.prompt-sheet');
+    if (btn) btn.focus({ preventScroll: true });
+  }
+  function focusFirstUnanswered(p) {
+    if (!p || !p.ch || !p.ch.sheet.length) return;
+    if (classOn && !sheetOn) setSheet(true);
+    var targetQ = p.ch.sheet.find(function (q) { return !answered(q); }) || p.ch.sheet[0];
+    var card = document.getElementById('q-' + targetQ.id);
+    if (!card) return;
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    card.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    var field = card.querySelector('input:checked, input, select, textarea');
+    if (field) field.focus({ preventScroll: true });
+  }
+  function syncPager(i) {
+    var p = PAGES[i], pgDo = document.getElementById('pgDo'), where = document.getElementById('where'), nx = document.getElementById('next');
+    if (!p || !p.ch) {
+      pgDo.hidden = true;
+      where.hidden = false;
+      where.textContent = '제출';
+      nx.classList.remove('is-ready');
+      document.getElementById('pgBar').style.width = '100%';
+      return;
+    }
+    var total = p.ch.sheet.length, count = p.ch.sheet.filter(answered).length;
+    var lastCh = i === CH.length - 1, done = count === total;
+    document.getElementById('pgBar').style.width = Math.min(100, (i + 1) / CH.length * 100) + '%';
+    if (lastCh && (total === 0 || done)) {
+      pgDo.hidden = false;
+      where.hidden = true;
+      pgDo.className = 'pg-do is-ready';
+      pgDo.dataset.action = 'submit';
+      pgDo.innerHTML = '<span class="pg-long">제출하기 →</span><span class="pg-short">제출하기 →</span>';
+      pgDo.setAttribute('aria-label', '제출하기');
+      nx.classList.remove('is-ready');
+    } else if (total === 0) {
+      pgDo.hidden = true;
+      where.hidden = false;
+      where.textContent = (i + 1) + ' / ' + CH.length + '장';
+      nx.classList.add('is-ready');
+    } else if (done) {
+      pgDo.hidden = false;
+      where.hidden = true;
+      pgDo.className = 'pg-do is-done';
+      pgDo.dataset.action = 'to-sheet';
+      pgDo.innerHTML = '<span class="pg-long">학습지 ' + total + '/' + total + ' 완료</span><span class="pg-short">' + total + '/' + total + ' 완료</span>';
+      pgDo.setAttribute('aria-label', '학습지 ' + total + '/' + total + ' 완료, 학습지 보기');
+      nx.classList.add('is-ready');
+    } else if (sheetVisible) {
+      pgDo.hidden = false;
+      where.hidden = true;
+      pgDo.className = 'pg-do is-working';
+      pgDo.dataset.action = 'first-unanswered';
+      pgDo.innerHTML = '<span class="pg-long">학습지 ' + count + '/' + total + '</span><span class="pg-short">학습지 ' + count + '/' + total + '</span>';
+      pgDo.setAttribute('aria-label', '안 푼 문항으로 가기, 학습지 ' + count + '/' + total);
+      nx.classList.remove('is-ready');
+    } else {
+      pgDo.hidden = false;
+      where.hidden = true;
+      pgDo.className = 'pg-do is-ready';
+      pgDo.dataset.action = 'to-sheet';
+      pgDo.innerHTML = '<span class="pg-long">↓ 이 장 학습지 ' + count + '/' + total + '</span><span class="pg-short">학습지 ' + count + '/' + total + ' ↓</span>';
+      pgDo.setAttribute('aria-label', '이 장 학습지 ' + count + '/' + total + ' 풀러 내려가기');
+      nx.classList.remove('is-ready');
+    }
+  }
+  function observeSheet(i) {
+    if (sheetObserver) { sheetObserver.disconnect(); sheetObserver = null; }
+    sheetVisible = false;
+    var p = PAGES[i], sheetEl = document.getElementById('sheet');
+    if (!sheetEl || !p || !p.ch || !p.ch.sheet.length || typeof IntersectionObserver !== 'function') return;
+    sheetObserver = new IntersectionObserver(function (entries) {
+      var entry = entries[entries.length - 1];
+      if (!entry) return;
+      if (entry.isIntersecting !== sheetVisible) {
+        sheetVisible = entry.isIntersecting;
+        if (lastPage === i) syncPager(i);
+      }
+    }, { rootMargin: '-48px 0px -70px 0px', threshold: 0 });
+    sheetObserver.observe(sheetEl);
+  }
   function refreshCount() {
-    var i = lastPage, c = PAGES[i].ch;
+    var i = lastPage, c = PAGES[i] && PAGES[i].ch;
     var total = c ? c.sheet.length : 0, n = total ? c.sheet.filter(answered).length : 0;
     var left = total - n, all = total > 0 && left === 0;
     var nx = document.getElementById('next'), nextP = PAGES[i + 1];
-    nx.classList.toggle('is-ready', all);
-    if (nextP) nx.setAttribute('aria-label', '다음 장 · ' + nextP.nav + (all ? ' (이 장 학습지 완료)' : ''));
+    if (nextP) nx.setAttribute('aria-label', '다음 · ' + (nextP.ch ? (i + 2) + '장 ' : '') + nextP.nav + (all ? ' (이 장 학습지 완료)' : ''));
     else nx.removeAttribute('aria-label');
     refreshSideProg();
-    if (!total) return;
+    if (!total) { syncPager(i); return; }
     document.getElementById('cnt').textContent = n + ' / ' + total;
     document.getElementById('headChipCnt').textContent = n + '/' + total;
     document.getElementById('headChip').classList.toggle('is-done', all);
@@ -367,11 +498,19 @@
     if (all && !dot) a.insertAdjacentHTML('beforeend', '<em class="dot" title="학습지 다 풂"></em>');
     else if (!all && dot) dot.remove();
     document.getElementById('sheetEnd').classList.toggle('is-done', all);
-    document.getElementById('endGo').classList.toggle('is-done', all);
+    document.getElementById('endGo').classList.toggle('is-ready', all);
     document.getElementById('endMsg').innerHTML = progressMessage(total, left);
+    if (all) closePagerPrompt();
+    syncPager(i);
   }
   function route(keep) {
     var i = cur(), p = PAGES[i];
+    closePagerPrompt();
+    if (!keep) {
+      if (pendingRadio) storeAnswer(pendingRadio);
+      submitConfirm = false;
+      stopVideos();
+    }
     pendingRadio = null;
     view.innerHTML = p.ch ? chapterHTML(p.ch, i) : submitHTML();
     lastPage = i;
@@ -379,12 +518,13 @@
     var pv = document.getElementById('prev'), nx = document.getElementById('next');
     pv.disabled = i === 0;
     nx.disabled = i === PAGES.length - 1;
-    pv.querySelector('b').textContent = i ? PAGES[i - 1].nav : '';
-    pv.setAttribute('aria-label', i ? '이전 장 · ' + PAGES[i - 1].nav : '');
-    nx.querySelector('b').textContent = nx.disabled ? '' : PAGES[i + 1].nav;
-    document.getElementById('where').textContent = p.ch ? (i + 1) + ' / ' + CH.length + '장' : p.nav;
-    document.getElementById('pgBar').style.width = (i / CH.length * 100) + '%';
+    var prevLabel = i ? (PAGES[i - 1].ch ? i + '장 ' + PAGES[i - 1].nav : PAGES[i - 1].nav) : '';
+    var nextLabel = nx.disabled ? '' : (PAGES[i + 1].ch ? (i + 2) + '장 ' + PAGES[i + 1].nav : PAGES[i + 1].nav);
+    pv.querySelector('b').textContent = prevLabel;
+    pv.setAttribute('aria-label', i ? '이전 · ' + prevLabel : '이전');
+    nx.querySelector('b').textContent = nextLabel;
     document.title = (p.ch ? p.ch.title + ' · ' : '') + TITLE;
+    observeSheet(i);
     refreshCount();
     syncHeadArt();
     renderInvite();
@@ -393,19 +533,26 @@
   function setSheet(on) {
     sheetOn = on;
     body.classList.toggle('class-sheet', on);
+    var sh = document.getElementById('sheet');
+    if (!on && sh) stopVideos(sh);
+    if (PAGES[lastPage] && PAGES[lastPage].ch) observeSheet(lastPage);
     var bs = document.getElementById('btnSheet');
-    if (bs) { bs.setAttribute('aria-pressed', String(on)); bs.textContent = on ? '학습지 숨기기' : '학습지 함께 보기'; }
+    if (bs) { bs.setAttribute('aria-pressed', String(on)); bs.textContent = on ? '칠판에서 학습지 접기' : '칠판에 학습지 펼치기'; }
+    if (PAGES[lastPage] && PAGES[lastPage].ch) syncPager(lastPage);
   }
   function jump() {
     var s = hashParts().sub === 'sheet' && document.getElementById('sheet');
     if (s) {
       if (classOn && !sheetOn) setSheet(true);
-      s.scrollIntoView({ block: 'start' });
+      s.scrollIntoView({ block: 'start', behavior: 'instant' });
+      sheetVisible = true;
+      if (lastPage >= 0) syncPager(lastPage);
     } else window.scrollTo(0, 0);
   }
   function go(d) { var i = cur() + d; if (i >= 0 && i < PAGES.length) location.hash = PAGES[i].id; }
   window.addEventListener('hashchange', function () {
     closeSide();
+    closePagerPrompt();
     if (cur() === lastPage) { jump(); return; }
     stopVideos();
     route();
@@ -483,8 +630,8 @@
       storeAnswer(pendingRadio);
     }
   });
-  function stopVideos() {
-    view.querySelectorAll('.vid.playing').forEach(function (f) {
+  function stopVideos(scope) {
+    (scope || view).querySelectorAll('.vid.playing').forEach(function (f) {
       f.querySelector('iframe').remove();
       f.classList.remove('playing');
       f.querySelector('.vid-play').hidden = false;
@@ -507,7 +654,11 @@
     group.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b === t)); });
     var guesses = document.getElementById('showGuesses');
     if (guesses) {
-      document.getElementById('btnReveal').disabled = guesses.querySelectorAll('[aria-pressed=true]').length !== guesses.querySelectorAll('.guess').length;
+      var ready = guesses.querySelectorAll('[aria-pressed=true]').length === guesses.querySelectorAll('.guess').length;
+      var btn = document.getElementById('btnReveal');
+      var identities = document.getElementById('showIdentities');
+      btn.disabled = !ready;
+      btn.classList.toggle('is-ready', ready && (!identities || identities.hidden));
     }
   }
   view.addEventListener('click', function (e) {
@@ -531,11 +682,19 @@
       identities.hidden = !identities.hidden;
       t.setAttribute('aria-expanded', String(!identities.hidden));
       t.textContent = identities.hidden ? '정체 공개' : '정체 숨기기';
+      t.classList.toggle('is-ready', identities.hidden && !t.disabled);
       syncHeadArt();
     } else if (t.id === 'btnAns' && TEACHER && !classOn) {
       showAns = !showAns;
       refreshMarks();
     } else if (t.id === 'btnSubmit') doSubmit();
+    else if (t.id === 'btnSubmitForce') doSubmit(true);
+    else if (t.id === 'btnSubmitCancel') {
+      submitConfirm = false;
+      route(true);
+      var btn = document.getElementById('btnSubmit');
+      if (btn) btn.focus({ preventScroll: true });
+    }
   });
 
   document.addEventListener('classroom:away', stopVideos);
@@ -623,10 +782,17 @@
   function setClass(on) {
     classOn = on;
     showAns = false;
+    closePagerPrompt();
     closeSide();
     body.classList.toggle('class-mode', on);
     body.classList.toggle('side-closed', on ? true : sideClosed);
     if (!on && sheetOn) setSheet(false);
+    else if (on && PAGES[lastPage] && PAGES[lastPage].ch) {
+      var sh = document.getElementById('sheet');
+      if (sh) stopVideos(sh);
+      observeSheet(lastPage);
+      syncPager(lastPage);
+    }
     btnClass.textContent = on ? '수업 모드 끄기' : '수업 모드 켜기';
     btnClass.setAttribute('aria-pressed', String(on));
     refreshMarks();
@@ -649,15 +815,58 @@
     var fail = function () { toast('이 기기에서는 전체 화면을 쓸 수 없어요.'); };
     try { Promise.resolve(document.fullscreenElement ? document.exitFullscreen() : root.requestFullscreen()).catch(fail); } catch (e) { fail(); }
   });
-  document.querySelector('.skip').addEventListener('click', function (e) { e.preventDefault(); view.focus(); });
+  document.querySelector('.skip').addEventListener('click', function (e) { e.preventDefault(); jump(); view.focus({ preventScroll: true }); });
   nav.addEventListener('click', function (e) {
     var a = e.target.closest('a');
     if (a && a.getAttribute('href') === location.hash) { e.preventDefault(); closeSide(); jump(); }
   });
   syncSide();
-  document.getElementById('prev').addEventListener('click', function () { go(-1); });
-  document.getElementById('next').addEventListener('click', function () { go(1); });
+  document.getElementById('prev').addEventListener('click', function () { closePagerPrompt(); go(-1); });
+  document.getElementById('next').addEventListener('click', function () {
+    var p = PAGES[lastPage];
+    if (p && p.ch && !classOn && !TEACHER) {
+      var left = p.ch.sheet.filter(function (q) { return !answered(q); }).length;
+      if (left > 0) { showPagerPrompt(left); return; }
+    }
+    closePagerPrompt();
+    go(1);
+  });
+  document.getElementById('pgDo').addEventListener('click', function () {
+    closePagerPrompt();
+    var p = PAGES[lastPage];
+    if (!p || !p.ch) return;
+    var action = this.dataset.action;
+    if (action === 'submit') {
+      location.hash = 'submit';
+    } else if (action === 'first-unanswered') {
+      focusFirstUnanswered(p);
+    } else if (action === 'to-sheet') {
+      if (classOn && !sheetOn) setSheet(true);
+      var targetHash = '#' + p.id + '?sheet';
+      if (location.hash === targetHash) jump();
+      else location.hash = targetHash;
+    }
+  });
+  document.getElementById('pagerPrompt').addEventListener('click', function (e) {
+    var btn = e.target.closest('button');
+    if (!btn) return;
+    if (btn.classList.contains('prompt-sheet')) {
+      closePagerPrompt();
+      focusFirstUnanswered(PAGES[lastPage]);
+    } else if (btn.classList.contains('prompt-skip')) {
+      closePagerPrompt();
+      go(1);
+    }
+  });
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('#pagerPrompt, #next')) closePagerPrompt();
+  });
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (body.classList.contains('side-open')) { closeSide(); burger.focus(); return; }
+      var prompt = document.getElementById('pagerPrompt');
+      if (prompt && !prompt.hidden) { closePagerPrompt(); document.getElementById('next').focus(); return; }
+    }
     if (e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '') ||
         e.target.getAttribute('role') === 'tab') return;
     if (e.key === 'ArrowRight' || e.key === 'PageDown') go(1);

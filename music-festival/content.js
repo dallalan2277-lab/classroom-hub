@@ -118,7 +118,7 @@
           '<div><dt>주변 볼거리</dt><dd>' + f.nearby + '</dd></div></dl></article>';
       }).join('');
       var nextBtn = idx < seasons.length - 1
-        ? '<button type="button" class="panel-next" data-next-tab="' + (idx + 1) + '">다음: ' + seasons[idx + 1] + ' →</button>'
+        ? '<button type="button" class="panel-next" data-next-tab="' + (idx + 1) + '">' + (seasons[idx + 1] === '해외' ? '다음 목록 · 해외' : '다음 계절 · ' + seasons[idx + 1]) + ' →</button>'
         : '<a class="panel-next" href="#explore?sheet">초대장 만들기로 →</a>';
       return '<div role="tabpanel" class="season-panel" id="panel-' + idx + '" aria-labelledby="tab-' + idx + '"' +
         (idx === 0 ? '' : ' hidden') + '><div class="fest-cards">' + cards + '</div><div class="panel-foot">' + nextBtn + '</div></div>';

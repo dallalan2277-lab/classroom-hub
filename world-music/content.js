@@ -199,16 +199,16 @@
 
   /* ---------- 인터랙티브 세계 음악 지도 매칭 플레이 ---------- */
   var MAP_PINS = [
-    { id: 'us', name: '미국', region: '아메리카', x: 20.5, y: 37.5 },
-    { id: 'mx', name: '멕시코', region: '아메리카', x: 21.0, y: 52.0 },
-    { id: 'br', name: '브라질', region: '아메리카', x: 33.5, y: 70.0 },
-    { id: 'de', name: '독일', region: '유럽', x: 51.0, y: 28.0 },
-    { id: 'ke', name: '케냐', region: '아프리카', x: 57.5, y: 58.5 },
-    { id: 'cn', name: '중국', region: '아시아', x: 71.5, y: 40.5 },
-    { id: 'jp', name: '일본', region: '아시아', x: 86.5, y: 37.0 },
-    { id: 'ph', name: '필리핀', region: '아시아', x: 81.0, y: 55.0 },
-    { id: 'au', name: '호주', region: '오세아니아', x: 80.0, y: 75.5 },
-    { id: 'nz', name: '뉴질랜드', region: '오세아니아', x: 91.5, y: 88.5 }
+    { id: 'us', name: '미국', region: '아메리카', x: 21.0, y: 38.0 },
+    { id: 'mx', name: '멕시코', region: '아메리카', x: 19.5, y: 49.5 },
+    { id: 'br', name: '브라질', region: '아메리카', x: 33.0, y: 66.0 },
+    { id: 'de', name: '독일', region: '유럽', x: 50.2, y: 32.0 },
+    { id: 'ke', name: '케냐', region: '아프리카', x: 57.8, y: 59.5 },
+    { id: 'cn', name: '중국', region: '아시아', x: 73.5, y: 41.5 },
+    { id: 'jp', name: '일본', region: '아시아', x: 87.3, y: 39.3 },
+    { id: 'ph', name: '필리핀', region: '아시아', x: 81.0, y: 53.0 },
+    { id: 'au', name: '호주', region: '오세아니아', x: 81.5, y: 73.0 },
+    { id: 'nz', name: '뉴질랜드', region: '오세아니아', x: 93.0, y: 85.5 }
   ];
   var MAPGAME = {
     p1: {

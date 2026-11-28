@@ -19,3 +19,4 @@
 | head-range.webp | world-map.webp 일부를 밝은 바탕에 맞게 자름 | 수업용 자체 생성 |
 | head-pokarekare.webp | world-map.webp 일부를 밝은 바탕에 맞게 자름 | 수업용 자체 생성 |
 | head-sing.webp | world-sing.webp 일부를 밝은 바탕에 맞게 자름 | 수업용 자체 생성 |
+| map-base.webp | 생성 (Antigravity image-generator, 제미나이 네온, 2026-11-28) | 수업용 자체 생성 |

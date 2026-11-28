@@ -52,11 +52,30 @@
   var PAGES = [{ id: 'start', nav: '시작' }].concat(CH.map(function (c) { return { id: c.id, nav: c.nav, ch: c }; }), [{ id: 'submit', nav: '제출' }]);
   var SPLIT = 0; CH.forEach(function (c, k) { if (c.split) SPLIT = k; });
   function part(k) { return k <= SPLIT ? 1 : 2; }
+  var SESSIONS = ['소리 내는 법 · 관악기·현악기', '타악기 · 귀로 구별하기·확인'];
+  function isSessionEnd(cIdx) { return cIdx === SPLIT || cIdx === CH.length - 1; }
+  function sessionChapters(s, exact) {
+    return CH.filter(function (_, k) { return exact ? part(k) === s : part(k) <= s; });
+  }
+  function sessionReviewIndices(s, exact) {
+    var list = [];
+    sessionChapters(s, exact).forEach(function (c) {
+      c.items.forEach(function (it) { if (it.t === 'q' && it.kind === 'review') list.push(+it.key); });
+    });
+    return list;
+  }
+  function sessionInst(s, exact) {
+    return INST.filter(function (x) {
+      var sess = x.family === '타악기' ? 2 : 1;
+      return exact ? sess === s : sess <= s;
+    });
+  }
 
   var view = document.getElementById('view'), nav = document.getElementById('nav');
   var root = document.documentElement, body = document.body;
   var state, showAns = false, sending = false, lastPage = -1, sheetOn = false, classOn = false;
   var curTab = {}, coverOn = true, revealed = {}, nowG = '', warmPick = {};
+  var sheetObserver = null, sheetVisible = false, submitConfirm = 0;
 
   /* ---------- 저장 ---------- */
   var saveOk = true, saveWarned = false;
@@ -91,8 +110,23 @@
     }
   }
   function answerSig() { return JSON.stringify([state.answers, state.classification, state.review, state.notes, state.reflection, state.listen]); }
+  function answerSignature(s) {
+    if (!s) return answerSig();
+    var instAllowed = {}, revAllowed = {}, a = {}, n = {}, r = {};
+    sessionInst(s).forEach(function (x) { instAllowed[x.id] = 1; });
+    sessionReviewIndices(s).forEach(function (k) { revAllowed[String(k)] = 1; });
+    Object.keys(state.answers).forEach(function (k) { if (instAllowed[k]) a[k] = state.answers[k]; });
+    Object.keys(state.notes).forEach(function (k) { if (instAllowed[k]) n[k] = state.notes[k]; });
+    Object.keys(state.review).forEach(function (k) { if (revAllowed[k]) r[k] = state.review[k]; });
+    return JSON.stringify([a, state.classification, r, n, s >= 2 ? state.reflection : '', s >= 2 ? state.listen : '']);
+  }
   state = load();
-  document.addEventListener('classroom:switch', function () { try { localStorage.removeItem(KEY); } catch (e) {} state = fresh(); warmPick = {}; lastPage = -1; route(); });
+  document.addEventListener('classroom:switch', function () {
+    stopVideos();
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    state = fresh(); warmPick = {}; revealed = {}; showAns = false; sending = false; submitConfirm = 0; lastPage = -1;
+    route();
+  });
   if (CR && CR.ready && CR.ready.then) CR.ready.then(function (st) {
     if (!st) return;
     if (state.owner && st.num && state.owner !== st.num) state = fresh();
@@ -126,38 +160,54 @@
   }
   // 붙여 넣은 제어 문자는 전송할 때 \u0000 꼴로 길어져 한도를 넘길 수 있어 빼요
   function clean(s) { return String(s || '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim(); }
-  function result() {
-    var rv = firstScore('review', RV, function (q, i) { return i; }, function (q) { return q.answer; });
+  function result(targetSession) {
+    targetSession = targetSession || 2;
+    var rvIndices = sessionReviewIndices(targetSession);
+    var rvScoped = firstScore('review', rvIndices.map(function (i) { return RV[i]; }), function (_, idx) { return rvIndices[idx]; }, function (q) { return q.answer; });
+    var rvAll = firstScore('review', RV, function (q, i) { return i; }, function (q) { return q.answer; });
     var cl = firstScore('classification', CQ, function (q, i) { return i; }, function (q) { return q.answer; });
     var ia = firstScore('answers', INST, function (x) { return x.id; }, function (x) { return x.answer; });
     var learned = INST.filter(function (x) { return isDone(x.id); }).length;
+    var sessionScores = [];
+    for (var s = 1; s <= targetSession; s++) {
+      var sIdx = sessionReviewIndices(s, true);
+      var sRv = firstScore('review', sIdx.map(function (i) { return RV[i]; }), function (_, idx) { return sIdx[idx]; }, function (q) { return q.answer; });
+      sessionScores.push(s + '차시 ' + sRv.ok + '/' + sIdx.length);
+    }
     var answers = {
-      '복습 첫 시도 정답': rv.ok + ' / ' + RV.length + ' (푼 문항 ' + rv.tried + ')',
+      '복습 첫 시도 정답': rvAll.ok + ' / ' + RV.length + ' (푼 문항 ' + rvAll.tried + ')',
       '분류 첫 시도 정답': cl.ok + ' / ' + CQ.length + ' (푼 문항 ' + cl.tried + ')',
       '악기 확인 문제 첫 시도 정답': ia.ok + ' / ' + INST.length + ' (푼 문항 ' + ia.tried + ')',
       '악기 확인 첫 오답': ia.wrong.length ? ia.wrong.map(function (i) { return INST[i].name; }).join(', ') : '없음',
-      '복습 첫 오답 문항': rv.wrong.length ? rv.wrong.map(function (i) { return i + 1; }).join(', ') : '없음',
+      '복습 첫 오답 문항': rvAll.wrong.length ? rvAll.wrong.map(function (i) { return i + 1; }).join(', ') : '없음',
       '악기 학습 완료': learned + ' / ' + INST.length,
       '복습 완료': RV.every(function (q, i) { return state.review[i]; }) ? '예' : '아니요',
       '전체 진도': stageCount() + ' / ' + (INST.length + 2) + '단계',
       '악기 확인 고른 답': INST.filter(function (x) { return state.answers[x.id]; }).map(function (x) { return x.name + ': ' + state.answers[x.id]; }).join(' / ').slice(0, 1900) || '없음',
       '오늘의 돌아보기': clean(state.reflection).slice(0, 1000),
-      '듣기 메모': clean(state.listen).slice(0, 400)
+      '듣기 메모': clean(state.listen).slice(0, 400),
+      '제출 차시': targetSession + '차시까지',
+      '차시별 점수': sessionScores.join(' · ')
     };
     INST.forEach(function (x) { var n = clean(state.notes[x.id]); if (n) answers['메모 ' + x.name] = n.slice(0, 300); });
-    return { score: rv.ok, total: RV.length, wrong: rv.wrong.map(function (i) { return '복습 ' + (i + 1); }), answers: answers };
+    return {
+      score: rvScoped.ok,
+      total: rvIndices.length,
+      wrong: rvScoped.wrong.map(function (j) { return '복습 ' + (rvIndices[j] + 1); }),
+      answers: answers
+    };
   }
 
   /* ---------- 문항 조각 ---------- */
   // kind: classification | review | answers(악기 확인 문제), key: 문항 번호나 악기 id
-  function qBlock(kind, key, q, n) {
+  function qBlock(kind, key, q, n, wide) {
     var v = state[kind][key] || '', show = !classOn || showAns, name = 'q-' + kind + '-' + key;
     var cls = show && v ? (v === q.answer ? ' is-ok' : ' is-no') : '';
     var fb = '';
     if (show && v) fb = v === q.answer ? '<b class="ok">✓ 맞았어요.</b> ' + esc(q.explain)
       : '<b class="no">다시 생각해 봐요.</b> ' + esc((q.why && q.why[v]) || '위의 설명과 관찰 체크를 다시 읽고 다른 답을 골라 보세요.');
     else if (showAns) fb = '<b class="ok">정답: ' + esc(q.answer) + '</b> ' + esc(q.explain);
-    return '<div class="q q-radio' + cls + '" id="' + name + '" data-n="' + n + '"><p class="q-p"><i>' + n + '</i><span id="' + name + '-t">' + esc(q.q) + '</span></p>' +
+    return '<div class="q q-radio' + (wide ? ' q-wide' : '') + cls + '" id="' + name + '" data-n="' + n + '"><p class="q-p"><i>' + n + '</i><span id="' + name + '-t">' + esc(q.q) + '</span></p>' +
       '<div class="opts" role="radiogroup" aria-labelledby="' + name + '-t">' + q.options.map(function (o) {
         var isAns = showAns && o === q.answer;
         return '<label' + (isAns ? ' class="ans"' : '') + '><input type="radio" name="' + name + '" data-kind="' + kind + '" data-key="' + esc(key) + '" value="' + esc(o) + '"' + (o === v ? ' checked' : '') + '><span>' + esc(o) + (isAns ? '<span class="sr"> (정답)</span>' : '') + '</span></label>';
@@ -165,16 +215,49 @@
   }
   function textBlock(it, n) {
     var v = String(state[it.field] || '');
-    return '<div class="q q-text"><p class="q-p"><i>' + n + '</i><span>' + esc(it.prompt) + '</span></p>' +
+    return '<div class="q q-text q-wide"><p class="q-p"><i>' + n + '</i><span>' + esc(it.prompt) + '</span></p>' +
       '<textarea data-field="' + it.field + '" rows="4" maxlength="' + it.max + '" aria-label="생각 쓰기">' + esc(v) + '</textarea><span class="cc">' + v.length + ' / ' + it.max + '</span></div>';
   }
   function sheetCount(c) { return c.items.filter(itemFilled).length; }
-  function sheetHTML(c) {
+  function progressMessage(count, total) {
+    return count === total ? '이 장 학습지를 다 풀었어요.' : total + '문항 중 <b>' + count + '문항</b>에 답했어요.';
+  }
+  function nextLink(c, idx, done) {
+    var nextP = PAGES[idx + 2];
+    if (isSessionEnd(idx)) {
+      var sess = part(idx);
+      var ready = done || !c.items.length;
+      var submitBtn = '<a class="end-go' + (ready ? ' is-ready' : '') + '" href="#submit?s=' + sess + '">' + sess + '차시 제출하기 →</a>';
+      if (nextP.id === 'submit') return submitBtn;
+      return submitBtn + '<a class="end-go" href="#' + nextP.id + '">다음 차시 · ' + (idx + 2) + '장 ' + esc(nextP.nav) + ' →</a>';
+    }
+    return '<a class="end-go' + (done ? ' is-ready' : '') + '" href="#' + nextP.id + '">다음 장 · ' + (idx + 2) + '장 ' + esc(nextP.nav) + ' →</a>';
+  }
+  function sheetHTML(c, idx) {
+    var total = c.items.length, count = sheetCount(c), done = count === total;
     var note = TEACHER ? '교사 모드예요. 기록이 남지 않아요.' : classOn ? '수업 모드예요. 정답 풀이는 가려져 있어요.' : '';
-    return '<section class="sheet" id="sheet" aria-label="' + esc(c.title) + ' 학습지"><header><p class="eyebrow">학습지</p><h2>' + esc(c.title) + '</h2><span class="cnt" id="cnt">' + sheetCount(c) + ' / ' + c.items.length + '</span></header>' +
-      '<p class="warn" id="saveWarn"' + (saveOk ? ' hidden' : '') + '>이 기기에 답이 저장되지 않아요. 제출할 때까지 이 화면을 닫거나 새로고침하지 마세요.</p>' +
+    var units = c.items.map(function (it, i) { return { it: it, i: i, wide: it.t !== 'q' }; });
+    for (var start = 0; start < units.length; ) {
+      if (units[start].wide) { start++; continue; }
+      var end = start;
+      while (end < units.length && !units[end].wide) end++;
+      if ((end - start) % 2 === 1) units[end - 1].wide = true;
+      start = end;
+    }
+    var qsHTML = units.map(function (u) {
+      return u.it.t === 'q' ? qBlock(u.it.kind, u.it.key, u.it.q, u.i + 1, u.wide) : textBlock(u.it, u.i + 1);
+    }).join('');
+    return '<section class="sheet" id="sheet" aria-labelledby="sheetTitle">' +
+      '<header class="sheet-head"><div><p class="eyebrow">' + (idx + 1) + '장 · ' + esc(c.title) + '</p>' +
+      '<h2 id="sheetTitle">이 장 학습지 · ' + total + '문항</h2></div><span class="cnt" id="cnt">' + count + ' / ' + total + '</span></header>' +
+      '<div class="sheet-body">' +
+      '<p class="warn" id="saveWarn"' + (saveOk ? ' hidden' : '') + '>이 기기에 답을 저장하지 못했어요. 제출할 때까지 이 화면을 닫거나 새로고침하지 마세요.</p>' +
       (note ? '<p class="t-note">' + note + ' <button type="button" class="mini ansBtn" aria-pressed="' + showAns + '">' + (showAns ? '정답 숨기기' : '정답 보기') + '</button></p>' : '') +
-      c.items.map(function (it, i) { return it.t === 'q' ? qBlock(it.kind, it.key, it.q, i + 1) : textBlock(it, i + 1); }).join('') + '</section>';
+      '<div class="sheet-qs">' + qsHTML + '</div>' +
+      '<div class="sheet-end' + (done ? ' is-done' : '') + '" id="sheetEnd">' +
+        '<p class="end-msg" id="endMsg">' + progressMessage(count, total) + '</p>' +
+        '<div class="sheet-end-acts">' + nextLink(c, idx, done) + '</div>' +
+      '</div></div></section>';
   }
 
   /* ---------- 악기 탭 ---------- */
@@ -308,7 +391,7 @@
           '<div class="lg" role="group" aria-label="소리 ' + (k + 1) + ' 악기 가족 고르기">' + [['관악기', '관'], ['현악기', '현'], ['타악기', '타']].map(function (f) {
             return '<button type="button" data-lg="' + f[0] + '" aria-pressed="' + (pick === f[0]) + '" aria-label="' + f[0] + '">' + f[1] + '</button>';
           }).join('') + '</div>' +
-          '<button type="button" class="lopen" aria-expanded="' + !!revealed[g] + '">' + (revealed[g] ? '악기 닫기' : '악기 열기') + '</button>' + lnameHTML(g) + '</li>';
+          '<button type="button" class="lopen' + (pick && !revealed[g] ? ' is-ready' : '') + '" aria-expanded="' + !!revealed[g] + '">' + (revealed[g] ? '악기 닫기' : '악기 열기') + '</button>' + lnameHTML(g) + '</li>';
       }).join('') + '</ol>';
   }
   function checkHTML() {
@@ -327,10 +410,22 @@
     return '';
   }
   function chapterHTML(c, idx) {
-    return '<section class="lesson"><header class="ch-head art" style="--art:url(img/head-' + esc(c.id) + '.webp)"><p class="eyebrow">' + (idx + 1) + '장 · ' + esc(c.time) + ' · ' + part(idx) + '차시</p><h1>' + esc(c.title) + '</h1><p class="lead">' + esc(c.lead) + '</p></header>' +
+    var total = c.items.length, count = sheetCount(c);
+    var chip = total ? '<a class="sheet-chip' + (count === total ? ' is-done' : '') + '" id="headChip" href="#' + c.id +
+      '?sheet">이 장 학습지 <b id="headChipCnt">' + count + '/' + total + '</b> ↓</a>' : '';
+    return '<section class="lesson"><header class="ch-head art" style="--art:url(img/head-' + esc(c.id) + '.webp)"><p class="eyebrow">' + part(idx) + '차시 · ' + (idx + 1) + '장 · ' + esc(c.time) + '</p>' +
+      '<h1 class="ch-title"><span class="ch-num">' + (idx + 1) + '장</span><span>' + esc(c.title) + '</span></h1>' +
+      '<p class="lead">' + esc(c.lead) + '</p>' +
+      '<p class="ch-guide">이 장: 위에서 보고 듣기 → 아래 학습지 ' + total + '문항</p>' + chip + '</header>' +
       lessonHTML(c) + '</section>' +
-      '<div class="bridge"><p><b>여기까지 함께 봤으면</b> 아래 종이 학습지에 답을 써요. ' + c.items.length + '문항이고, 쓴 답은 이 기기에 저절로 저장돼요.</p>' +
-      '<button type="button" class="mini cls" id="btnSheet" aria-pressed="' + sheetOn + '">' + (sheetOn ? '학습지 숨기기' : '학습지 함께 보기') + '</button></div>' + sheetHTML(c);
+      '<div class="bridge"><div class="bridge-copy">' +
+        '<p class="bridge-norm"><b>여기까지 봤으면</b> 아래 학습지에서 ' + total + '문항을 풀어요.</p>' +
+        '<p class="bridge-cls">태블릿 아래 ‘이 장 학습지’ ' + total + '문항을 풀어요</p>' +
+      '</div><div class="bridge-acts">' +
+        '<a class="bridge-go" href="#' + c.id + '?sheet">학습지로 ↓</a>' +
+        '<button type="button" class="mini cls" id="btnSheet" aria-pressed="' + sheetOn + '">' +
+          (sheetOn ? '칠판에서 학습지 접기' : '칠판에 학습지 펼치기') + '</button>' +
+      '</div></div>' + sheetHTML(c, idx);
   }
 
   /* ---------- 시작·제출 ---------- */
@@ -359,30 +454,85 @@
     var n = 0; CH.forEach(function (c) { n += c.items.length - sheetCount(c); });
     return n + INST.filter(function (x) { return !state.answers[x.id]; }).length;
   }
-  function submitHTML() {
-    var d = state.done, changed = d && d.sig && d.sig !== answerSig(), left = leftCount();
-    var rows = CH.map(function (c, k) {
-      return '<li><a href="#' + c.id + '?sheet"><i>' + (k + 1) + '</i><b>' + esc(c.title) + '</b><span>' + sheetCount(c) + ' / ' + c.items.length + ' 씀</span></a></li>';
-    }).join('') + '<li><a href="#check"><i>✓</i><b>악기 확인 문제</b><span>' + INST.filter(function (x) { return state.answers[x.id]; }).length + ' / ' + INST.length + ' 풂</span></a></li>';
-    return '<section class="lesson"><header class="ch-head"><p class="eyebrow">마무리</p><h1>제출하기</h1></header>' +
-      (d ? '<div class="score"><b>' + d.score + '</b><span>/ ' + d.total + '점</span><p>' + esc(d.msg || '') + '</p></div>' +
-           (changed ? '<p class="warn"><b>제출한 뒤에 답을 고쳤어요.</b> 고친 답은 <b>다시 제출해야</b> 선생님께 전해져요.</p>' : '') : '') +
-      '<p class="lead">점수는 학습지 복습 문항 ' + RV.length + '개를 <b>처음 고른 답</b>으로 매겨요. 악기 확인 문제와 메모, 생각 쓰기는 선생님께 그대로 전해져요.</p>' +
-      '<ul class="sum">' + rows + '</ul>' +
-      (left ? '<p class="warn">아직 안 한 문항이 <b>' + left + '개</b> 있어요. 위 목록에서 눌러 채워 봐요.</p>' : '<p class="fine">모든 문항을 했어요.</p>') +
-      '<button type="button" class="go" id="btnSubmit"' + (sending ? ' disabled' : '') + '>' + (sending ? '보내는 중…' : d ? '다시 제출하기' : '채점하고 제출하기') + '</button></section>';
+  function submitScope() {
+    var sub = hashParts().sub;
+    var s = Number(new URLSearchParams(sub || '').get('s'));
+    if ((s === 1 || s === 2) && Math.floor(s) === s) return s;
+    var hasS2 = CH.slice(SPLIT + 1).some(function (c) { return c.items.some(itemFilled); }) ||
+      sessionInst(2, true).some(function (x) { return !!state.answers[x.id]; });
+    return hasS2 ? 2 : 1;
   }
-  function doSubmit() {
+  function submitHTML() {
+    var targetSession = submitScope();
+    var rvIndices = sessionReviewIndices(targetSession);
+    var left = rvIndices.filter(function (k) { return !state.review[k]; }).length;
+    var d = state.done;
+    var doneScope = d ? (d.s || 2) : 0;
+    var changed = d && d.sig && d.sig !== answerSignature(d.s);
+    var scopeTabs = '<div class="submit-scope" role="navigation" aria-label="제출 차시 고르기">' +
+      [1, 2].map(function (s) {
+        var active = s === targetSession;
+        return '<a class="scope-link' + (active ? ' is-now' : '') + '" href="#submit?s=' + s + '"' + (active ? ' aria-current="page"' : '') + '>' + s + '차시까지</a>';
+      }).join('') + '</div>';
+    var sumGroups = [1, 2].map(function (s) {
+      var isFuture = s > targetSession;
+      var instList = sessionInst(s, true);
+      var instDone = instList.filter(function (x) { return !!state.answers[x.id]; }).length;
+      var instTarget = s === 1 ? '#wind' : '#perc';
+      var rows = CH.map(function (c, idx) {
+        if (part(idx) !== s) return '';
+        return '<li><a href="#' + c.id + '?sheet"><i>' + (idx + 1) + '장</i><b>' + esc(c.title) + '</b><span>' + sheetCount(c) + ' / ' + c.items.length + ' 답함</span></a></li>';
+      }).join('') +
+        '<li><a href="' + instTarget + '"><i>✓</i><b>' + (s === 1 ? '관악기·현악기 확인 문제' : '타악기 확인 문제') + '</b><span>' + instDone + ' / ' + instList.length + ' 풂</span></a></li>';
+      return '<section class="sum-group' + (isFuture ? ' is-future' : '') + '">' +
+        '<div class="sum-head"><b>' + s + '차시 · ' + esc(SESSIONS[s - 1]) + '</b>' + (isFuture ? '<span class="sum-tag">다음 차시</span>' : '') + '</div>' +
+        '<ul class="sum">' + rows + '</ul></section>';
+    }).join('');
+    var scopeText = targetSession === 1 ? '1차시' : '1~2차시';
+    var btnLabel = sending ? '보내는 중…' : (d && doneScope >= targetSession ? '다시 제출하기' : targetSession + '차시까지 제출하기');
+    var showConfirm = submitConfirm === targetSession && left > 0 && !sending;
+    return '<section class="lesson submit-page"><header class="ch-head"><p class="eyebrow">마무리</p><h1>제출하기</h1>' +
+      '<p class="lead">' + scopeText + ' 복습 문항 ' + rvIndices.length + '개를 <b>처음 고른 답</b>으로 채점해요. 악기 확인 문제와 메모, 생각 쓰기도 함께 보내요.</p>' +
+      scopeTabs + '</header>' +
+      (d ? '<div class="submission-status"><div class="score"><b>' + d.score + '</b><span>/ ' + d.total + '점</span><small class="score-scope">(' + doneScope + '차시까지)</small><p>' + esc(d.msg || '') + '</p></div>' +
+           (changed ? '<p class="warn"><b>제출한 뒤에 답을 고쳤어요.</b> 고친 답은 <b>다시 제출해야</b> 선생님께 전해져요.</p>' : '') + '</div>' : '') +
+      '<div class="sum-groups">' + sumGroups + '</div>' +
+      (left ? '<p class="warn">' + scopeText + '에서 아직 답하지 않은 채점(복습) 문항이 <b>' + left + '개</b> 있어요. 장 이름을 눌러 돌아갈 수 있어요.</p>'
+            : '<p class="fine">' + scopeText + ' 채점 문항에 모두 답했어요.</p>') +
+      (showConfirm ? '<div class="submit-confirm" role="alert">' +
+        '<p class="warn">아직 답하지 않은 채점 문항이 <b>' + left + '개</b> 있어요. 빈 문항은 0점 처리돼요. 그래도 제출할까요?</p>' +
+        '<div class="submit-confirm-btns">' +
+          '<button type="button" class="mini is-ready" id="btnSubmitForce">그래도 제출하기</button>' +
+          '<button type="button" class="mini" id="btnSubmitCancel">돌아가서 풀기</button>' +
+        '</div></div>'
+        : '<button type="button" class="go" id="btnSubmit"' + (sending ? ' disabled' : '') + '>' + btnLabel + '</button>') + '</section>';
+  }
+  function doSubmit(force) {
     if (sending) return;
-    var left = leftCount();
-    if (left && !window.confirm('안 한 문항이 ' + left + '개 있어요. 그래도 제출할까요?')) return;
-    var r = result(), sig = answerSig(); sending = true; route(true);
+    var targetSession = submitScope();
+    var rvIndices = sessionReviewIndices(targetSession);
+    var left = rvIndices.filter(function (k) { return !state.review[k]; }).length;
+    if (left && !force) {
+      submitConfirm = targetSession;
+      route(true);
+      var cancel = document.getElementById('btnSubmitCancel');
+      if (cancel) cancel.focus({ preventScroll: true });
+      return;
+    }
+    submitConfirm = 0;
+    var r = result(targetSession), sig = answerSignature(targetSession), sendingState = state;
+    sending = true; route(true);
     var finish = function (res) {
+      if (state !== sendingState) return;
       sending = false;
       var msg = !res ? '이 기기에서만 채점했어요.' : res.teacher ? '교사 모드라 보내지 않고 채점만 했어요.' : res.ok && !res.offline ? '선생님께 보냈어요.' : res.ok ? '채점만 했어요. (허브에 연결되지 않았어요)' : '보내지 못했어요. 인터넷을 확인하고 다시 제출해 주세요.' + (res.error ? ' (' + res.error + ')' : '');
-      state.done = { score: r.score, total: r.total, msg: msg, at: Date.now(), sig: res && res.ok ? sig : '' };
+      state.done = { score: r.score, total: r.total, s: targetSession, msg: msg, at: Date.now(), sig: res && res.ok ? sig : '' };
       save();
-      if (PAGES[cur()].id === 'submit') route(true); else { toast(msg); navHTML(cur()); }
+      if (PAGES[cur()].id === 'submit') {
+        route(true);
+        var btn = document.getElementById('btnSubmit');
+        if (btn) btn.focus({ preventScroll: true });
+      } else { toast(msg); navHTML(cur()); }
     };
     if (!CR || !CR.submit) return finish(null);
     Promise.resolve().then(function () { return CR.submit(r); }).then(finish, function (e) { finish({ ok: false, error: e && e.message }); });
@@ -400,33 +550,154 @@
     };
     var grp = function (t, from, to) { var s = ''; for (var k = from; k <= to; k++) s += link(PAGES[k], k); return '<div class="grp"><p>' + t + '</p>' + s + '</div>'; };
     nav.innerHTML = link(PAGES[0], 0) + grp('1차시', 1, SPLIT + 1) + grp('2차시', SPLIT + 2, PAGES.length - 2) + link(PAGES[PAGES.length - 1], PAGES.length - 1);
+    var p = PAGES[i];
+    document.getElementById('burger').textContent = p && p.ch ? i + '장 · 목차' : (p && p.id === 'submit' ? '제출 · 목차' : '시작 · 목차');
+  }
+  function closePagerPrompt() {
+    var prompt = document.getElementById('pagerPrompt');
+    if (!prompt || prompt.hidden) return;
+    prompt.hidden = true;
+    prompt.replaceChildren();
+  }
+  function showPagerPrompt(left) {
+    var prompt = document.getElementById('pagerPrompt');
+    if (!prompt) return;
+    prompt.innerHTML = '<span class="prompt-msg" id="pagerPromptMsg">이 장 학습지 <b>' + left + '문항</b>이 남았어요</span>' +
+      '<span class="prompt-acts">' +
+        '<button type="button" class="mini is-ready prompt-sheet" aria-describedby="pagerPromptMsg">학습지로 ↓</button>' +
+        '<button type="button" class="mini prompt-skip" aria-describedby="pagerPromptMsg">그냥 넘어가기 →</button>' +
+      '</span>';
+    prompt.hidden = false;
+    var btn = prompt.querySelector('.prompt-sheet');
+    if (btn) btn.focus({ preventScroll: true });
+  }
+  function focusFirstUnanswered(p) {
+    if (!p || !p.ch || !p.ch.items.length) return;
+    if (classOn && !sheetOn) setSheet(true);
+    var targetIt = null;
+    for (var k = 0; k < p.ch.items.length; k++) {
+      if (!itemFilled(p.ch.items[k])) { targetIt = p.ch.items[k]; break; }
+    }
+    if (!targetIt) targetIt = p.ch.items[0];
+    var card = targetIt.t === 'q'
+      ? document.getElementById('q-' + targetIt.kind + '-' + targetIt.key)
+      : view.querySelector('#sheet textarea[data-field="' + targetIt.field + '"]');
+    if (!card) return;
+    var qEl = card.closest ? (card.closest('.q') || card) : card;
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    qEl.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    var field = qEl.querySelector('input[type="radio"]:checked, input[type="radio"], textarea');
+    if (field) field.focus({ preventScroll: true });
+  }
+  function syncPager(i) {
+    var p = PAGES[i], pgDo = document.getElementById('pgDo'), where = document.getElementById('where'), nx = document.getElementById('next');
+    if (!p || !p.ch) {
+      pgDo.hidden = true;
+      where.hidden = false;
+      where.textContent = p && p.id === 'submit' ? '제출' : '시작';
+      nx.classList.toggle('is-ready', !!(p && p.id === 'start'));
+      document.getElementById('pgBar').style.width = (i / (PAGES.length - 1) * 100) + '%';
+      return;
+    }
+    var cIdx = i - 1, total = p.ch.items.length, count = sheetCount(p.ch), done = count === total;
+    var sessionEnd = isSessionEnd(cIdx), sess = part(cIdx);
+    document.getElementById('pgBar').style.width = Math.min(100, (cIdx + 1) / CH.length * 100) + '%';
+    if (sessionEnd && (total === 0 || done)) {
+      pgDo.hidden = false;
+      where.hidden = true;
+      pgDo.className = 'pg-do is-ready';
+      pgDo.dataset.action = 'submit';
+      pgDo.dataset.session = String(sess);
+      pgDo.innerHTML = '<span class="pg-long">' + sess + '차시 제출하기 →</span><span class="pg-short">' + sess + '차시 제출 →</span>';
+      pgDo.setAttribute('aria-label', sess + '차시 제출하기');
+      nx.classList.remove('is-ready');
+    } else if (total === 0) {
+      pgDo.hidden = true;
+      where.hidden = false;
+      where.textContent = (cIdx + 1) + ' / ' + CH.length + '장';
+      nx.classList.add('is-ready');
+    } else if (done) {
+      pgDo.hidden = false;
+      where.hidden = true;
+      pgDo.className = 'pg-do is-done';
+      pgDo.dataset.action = 'to-sheet';
+      pgDo.innerHTML = '<span class="pg-long">학습지 ' + total + '/' + total + ' 완료</span><span class="pg-short">' + total + '/' + total + ' 완료</span>';
+      pgDo.setAttribute('aria-label', '학습지 ' + total + '/' + total + ' 완료, 학습지 보기');
+      nx.classList.add('is-ready');
+    } else if (sheetVisible) {
+      pgDo.hidden = false;
+      where.hidden = true;
+      pgDo.className = 'pg-do is-working';
+      pgDo.dataset.action = 'first-unanswered';
+      pgDo.innerHTML = '<span class="pg-long">학습지 ' + count + '/' + total + '</span><span class="pg-short">학습지 ' + count + '/' + total + '</span>';
+      pgDo.setAttribute('aria-label', '안 푼 문항으로 가기, 학습지 ' + count + '/' + total);
+      nx.classList.remove('is-ready');
+    } else {
+      pgDo.hidden = false;
+      where.hidden = true;
+      pgDo.className = 'pg-do is-ready';
+      pgDo.dataset.action = 'to-sheet';
+      pgDo.innerHTML = '<span class="pg-long">↓ 이 장 학습지 ' + count + '/' + total + '</span><span class="pg-short">학습지 ' + count + '/' + total + ' ↓</span>';
+      pgDo.setAttribute('aria-label', '이 장 학습지 ' + count + '/' + total + ' 풀러 내려가기');
+      nx.classList.remove('is-ready');
+    }
+  }
+  function observeSheet(i) {
+    if (sheetObserver) { sheetObserver.disconnect(); sheetObserver = null; }
+    sheetVisible = false;
+    var p = PAGES[i], sheetEl = document.getElementById('sheet');
+    if (!sheetEl || !p || !p.ch || !p.ch.items.length || typeof IntersectionObserver !== 'function') return;
+    sheetObserver = new IntersectionObserver(function (entries) {
+      var entry = entries[entries.length - 1];
+      if (!entry) return;
+      if (entry.isIntersecting !== sheetVisible) {
+        sheetVisible = entry.isIntersecting;
+        if (lastPage === i) syncPager(i);
+      }
+    }, { rootMargin: '-48px 0px -70px 0px', threshold: 0 });
+    sheetObserver.observe(sheetEl);
   }
   function route(keep) {
     var i = cur(), p = PAGES[i], sub = hashParts().sub;
+    closePagerPrompt();
+    if (!keep) submitConfirm = 0;
     if (!keep && p.ch && p.ch.family && /^i-/.test(sub) && IBY[sub.slice(2)]) curTab[p.ch.id] = sub.slice(2);
     var y = window.scrollY;
     view.innerHTML = p.id === 'start' ? startHTML() : p.id === 'submit' ? submitHTML() : chapterHTML(p.ch, i - 1);
     navHTML(i);
     var pv = document.getElementById('prev'), nx = document.getElementById('next');
     pv.disabled = i === 0; nx.disabled = i === PAGES.length - 1;
-    pv.querySelector('b').textContent = i ? PAGES[i - 1].nav : ''; nx.querySelector('b').textContent = i < PAGES.length - 1 ? PAGES[i + 1].nav : '';
-    document.getElementById('where').textContent = (i + 1) + ' / ' + PAGES.length;
-    document.getElementById('pgBar').style.width = (i / (PAGES.length - 1) * 100) + '%';
+    var prevLabel = i ? (PAGES[i - 1].ch ? (i - 1) + '장 ' + PAGES[i - 1].nav : PAGES[i - 1].nav) : '';
+    var nextLabel = i < PAGES.length - 1 ? (PAGES[i + 1].ch ? (i + 1) + '장 ' + PAGES[i + 1].nav : PAGES[i + 1].nav) : '';
+    pv.querySelector('b').textContent = prevLabel;
+    pv.setAttribute('aria-label', i ? '이전 · ' + prevLabel : '이전');
+    nx.querySelector('b').textContent = nextLabel;
+    nx.setAttribute('aria-label', nextLabel ? '다음 · ' + nextLabel : '다음');
     document.title = (p.ch ? p.ch.title + ' · ' : '') + '국악기';
     if (p.id === 'start') drawQR();
     lastPage = i;
+    observeSheet(i);
+    syncPager(i);
     if (!keep) jump(); else window.scrollTo({ top: y, behavior: 'instant' });
   }
   function setSheet(on) {
     sheetOn = on; body.classList.toggle('class-sheet', on);
+    if (PAGES[lastPage] && PAGES[lastPage].ch) observeSheet(lastPage);
     var bs = document.getElementById('btnSheet');
-    if (bs) { bs.setAttribute('aria-pressed', String(on)); bs.textContent = on ? '학습지 숨기기' : '학습지 함께 보기'; }
+    if (bs) { bs.setAttribute('aria-pressed', String(on)); bs.textContent = on ? '칠판에서 학습지 접기' : '칠판에 학습지 펼치기'; }
+    if (PAGES[lastPage] && PAGES[lastPage].ch) syncPager(lastPage);
   }
   function jump() {
     var sub = hashParts().sub;
     if (sub === 'sheet') {
       if (classOn && !sheetOn) setSheet(true);
-      var s = document.getElementById('sheet'); if (s) { s.scrollIntoView({ block: 'start' }); return; }
+      var s = document.getElementById('sheet');
+      if (s) {
+        s.scrollIntoView({ block: 'start', behavior: 'instant' });
+        sheetVisible = true;
+        if (lastPage >= 0) syncPager(lastPage);
+        return;
+      }
     }
     if (/^i-/.test(sub)) {
       var t = document.getElementById('t-' + sub.slice(2));
@@ -437,6 +708,7 @@
   function go(d) { var i = cur() + d; if (i >= 0 && i < PAGES.length) location.hash = PAGES[i].id; }
   window.addEventListener('hashchange', function () {
     closeSide();
+    closePagerPrompt();
     if (cur() === lastPage) { jump(); return; } // 같은 장 안에서 이동할 때는 다시 그리지 않아요(영상·입력 유지)
     stopVideos(); route(); view.focus({ preventScroll: true });
   });
@@ -453,12 +725,19 @@
 
   /* ---------- 입력 ---------- */
   function refreshCount() {
-    var p = PAGES[cur()]; if (!p.ch) return;
-    var n = sheetCount(p.ch), m = p.ch.items.length;
+    var i = cur(), p = PAGES[i]; if (!p || !p.ch) return;
+    var n = sheetCount(p.ch), m = p.ch.items.length, done = n === m;
     var c = document.getElementById('cnt'); if (c) c.textContent = n + ' / ' + m;
+    var hc = document.getElementById('headChip'); if (hc) hc.classList.toggle('is-done', done);
+    var hcc = document.getElementById('headChipCnt'); if (hcc) hcc.textContent = n + '/' + m;
+    var se = document.getElementById('sheetEnd'); if (se) se.classList.toggle('is-done', done);
+    var em = document.getElementById('endMsg'); if (em) em.innerHTML = progressMessage(n, m);
+    var eg = document.querySelector('#sheetEnd .end-go'); if (eg) eg.classList.toggle('is-ready', done);
     var sl = nav.querySelector('.subl.here span'); if (sl) sl.textContent = n + '/' + m;
     var a = nav.querySelector('a.on'); if (a) { var dot = a.querySelector('.dot');
-      if (n === m && !dot) a.insertAdjacentHTML('beforeend', '<em class="dot" title="학습지 다 씀"></em>'); else if (n !== m && dot) dot.remove(); }
+      if (done && !dot) a.insertAdjacentHTML('beforeend', '<em class="dot" title="학습지 다 씀"></em>'); else if (!done && dot) dot.remove(); }
+    if (done) closePagerPrompt();
+    syncPager(i);
   }
   function findQ(kind, key) {
     if (kind === 'answers') return IBY[key] ? instQ(IBY[key]) : null;
@@ -510,7 +789,8 @@
     save();
     var box = document.getElementById('q-' + kind + '-' + key);
     if (box) {
-      var t = document.createElement('div'); t.innerHTML = qBlock(kind, key, q, box.getAttribute('data-n'));
+      var isWide = box.classList.contains('q-wide');
+      var t = document.createElement('div'); t.innerHTML = qBlock(kind, key, q, box.getAttribute('data-n'), isWide);
       var nb = t.firstChild; box.replaceWith(nb);
       var inp = nb.querySelector('input[value="' + (window.CSS && CSS.escape ? CSS.escape(el.value) : el.value) + '"]'); if (inp && refocus) inp.focus();
     }
@@ -596,11 +876,13 @@
         save();
         Array.prototype.forEach.call(card.querySelectorAll('[data-lg]'), function (b) { b.setAttribute('aria-pressed', String(state.lg[g] === b.getAttribute('data-lg'))); });
         var ln = card.querySelector('.lname'); if (ln) ln.outerHTML = lnameHTML(g);
+        var lo = card.querySelector('.lopen'); if (lo) lo.classList.toggle('is-ready', !!(state.lg[g] && !revealed[g]));
         return;
       }
       if (t.classList.contains('lopen')) {
         revealed[g] = !revealed[g];
         t.setAttribute('aria-expanded', String(!!revealed[g])); t.textContent = revealed[g] ? '악기 닫기' : '악기 열기';
+        t.classList.toggle('is-ready', !!(state.lg[g] && !revealed[g]));
         var ln2 = card.querySelector('.lname'); if (ln2) ln2.outerHTML = lnameHTML(g);
         if (g === nowG) syncCover();
         return;
@@ -609,6 +891,13 @@
     if (t.id === 'lvCover') { coverOn = !coverOn; t.setAttribute('aria-pressed', String(coverOn)); t.textContent = coverOn ? '화면 가리기: 켬' : '화면 가리기: 끔'; syncCover(); return; }
     if (t.id === 'lvStop') { stopVideos(); return; }
     if (t.id === 'btnSubmit') doSubmit();
+    else if (t.id === 'btnSubmitForce') doSubmit(true);
+    else if (t.id === 'btnSubmitCancel') {
+      submitConfirm = 0;
+      route(true);
+      var btn = document.getElementById('btnSubmit');
+      if (btn) btn.focus({ preventScroll: true });
+    }
   });
   view.addEventListener('keydown', function (e) {
     var t = e.target; if (!t || t.getAttribute('role') !== 'tab') return;
@@ -657,6 +946,7 @@
   function setClass(on) {
     classOn = on;
     closeSide();
+    closePagerPrompt();
     body.classList.toggle('class-mode', on); body.classList.toggle('side-closed', on);
     if (!on && sheetOn) setSheet(false);
     showAns = false; // 수업 모드를 켜고 끌 때마다 정답 표시를 처음 상태로 돌려요
@@ -685,11 +975,54 @@
   });
   syncSide();
 
-  document.getElementById('prev').addEventListener('click', function () { go(-1); });
-  document.getElementById('next').addEventListener('click', function () { go(1); });
+  document.getElementById('prev').addEventListener('click', function () { closePagerPrompt(); go(-1); });
+  document.getElementById('next').addEventListener('click', function () {
+    var p = PAGES[lastPage];
+    if (p && p.ch && !classOn && !TEACHER) {
+      var left = p.ch.items.length - sheetCount(p.ch);
+      if (left > 0) { showPagerPrompt(left); return; }
+    }
+    closePagerPrompt();
+    go(1);
+  });
+  document.getElementById('pgDo').addEventListener('click', function () {
+    closePagerPrompt();
+    var p = PAGES[lastPage];
+    if (!p || !p.ch) return;
+    var action = this.dataset.action;
+    if (action === 'submit') {
+      location.hash = 'submit?s=' + (this.dataset.session || part(lastPage - 1));
+    } else if (action === 'first-unanswered') {
+      focusFirstUnanswered(p);
+    } else if (action === 'to-sheet') {
+      if (classOn && !sheetOn) setSheet(true);
+      var targetHash = '#' + p.id + '?sheet';
+      if (location.hash === targetHash) jump();
+      else location.hash = targetHash;
+    }
+  });
+  document.getElementById('pagerPrompt').addEventListener('click', function (e) {
+    var btn = e.target.closest('button');
+    if (!btn) return;
+    if (btn.classList.contains('prompt-sheet')) {
+      closePagerPrompt();
+      focusFirstUnanswered(PAGES[lastPage]);
+    } else if (btn.classList.contains('prompt-skip')) {
+      closePagerPrompt();
+      go(1);
+    }
+  });
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('#pagerPrompt, #next')) closePagerPrompt();
+  });
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (body.classList.contains('side-open')) { closeSide(); burger.focus(); return; }
+      var prompt = document.getElementById('pagerPrompt');
+      if (prompt && !prompt.hidden) { closePagerPrompt(); document.getElementById('next').focus(); return; }
+    }
     var t = e.target;
-    if (e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test((t && t.tagName) || '') && t.getAttribute('role') === 'tab' || /^(INPUT|TEXTAREA|SELECT)$/.test((t && t.tagName) || '')) return;
+    if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || (t && t.closest && t.closest('a, button, input, textarea, select'))) return;
     if (e.key === 'ArrowRight') go(1); else if (e.key === 'ArrowLeft') go(-1);
   });
 
