@@ -418,3 +418,7 @@ body.class-mode:not(.class-sheet) .after-sheet .sheet-end { display: none; }
 .time-plan ol { list-style: none; margin: 0; padding: 0; }
 .time-plan li { padding: .45em 0; border-top: 1px solid var(--line); }
 .time-plan span, .time-plan b { display: block; }
+
+/* 닫힌 안내 띠·지금 할 일 버튼이 display 규칙에 덮여 남지 않게 (T047) */
+.pager-prompt[hidden], .pager [hidden] { display: none !important; }
+@media (max-width: 520px) { body .qd-bar .qd-label { display: none; } } /* 휴대폰: QR 버튼은 아이콘만 (T047) */

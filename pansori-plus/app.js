@@ -387,7 +387,7 @@
       '<div><h2>오늘의 순서</h2><p class="part">1차시</p><ol class="flow">' + CH.slice(0, SPLIT + 1).map(function (c, k) { return row(c, k); }).join('') + '</ol>' +
       '<p class="part">2차시</p><ol class="flow">' + CH.slice(SPLIT + 1).map(function (c, k) { return row(c, k + SPLIT + 1); }).join('') +
       '<li><a href="#submit"><i></i><b>제출하기</b><small>채점하고 선생님께 보내기</small></a></li></ol></div></section>' +
-      (TEACHER ? '<p class="t-plan"><b>선생님 안내</b> <b>2차시(45분×2)</b> 기준이에요. 장 시간은 차시마다 40분이고 5분은 여유예요. 첫째 시간은 <b>' + esc(CH[SPLIT].title) + '</b> 장까지 하고, 둘째 시간은 사랑가 두 무대 비교로 시작해 정리·제출까지 마쳐요. 학생 답은 각자 기기에 남으므로 둘째 시간에도 같은 기기·같은 브라우저로 들어오게 해 주세요. 제출은 마지막에 한 번 해요. 수업 모드 버튼을 누르면 목차가 숨고 글자가 커져요.</p>' : '') +
+      (TEACHER ? '<p class="t-plan"><b>선생님 안내</b> <b>2차시(45분×2)</b> 기준이에요. 장 시간은 차시마다 40분이고 5분은 여유예요. 첫째 시간은 <b>' + esc(CH[SPLIT].title) + '</b> 장까지 하고, 둘째 시간은 사랑가 두 무대 비교로 시작해 정리·제출까지 마쳐요. 학생 답은 각자 기기에 남으므로 둘째 시간에도 같은 기기·같은 브라우저로 들어오게 해 주세요. 제출은 차시가 끝날 때마다 그 차시까지 해요(1차시 끝 · 2차시 끝). 수업 모드 버튼을 누르면 목차가 숨고 글자가 커져요.</p>' : '') +
       '<details class="more qr" id="qrBox"' + (TEACHER ? ' open' : '') + '><summary>학생용 QR 코드</summary><div class="qr-body"><div id="qrImg" aria-label="학생용 주소 QR 코드"></div><div><p>휴대폰·태블릿 카메라로 비추면 이 수업이 열려요. 학년·반·번호와 이름을 넣고 시작해요.</p><code>' + esc(SHARE_URL) + '</code></div></div></details>' +
       '<details class="more src"><summary>영상과 자료 출처</summary><ul>' + Object.keys(V).map(function (k) { return '<li>' + esc(V[k].title) + ' — ' + esc(V[k].by) + ' (YouTube)</li>'; }).join('') +
       '<li>내용: 중학교 음악 교과서 "판소리와 창극" 단원. 대목마다 붙인 장면 설명, 추임새의 예, 발림의 부채, 비교표의 일부 표현은 교과서에 없는 내용으로, 이 수업을 위해 덧붙였어요. 그림은 이 수업을 위해 새로 마련했어요(출처·라이선스: <a href="img/CREDITS.md" target="_blank" rel="noopener">img/CREDITS.md</a>).</li>' +

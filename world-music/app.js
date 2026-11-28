@@ -482,7 +482,7 @@
     }
     return '<details class="more teacher-guide"><summary>교사용 시간표 · 두 차시</summary><div class="time-plan">' +
       timetable(CH.slice(0, SPLIT), 1) + timetable(CH.slice(SPLIT), 2) +
-      '</div><p>둘째 시간에도 같은 기기와 브라우저로 열고, 마지막에 한 번 제출해요.</p></details>';
+      '</div><p>둘째 시간에도 같은 기기와 브라우저로 열어요. 차시가 끝날 때마다 그 차시까지 제출해요.</p></details>';
   }
   function build(html) {
     return (html || '').replace(/\{(\w+):([^}]*)\}/g, function (_, kind, value) {
@@ -684,7 +684,7 @@
         var c = p.ch;
         var n = c.qs.filter(answered).length;
         var g = c.sheet.filter(function (q) { return q.ans !== undefined; });
-        var hits = !isFuture && !classOn && current && g.length ? '<span class="sum-correct"> · ' + g.filter(correct).length + ' / ' + g.length + ' 맞음</span>' : '';
+        var hits = !isFuture && s <= doneScope && !classOn && current && g.length ? '<span class="sum-correct"> · ' + g.filter(correct).length + ' / ' + g.length + ' 맞음</span>' : '';
         return '<li><a href="#' + c.id + (c.sheet.length ? '?sheet' : '') + '"><span>' + (p.index + 1) + '장</span><b>' + esc(c.title) +
           '</b><span>' + (c.qs.length ? n + ' / ' + c.qs.length + ' 답함' : '듣기·말하기') + hits + '</span></a></li>';
       }).join('');
@@ -1489,6 +1489,7 @@
     stopVideos();
     try { localStorage.removeItem(KEY); } catch (e) {}
     state = fresh();
+    pendingRadio = null;
     mapUI = {};
     showAns = false;
     sending = false;

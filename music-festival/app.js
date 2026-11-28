@@ -513,6 +513,8 @@
     }
     pendingRadio = null;
     view.innerHTML = p.ch ? chapterHTML(p.ch, i) : submitHTML();
+    // 교사 모드는 학생 짐작을 고르지 않아도 '정체 공개'를 누를 수 있게 (지침 1절)
+    if (TEACHER) { var revBtn = document.getElementById('btnReveal'); if (revBtn) revBtn.disabled = false; }
     lastPage = i;
     navHTML(i);
     var pv = document.getElementById('prev'), nx = document.getElementById('next');
@@ -657,7 +659,7 @@
       var ready = guesses.querySelectorAll('[aria-pressed=true]').length === guesses.querySelectorAll('.guess').length;
       var btn = document.getElementById('btnReveal');
       var identities = document.getElementById('showIdentities');
-      btn.disabled = !ready;
+      btn.disabled = !ready && !TEACHER;
       btn.classList.toggle('is-ready', ready && (!identities || identities.hidden));
     }
   }
@@ -706,6 +708,7 @@
   document.addEventListener('classroom:switch', function () {
     try { localStorage.removeItem(KEY); } catch (e) {}
     state = fresh();
+    pendingRadio = null;
     showAns = false;
     sending = false;
     lastPage = -1;

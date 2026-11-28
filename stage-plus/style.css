@@ -409,3 +409,6 @@ main { min-width: 0; }
 }
 body.class-mode .t-note, body.class-mode .mk, body.class-mode .score, body.class-mode .sum-correct { display: none; }
 body.class-mode:not(.class-sheet) .after-sheet .sheet-end { display: none; }
+
+/* 닫힌 안내 띠·지금 할 일 버튼이 display 규칙에 덮여 남지 않게 (T047) */
+.pager-prompt[hidden], .pager [hidden] { display: none !important; }

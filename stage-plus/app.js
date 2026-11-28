@@ -145,7 +145,7 @@
     if (!TEACHER) return '';
     if (key === 'plan') {
       return '<p class="hint teacher-guide"><b>선생님 안내</b> 1차시는 「뮤지컬 vs 오페라」 장에서 끝나요. 2차시는 「판소리」에서 시작해요. ' +
-        '지난 답을 이어서 쓰려면 같은 기기와 브라우저를 사용하고, 둘째 시간 끝에 제출해요.</p>';
+        '지난 답을 이어서 쓰려면 같은 기기와 브라우저를 사용해요. 차시가 끝날 때마다 그 차시까지 제출해요.</p>';
     }
     return '<p class="hint teacher-guide"><b>선생님 안내</b> 1막 첫 이중창 뒤, 수잔나가 피가로에게 무엇을 재고 있는지 묻는 대화(약 1분)를 찾아 트세요. ' +
       'content.js <code>V.recitative.start</code>에 초를 적으면 바로 그 자리에서 시작합니다.</p>';
@@ -549,6 +549,8 @@
     if (lastPage !== i || p.ch) submitConfirm = 0;
     pendingRadio = null;
     view.innerHTML = p.ch ? chapterHTML(p.ch, i) : submitHTML();
+    // 교사 모드는 학생 짐작을 고르지 않아도 '정체 공개'를 누를 수 있게 (지침 1절)
+    if (TEACHER) { var revBtn = document.getElementById('btnReveal'); if (revBtn) revBtn.disabled = false; }
     lastPage = i;
     navHTML(i);
     var pv = document.getElementById('prev'), nx = document.getElementById('next');
@@ -675,7 +677,7 @@
     if (guesses) {
       var btnRev = document.getElementById('btnReveal');
       var ready = guesses.querySelectorAll('[aria-pressed=true]').length === 3;
-      btnRev.disabled = !ready;
+      btnRev.disabled = !ready && !TEACHER;
       btnRev.classList.toggle('is-ready', ready && document.getElementById('showIdentities').hidden);
     }
   }

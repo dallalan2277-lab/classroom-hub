@@ -437,7 +437,7 @@
       '<a class="go" href="#' + CH[0].id + '">수업 시작하기</a></section>' +
       '<div class="hero-art">' + art('stage-orchestra.webp', '국악관현악 무대 전경: 한복 입은 연주자들이 따뜻한 조명 아래에서 연주해요', 'wide-art', 1600, 900) + '</div>' +
       '<section class="wrap two intro"><div><h2>오늘 배울 것</h2><ul class="goals"><li>국악기를 소리 내는 방법에 따라 관악기·현악기·타악기로 나눌 수 있어요.</li><li>사진과 영상으로 국악기 22종의 생김새와 소리를 알아볼 수 있어요.</li><li>소리만 듣고 악기 가족을 짐작할 수 있어요.</li></ul>' +
-      '<p class="how">장마다 위쪽은 수업 화면, 아래쪽 밝은 종이는 학습지예요. 쓴 답은 이 기기에 저절로 저장되고, 마지막에 한 번 제출해요.</p></div>' +
+      '<p class="how">장마다 위쪽은 수업 화면, 아래쪽 밝은 종이는 학습지예요. 쓴 답은 이 기기에 저절로 저장되고, 차시가 끝날 때마다 그 차시까지 제출해요.</p></div>' +
       '<div><h2>오늘의 순서</h2><p class="part">1차시</p><ol class="flow">' + CH.slice(0, SPLIT + 1).map(function (c, k) { return row(c, k); }).join('') + '</ol>' +
       '<p class="part">2차시</p><ol class="flow">' + CH.slice(SPLIT + 1).map(function (c, k) { return row(c, k + SPLIT + 1); }).join('') +
       '<li><a href="#submit"><i></i><b>제출하기</b><small>채점하고 선생님께 보내기</small></a></li></ol></div></section>' +
@@ -709,7 +709,7 @@
   window.addEventListener('hashchange', function () {
     closeSide();
     closePagerPrompt();
-    if (cur() === lastPage) { jump(); return; } // 같은 장 안에서 이동할 때는 다시 그리지 않아요(영상·입력 유지)
+    if (cur() === lastPage && PAGES[cur()] && PAGES[cur()].ch) { jump(); return; } // 같은 장 안에서 이동할 때는 다시 그리지 않아요(영상·입력 유지)
     stopVideos(); route(); view.focus({ preventScroll: true });
   });
 
