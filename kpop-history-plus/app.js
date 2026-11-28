@@ -47,6 +47,15 @@
   let sending = false;
   let classOn = false;
   let sheetOn = false;
+  let sheetObserver = null;
+  let sheetVisible = false;
+  let submitConfirm = 0;
+
+  function isSessionEnd(page) {
+    if (!page?.qs) return false;
+    const next = pages[page.index + 1];
+    return Boolean(next && (next.split || next.id === 'submit'));
+  }
 
   function freshState() {
     return { a: {}, done: null, qs: schema };
@@ -231,7 +240,8 @@
     const g = GUESS[key];
     if (!g) return '';
     const st = guessState(key);
-    const ready = Boolean(st.picked || TEACHER);
+    const canOpen = Boolean(st.picked || TEACHER);
+    const ready = canOpen && !st.opened;
     const steps = g.steps || (g.clip ? '1 듣기 → 2 고르기 → 3 공개' : '1 고르기 → 2 공개');
     return `<section class="guess-reveal-card guess-card" data-guess="${esc(key)}" aria-labelledby="guess-${esc(key)}">
       <p class="flow-steps">${steps}</p>
@@ -245,8 +255,8 @@
         }).join('')}
       </div>
       <div class="guess-actions">
-        <button type="button" class="mini guess-reveal${ready ? ' is-ready' : ''}"${ready ? '' : ' disabled'}>공개</button>
-        <small class="reveal-hint"${ready ? ' hidden' : ''}>먼저 하나를 골라요.</small>
+        <button type="button" class="mini guess-reveal${ready ? ' is-ready' : ''}"${canOpen ? '' : ' disabled'}>공개</button>
+        <small class="reveal-hint"${canOpen ? ' hidden' : ''}>먼저 하나를 골라요.</small>
       </div>
       <div class="guess-result" role="status">${guessResult(key, st)}</div>
     </section>`;
@@ -270,11 +280,11 @@
       opt.setAttribute('aria-pressed', String(st.picked === opt.dataset.opt));
       opt.classList.toggle('is-answer', st.opened && opt.dataset.opt === g.ans);
     }
-    const ready = Boolean(st.picked || TEACHER);
+    const canOpen = Boolean(st.picked || TEACHER);
     const rev = card.querySelector('.guess-reveal');
-    rev.disabled = !ready;
-    rev.classList.toggle('is-ready', ready);
-    card.querySelector('.reveal-hint').hidden = ready;
+    rev.disabled = !canOpen;
+    rev.classList.toggle('is-ready', canOpen && !st.opened);
+    card.querySelector('.reveal-hint').hidden = canOpen;
     card.querySelector('.guess-result').innerHTML = guessResult(key, st);
   }
 
@@ -362,7 +372,7 @@
           <div class="cue-counter-sub">
             <button type="button" class="mini cue-minus" data-cue-minus="${esc(key)}" aria-label="1 빼기"${st.locked || st.count === 0 ? ' disabled' : ''}>−1</button>
             <button type="button" class="mini cue-reset" data-cue-reset="${esc(key)}">초기화</button>
-            <button type="button" class="mini cls cue-lock" data-cue-lock="${esc(key)}" aria-pressed="${st.locked}">${st.locked ? '다시 세기' : '기록 확정'}</button>
+            <button type="button" class="mini cue-lock${st.count > 0 && !st.locked ? ' is-ready' : ''}" data-cue-lock="${esc(key)}" aria-pressed="${st.locked}">${st.locked ? '다시 세기' : '기록 확정'}</button>
           </div>
         </div>
         <p class="cue-fb${st.locked ? ' ok' : ''}">${st.locked ? `내 기록 ${st.count}${esc(unit)} 확정! ${esc(c.compare)}` : esc(c.compare)}</p>`;
@@ -402,7 +412,7 @@
         }).join('')}
       </div>
       <div class="cue-acts"><span class="cue-picked-cnt">선택 ${st.picked.length} / ${totalRight}</span>
-        <button type="button" class="mini cls cue-check" data-cue-check="${esc(key)}">단서 검증하기</button>
+        <button type="button" class="mini cue-check${st.picked.length > 0 && !st.checked ? ' is-ready' : ''}" data-cue-check="${esc(key)}">단서 검증하기</button>
       </div>${fbHTML}`;
   }
 
@@ -483,10 +493,14 @@
         return;
       }
       button.setAttribute('aria-pressed', String(!wasPicked));
-      box.querySelector('.cue-check').disabled = selected.length + (wasPicked ? -1 : 1) !== 2;
+      const ready = selected.length + (wasPicked ? -1 : 1) === 2;
+      const checkBtn = box.querySelector('.cue-check');
+      checkBtn.disabled = !ready;
+      checkBtn.classList.toggle('is-ready', ready);
       feedback.textContent = '';
       return;
     }
+    button.classList.remove('is-ready');
     const cues = JUKEBOX[box.closest('[data-jukebox]').dataset.jukebox].cues;
     feedback.innerHTML = selected.map(chip => {
       const cue = cues[Number(chip.dataset.cue)];
@@ -531,7 +545,7 @@
     </div>` : `<h3 id="jukebox-${key}">${esc(box.title)}</h3>`;
     const multi = box.tracks.length > 1;
     const tabsHTML = multi ? `<div class="juke-tabs" role="tablist" aria-labelledby="jukebox-${key}">
-        ${box.tracks.map(([song, by], i) => `<button class="chip juke-tab" type="button" role="tab" id="${key}-tab-${i}"
+        ${box.tracks.map(([song, by], i) => `<button class="juke-tab" type="button" role="tab" id="${key}-tab-${i}"
           data-track="${i}" aria-controls="${key}-panel" aria-selected="${i === 0}" tabindex="${i ? -1 : 0}">
           ${esc(by ? by + ' ' + V[song].title : V[song].title)}</button>`).join('')}
       </div>
@@ -587,7 +601,8 @@
         ${keys.map((key, index) => {
           const clip = V[key];
           const record = introState(key);
-          const ready = Boolean(record.picked || TEACHER);
+          const canOpen = Boolean(record.picked || TEACHER);
+          const ready = canOpen && !record.revealed;
           const num = keys.length > 1 ? `${index + 1}번 곡` : '';
           const label = record.revealed ? clip.title : `${num ? num + ' · ' : ''}12초 소리 듣기`;
           return `<article class="guess-reveal-card intro-card" data-intro="${key}" data-revealed="${record.revealed}"
@@ -602,8 +617,8 @@
                 aria-pressed="${record.picked === V[song].title}">${esc(V[song].title)}</button>`).join('')}
             </div>
             <div class="intro-actions">
-              <button class="mini intro-check${ready ? ' is-ready' : ''}" type="button"${ready ? '' : ' disabled'}>정답 공개</button>
-              <small class="reveal-hint"${ready ? ' hidden' : ''}>먼저 곡 이름을 골라요.</small>
+              <button class="mini intro-check${ready ? ' is-ready' : ''}" type="button"${canOpen ? '' : ' disabled'}>정답 공개</button>
+              <small class="reveal-hint"${canOpen ? ' hidden' : ''}>먼저 곡 이름을 골라요.</small>
             </div>
             <div class="intro-result" role="status">${introResult(key, record)}</div>
           </article>`;
@@ -628,11 +643,11 @@
     for (const opt of card.querySelectorAll('.intro-opt')) {
       opt.setAttribute('aria-pressed', String(record.picked === V[opt.dataset.song].title));
     }
-    const ready = Boolean(record.picked || TEACHER);
+    const canOpen = Boolean(record.picked || TEACHER);
     const reveal = card.querySelector('.intro-check');
-    reveal.disabled = !ready;
-    reveal.classList.toggle('is-ready', ready);
-    card.querySelector('.reveal-hint').hidden = ready;
+    reveal.disabled = !canOpen;
+    reveal.classList.toggle('is-ready', canOpen && !record.revealed);
+    card.querySelector('.reveal-hint').hidden = canOpen;
     card.querySelector('.intro-result').innerHTML = introResult(key, record);
     const figure = card.querySelector('.vid');
     if (record.revealed && card.dataset.revealed === 'false' && !figure) card.dataset.revealed = 'true';
@@ -989,7 +1004,10 @@
   function marksMode() {
     if (classOn) return '';
     if (TEACHER && showAns) return 'key';
-    return state.done?.sig && state.done.sig === answerSignature() ? 'graded' : '';
+    if (!state.done?.sig || state.done.sig !== answerSignature(state.done.s)) return '';
+    const doneScope = state.done.s || groups.length;
+    if (renderedPage?.session && renderedPage.session > doneScope) return '';
+    return 'graded';
   }
 
   function markHTML(q, mode) {
@@ -1041,7 +1059,8 @@
     if (songs.length) groupsList.push(['곡', songs]);
     if (q.ctx?.words?.list?.length) groupsList.push([q.ctx.words.label, q.ctx.words.list]);
     if (q.vocab?.length) groupsList.push(['표현', q.vocab]);
-    return groupsList.map(([label, list]) => `<div class="vocab-group"><span class="vocab-label">${esc(label)}</span>${list.map(word =>
+    if (!groupsList.length) return '';
+    return `<p class="vocab-guide">눌러서 글상자에 넣기:</p>` + groupsList.map(([label, list]) => `<div class="vocab-group"><span class="vocab-label">${esc(label)}</span>${list.map(word =>
       `<button class="chip vocab-chip" type="button" data-q="${q.id}" data-word="${esc(word)}" aria-pressed="${text.includes(word)}">${esc(word)}</button>`
     ).join('')}</div>`).join('');
   }
@@ -1079,10 +1098,16 @@
     </div>`;
   }
 
-  function nextLink(page) {
+  function nextLink(page, { done = false } = {}) {
     const next = pages[page.index + 1];
-    return `<a class="end-go" href="#${next.id}">
-      ${next.id === 'submit' ? '제출 화면으로 →' : `다음 장 · ${esc(next.title)} →`}</a>`;
+    if (isSessionEnd(page)) {
+      const ready = done || !page.qs.length;
+      const submitBtn = `<a class="end-go${ready ? ' is-ready' : ''}" href="#submit?s=${page.session}">${page.session}차시 제출하기 →</a>`;
+      if (next.id === 'submit') return submitBtn;
+      return `${submitBtn}<a class="end-go" href="#${next.id}">다음 차시 · ${next.index + 1}장 ${esc(next.title)} →</a>`;
+    }
+    return `<a class="end-go${done ? ' is-ready' : ''}" href="#${next.id}">
+      ${next.id === 'submit' ? '제출 화면으로 →' : `다음 장 · ${next.index + 1}장 ${esc(next.title)} →`}</a>`;
   }
 
   function sheetNoteHTML(page) {
@@ -1094,12 +1119,12 @@
       const sep = arrow === 'arrow' ? '──▶' : ':';
       return `<li><span class="note-label">${esc(label)}</span><span class="note-sep" aria-hidden="true">${sep}</span>
         <button type="button" class="note-slot${val ? ' is-filled' : ''}" data-note-q="${esc(id)}"
-          aria-label="${n}번 문항으로 가기, ${esc(label)}: ${esc(val || '아직 비어 있음')}">${esc(val || '▢')}</button></li>`;
+          aria-label="${n}번 문항으로 가기, ${esc(label)}: ${esc(val || '아직 비어 있음')}">${esc(val || '______')}</button></li>`;
     }).join('');
     return `<aside class="sheet-note" aria-labelledby="note-${page.id}">
       <p class="eyebrow" id="note-${page.id}">내 정리 노트 · ${esc(page.era)}</p>
+      <p class="note-help">아래 문항을 풀면 빈칸이 채워져요 · 칸을 누르면 그 문항으로 가요</p>
       <ol class="note-rows">${rows}</ol>
-      <p class="note-help">문항에 답하면 고른 말이 칸에 채워져요. 칸을 누르면 그 문항으로 가요.</p>
     </aside>`;
   }
 
@@ -1137,15 +1162,17 @@
       return questionHTML(u.q, u.index, mode, { wide: u.wide });
     }).join('');
     return `<section class="sheet" id="sheet" aria-labelledby="sheetTitle">
-      <header><div><p class="eyebrow">학습지</p><h2 id="sheetTitle">${esc(page.title)}</h2></div>
+      <header class="sheet-head"><div><p class="eyebrow">${page.index + 1}장 · ${esc(page.title)}</p><h2 id="sheetTitle">이 장 학습지 · ${total}문항</h2></div>
         <span class="cnt" id="cnt">${count} / ${total}</span></header>
-      <p class="warn" id="saveWarn"${saveOk ? ' hidden' : ''}>이 기기에 답을 저장하지 못했어요. 제출할 때까지 화면을 열어 두세요.</p>
-      ${TEACHER ? `<p class="t-note">교사 모드 <button class="mini" type="button" id="btnAns" aria-pressed="${showAns}">
-        ${showAns ? '정답 숨기기' : '정답 보기'}</button></p>` : ''}
-      ${sheetNoteHTML(page)}
-      <div class="sheet-qs">${qsHTML}</div>
-      <div class="sheet-end${count === total ? ' is-done' : ''}" id="sheetEnd">
-        <p id="endMsg">${progressMessage(count, total)}</p>${nextLink(page)}</div>
+      <div class="sheet-body">
+        <p class="warn" id="saveWarn"${saveOk ? ' hidden' : ''}>이 기기에 답을 저장하지 못했어요. 제출할 때까지 화면을 열어 두세요.</p>
+        ${TEACHER ? `<p class="t-note">교사 모드 <button class="mini" type="button" id="btnAns" aria-pressed="${showAns}">
+          ${showAns ? '정답 숨기기' : '정답 보기'}</button></p>` : ''}
+        ${sheetNoteHTML(page)}
+        <div class="sheet-qs">${qsHTML}</div>
+        <div class="sheet-end${count === total ? ' is-done' : ''}" id="sheetEnd">
+          <p id="endMsg">${progressMessage(count, total)}</p>${nextLink(page, { done: count === total })}</div>
+      </div>
     </section>`;
   }
 
@@ -1176,8 +1203,12 @@
     byId('headChipCnt').textContent = `${count}/${total}`;
     byId('headChip').classList.toggle('is-done', done);
     byId('sheetEnd').classList.toggle('is-done', done);
+    const endGo = view.querySelector('#sheetEnd .end-go');
+    if (endGo) endGo.classList.toggle('is-ready', done);
     byId('endMsg').textContent = progressMessage(count, total);
     nav.querySelector(`[data-nav-count="${page.id}"]`).textContent = `${count}/${total}`;
+    if (done) closePagerPrompt();
+    syncPager(page);
   }
 
   function refreshNoteSlot(q) {
@@ -1189,7 +1220,7 @@
     const val = questionValue(q);
     const n = renderedPage.qs.findIndex(item => item.id === q.id) + 1;
     btn.classList.toggle('is-filled', Boolean(val));
-    btn.textContent = val || '▢';
+    btn.textContent = val || '______';
     btn.setAttribute('aria-label', `${n}번 문항으로 가기, ${label}: ${val || '아직 비어 있음'}`);
   }
 
@@ -1268,46 +1299,107 @@
     return answers;
   }
 
-  function answerSignature() {
-    return JSON.stringify(answersForHub());
+  // 차시별 제출: s차시까지의 문항 답만 견준다(다음 차시를 풀어도 앞 차시 채점 표시가 남게).
+  // s가 없으면 예전 방식(모든 기록)으로 견준다 — 이 판 전에 제출한 기록용.
+  function answerSignature(s) {
+    const answers = answersForHub();
+    if (!s) return JSON.stringify(answers);
+    const ids = new Set(pages.filter(p => p.qs && p.session <= s).flatMap(p => p.qs.map(q => q.id)));
+    return JSON.stringify(Object.fromEntries(Object.entries(answers).filter(([key]) => ids.has(key))));
   }
 
-  function result() {
+  function submitScope() {
+    const { sub } = pageLocation();
+    const s = Number(new URLSearchParams(sub || '').get('s'));
+    if (Number.isInteger(s) && s >= 1 && s <= groups.length) return s;
+    for (let i = groups.length; i >= 1; i--) {
+      if (groups[i - 1].some(p => p.qs?.some(answered))) return i;
+    }
+    return 1;
+  }
+
+  function scopedGraded(targetSession) {
+    return pages.filter(p => p.qs && p.session <= targetSession).flatMap(p => p.qs).filter(q => q.type === 'radio');
+  }
+
+  function result(targetSession = groups.length) {
     const answers = answersForHub();
-    const score = graded.filter(q => answers[q.id] === q.ans).length;
-    const wrong = graded.filter(q => answers[q.id] && answers[q.id] !== q.ans).map(q => q.label);
-    return { score, total: graded.length, wrong, answers };
+    const targetGraded = scopedGraded(targetSession);
+    const score = targetGraded.filter(q => answers[q.id] === q.ans).length;
+    const wrong = targetGraded.filter(q => answers[q.id] && answers[q.id] !== q.ans).map(q => q.label);
+    const sessionScores = [];
+    for (let s = 1; s <= targetSession; s++) {
+      const sGraded = groups[s - 1].flatMap(p => p.qs).filter(q => q.type === 'radio');
+      const sScore = sGraded.filter(q => answers[q.id] === q.ans).length;
+      sessionScores.push(`${s}차시 ${sScore}/${sGraded.length}`);
+    }
+    answers['제출 차시'] = `${targetSession}차시까지`;
+    answers['차시별 점수'] = sessionScores.join(' · ');
+    return { score, total: targetGraded.length, wrong, answers };
   }
 
   function submitHTML() {
-    const left = graded.filter(q => !answered(q)).length;
+    const targetSession = submitScope();
+    const targetGraded = scopedGraded(targetSession);
+    const left = targetGraded.filter(q => !answered(q)).length;
     const done = state.done;
-    const changed = done?.sig && done.sig !== answerSignature();
+    const doneScope = done ? (done.s || groups.length) : 0;
+    const changed = done?.sig && done.sig !== answerSignature(done.s);
+    const scopeTabs = `<div class="submit-scope" role="navigation" aria-label="제출 차시 고르기">
+      ${groups.map((_, i) => {
+        const s = i + 1;
+        const active = s === targetSession;
+        return `<a class="scope-link${active ? ' is-now' : ''}" href="#submit?s=${s}"${active ? ' aria-current="page"' : ''}>${s}차시까지</a>`;
+      }).join('')}
+    </div>`;
+    const sumGroups = groups.map((group, i) => {
+      const s = i + 1;
+      const isFuture = s > targetSession;
+      const rows = group.filter(page => page.qs?.length).map(page => `<li><a href="#${page.id}?sheet">
+        <span>${page.index + 1}장</span><b>${esc(page.title)}</b>
+        <span>${page.qs.filter(answered).length} / ${page.qs.length} 답함</span>
+      </a></li>`).join('');
+      return `<section class="sum-group${isFuture ? ' is-future' : ''}">
+        <div class="sum-head"><b>${s}차시 · ${esc(SESSIONS[i])}</b>${isFuture ? '<span class="sum-tag">다음 차시</span>' : ''}</div>
+        <ul class="sum">${rows}</ul>
+      </section>`;
+    }).join('');
+    const scopeText = targetSession === 1 ? '1차시' : `1~${targetSession}차시`;
+    const btnLabel = sending ? '보내는 중' : (done && doneScope >= targetSession ? '다시 제출하기' : `${targetSession}차시까지 제출하기`);
+    const showConfirm = submitConfirm === targetSession && left > 0 && !sending;
     return `<article class="lesson submit-page">
       <header class="ch-head"><h1>제출하기</h1>
-        <p class="lead">고르는 문제 ${graded.length}문항을 채점해요. 생각 한 줄과 활동 기록도 함께 보내요.</p></header>
-      ${done ? `<div class="submission-status"><p class="score"><b>${done.score}</b> / ${done.total}점</p>
+        <p class="lead">${scopeText} 고르는 문제 ${targetGraded.length}문항을 채점해요. 생각 한 줄과 활동 기록도 함께 보내요.</p>
+        ${scopeTabs}</header>
+      ${done ? `<div class="submission-status"><p class="score"><b>${done.score}</b> / ${done.total}점 <small class="score-scope">(${doneScope}차시까지)</small></p>
         <p role="status">${esc(done.message)}</p>
         ${changed ? '<p class="warn">제출하고 나서 답을 바꿨어요. 고친 답으로 다시 제출할 수 있어요.</p>' : ''}</div>` : ''}
-      <ul class="sum">
-        ${pages.filter(page => page.qs?.length).map(page => `<li><a href="#${page.id}?sheet">
-          <span>${page.index + 1}장</span><b>${esc(page.title)}</b>
-          <span>${page.qs.filter(answered).length} / ${page.qs.length} 답함</span>
-        </a></li>`).join('')}
-      </ul>
-      <p class="${left ? 'warn' : 'fine'}">${left ? `아직 답하지 않은 채점 문항이 <b>${left}개</b> 있어요.` : '채점 문항에 모두 답했어요.'}</p>
-      <button class="go" type="button" id="btnSubmit"${sending ? ' disabled' : ''}>
-        ${sending ? '보내는 중' : done ? '다시 제출하기' : '채점하고 제출하기'}</button>
+      <div class="sum-groups">${sumGroups}</div>
+      <p class="${left ? 'warn' : 'fine'}">${left ? `${scopeText}에서 아직 답하지 않은 채점 문항이 <b>${left}개</b> 있어요.` : `${scopeText} 채점 문항에 모두 답했어요.`}</p>
+      ${showConfirm ? `<div class="submit-confirm" role="alert">
+        <p class="warn">아직 답하지 않은 채점 문항이 <b>${left}개</b> 있어요. 빈 문항은 0점 처리돼요. 그래도 제출할까요?</p>
+        <div class="submit-confirm-btns">
+          <button type="button" class="mini is-ready" id="btnSubmitForce">그래도 제출하기</button>
+          <button type="button" class="mini" id="btnSubmitCancel">돌아가서 풀기</button>
+        </div>
+      </div>` : `<button class="go" type="button" id="btnSubmit"${sending ? ' disabled' : ''}>${btnLabel}</button>`}
     </article>`;
   }
 
-  async function submit() {
+  async function submit(force = false) {
     if (sending) return;
-    const left = graded.filter(q => !answered(q)).length;
-    if (left && !window.confirm(`아직 답하지 않은 채점 문항이 ${left}개 있어요. 그래도 제출할까요?`)) return;
+    const targetSession = submitScope();
+    const left = scopedGraded(targetSession).filter(q => !answered(q)).length;
+    if (left && !force) {
+      submitConfirm = targetSession;
+      view.innerHTML = submitHTML();
+      byId('btnSubmitCancel')?.focus({ preventScroll: true });
+      return;
+    }
+    submitConfirm = 0;
     const record = state;
-    const report = result();
-    const signature = JSON.stringify(report.answers);
+    const report = result(targetSession);
+    const signature = answerSignature(targetSession);
     sending = true;
     view.innerHTML = submitHTML();
     let response;
@@ -1323,7 +1415,7 @@
     else if (response.teacher) message = '교사 모드에서 채점했어요.';
     else if (response.ok) message = response.offline ? '이 기기에서 채점했어요. 연결되면 다시 제출할 수 있어요.' : '선생님께 보냈어요.';
     else message = response.error || '보내지 못했어요. 연결을 확인하고 다시 눌러 주세요.';
-    state.done = { score: report.score, total: report.total, message, sig: !response || response.ok ? signature : '' };
+    state.done = { score: report.score, total: report.total, s: targetSession, message, sig: !response || response.ok ? signature : '' };
     save();
     if (renderedPage.id === 'submit') {
       view.innerHTML = submitHTML();
@@ -1342,8 +1434,9 @@
     return `<article class="lesson">
       <header class="ch-head art">
         <p class="eyebrow">${page.session}차시 · ${page.index + 1}장 · 약 ${page.minutes}분</p>
-        <h1>${esc(page.title)}</h1>
+        <h1 class="ch-title"><span class="ch-num">${page.index + 1}장</span><span>${esc(page.title)}</span></h1>
         ${page.lead ? `<p class="lead">${esc(page.lead)}</p>` : ''}
+        <p class="ch-guide">${total ? `이 장: 위에서 보고 듣기 → 아래 학습지 ${total}문항` : '이 장은 학습지 없이 줄자 정리판만 해요'}</p>
         ${total ? `<a class="sheet-chip${count === total ? ' is-done' : ''}" id="headChip" href="#${page.id}?sheet">
           이 장 학습지 <b id="headChipCnt">${count}/${total}</b> ↓</a>` : ''}
       </header>
@@ -1352,10 +1445,10 @@
       ${piece}
       ${total ? `<div class="bridge">
         <p class="bridge-norm">여기까지 봤으면 아래 학습지에서 ${total}문항을 풀어요.</p>
-        <p class="bridge-cls">칠판에서 함께 풀려면 학습지를 펼쳐요.</p>
+        <p class="bridge-cls">태블릿 아래 ‘이 장 학습지’ ${total}문항을 풀어요</p>
         <a class="bridge-go" href="#${page.id}?sheet">학습지로 ↓</a>
         <button type="button" class="mini cls" id="btnSheet" aria-pressed="${sheetOn}">
-          ${sheetOn ? '학습지 숨기기' : '학습지 함께 보기'}</button>
+          ${sheetOn ? '칠판에서 학습지 접기' : '칠판에 학습지 펼치기'}</button>
       </div>${sheetHTML(page)}` : `<div class="lesson-end">${nextLink(page)}</div>`}
     </article>`;
   }
@@ -1375,6 +1468,7 @@
       ${group.map(page => navLink(page, active)).join('')}
     </section>`);
     nav.innerHTML = sections.join('') + navLink(byPage.get('submit'), active);
+    byId('burger').textContent = active.qs ? `${active.index + 1}장 · 목차` : '제출 · 목차';
     const link = nav.querySelector('.on');
     if (link && !side.inert) {
       if (link.offsetTop < nav.scrollTop || link.offsetTop + link.offsetHeight > nav.scrollTop + nav.clientHeight) {
@@ -1421,17 +1515,125 @@
     return { page: byPage.get(id) || pages[0], sub };
   }
 
+  function closePagerPrompt() {
+    const prompt = byId('pagerPrompt');
+    if (!prompt || prompt.hidden) return;
+    prompt.hidden = true;
+    prompt.replaceChildren();
+  }
+
+  function showPagerPrompt(left) {
+    const prompt = byId('pagerPrompt');
+    if (!prompt) return;
+    prompt.innerHTML = `<span class="prompt-msg" id="pagerPromptMsg">이 장 학습지 <b>${left}문항</b>이 남았어요</span>
+      <span class="prompt-acts">
+        <button type="button" class="mini is-ready prompt-sheet" aria-describedby="pagerPromptMsg">학습지로 ↓</button>
+        <button type="button" class="mini prompt-skip" aria-describedby="pagerPromptMsg">그냥 넘어가기 →</button>
+      </span>`;
+    prompt.hidden = false;
+    prompt.querySelector('.prompt-sheet')?.focus({ preventScroll: true });
+  }
+
+  function focusFirstUnanswered(page) {
+    if (!page?.qs?.length) return;
+    if (classOn && !sheetOn) setSheet(true);
+    const targetQ = page.qs.find(q => !answered(q)) || page.qs[0];
+    const card = byId('q-' + targetQ.id);
+    if (!card) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    card.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    const field = card.querySelector('input[type="radio"]:checked, input[type="radio"], textarea');
+    field?.focus({ preventScroll: true });
+  }
+
+  function syncPager(page) {
+    const pgDo = byId('pgDo');
+    const where = byId('where');
+    const nextBtn = byId('next');
+    if (!page?.qs) {
+      pgDo.hidden = true;
+      where.hidden = false;
+      where.textContent = '제출';
+      nextBtn.classList.remove('is-ready');
+      byId('pgBar').style.width = '100%';
+      return;
+    }
+    const total = page.qs.length;
+    const count = page.qs.filter(answered).length;
+    const sessionEnd = isSessionEnd(page);
+    const done = count === total;
+    byId('pgBar').style.width = Math.min(100, (page.index + 1) / CHAPTERS.length * 100) + '%';
+
+    if (sessionEnd && (total === 0 || done)) {
+      pgDo.hidden = false;
+      where.hidden = true;
+      pgDo.className = 'pg-do is-ready';
+      pgDo.dataset.action = 'submit';
+      pgDo.innerHTML = `<span class="pg-long">${page.session}차시 제출하기 →</span><span class="pg-short">${page.session}차시 제출 →</span>`;
+      pgDo.setAttribute('aria-label', `${page.session}차시 제출하기`);
+      nextBtn.classList.remove('is-ready');
+    } else if (total === 0) {
+      pgDo.hidden = true;
+      where.hidden = false;
+      where.textContent = `${page.index + 1} / ${CHAPTERS.length}장`;
+      nextBtn.classList.add('is-ready');
+    } else if (done) {
+      pgDo.hidden = false;
+      where.hidden = true;
+      pgDo.className = 'pg-do is-done';
+      pgDo.dataset.action = 'to-sheet';
+      pgDo.innerHTML = `<span class="pg-long">학습지 ${total}/${total} 완료</span><span class="pg-short">${total}/${total} 완료</span>`;
+      pgDo.setAttribute('aria-label', `학습지 ${total}/${total} 완료, 학습지 보기`);
+      nextBtn.classList.add('is-ready');
+    } else if (sheetVisible) {
+      pgDo.hidden = false;
+      where.hidden = true;
+      pgDo.className = 'pg-do is-working';
+      pgDo.dataset.action = 'first-unanswered';
+      pgDo.innerHTML = `<span class="pg-long">학습지 ${count}/${total}</span><span class="pg-short">학습지 ${count}/${total}</span>`;
+      pgDo.setAttribute('aria-label', `안 푼 문항으로 가기, 학습지 ${count}/${total}`);
+      nextBtn.classList.remove('is-ready');
+    } else {
+      pgDo.hidden = false;
+      where.hidden = true;
+      pgDo.className = 'pg-do is-ready';
+      pgDo.dataset.action = 'to-sheet';
+      pgDo.innerHTML = `<span class="pg-long">↓ 이 장 학습지 ${count}/${total}</span><span class="pg-short">학습지 ${count}/${total} ↓</span>`;
+      pgDo.setAttribute('aria-label', `이 장 학습지 ${count}/${total} 풀러 내려가기`);
+      nextBtn.classList.remove('is-ready');
+    }
+  }
+
+  function observeSheet(page) {
+    if (sheetObserver) {
+      sheetObserver.disconnect();
+      sheetObserver = null;
+    }
+    sheetVisible = false;
+    const sheetEl = byId('sheet');
+    if (!sheetEl || !page?.qs?.length || typeof IntersectionObserver !== 'function') return;
+    sheetObserver = new IntersectionObserver(entries => {
+      const entry = entries[entries.length - 1];
+      if (!entry) return;
+      if (entry.isIntersecting !== sheetVisible) {
+        sheetVisible = entry.isIntersecting;
+        if (renderedPage === page) syncPager(page);
+      }
+    }, { rootMargin: '-96px 0px -70px 0px', threshold: 0 });
+    sheetObserver.observe(sheetEl);
+  }
+
   function renderPager(page) {
     const prev = pages[page.index - 1];
     const next = pages[page.index + 1];
     for (const [id, target, direction] of [['prev', prev, '이전'], ['next', next, '다음']]) {
       const button = byId(id);
       button.disabled = !target;
-      button.querySelector('b').textContent = target?.title || '';
-      button.setAttribute('aria-label', target ? `${direction} · ${target.title}` : direction);
+      const label = target ? (target.qs ? `${target.index + 1}장 ${target.title}` : target.title) : '';
+      button.querySelector('b').textContent = label;
+      button.setAttribute('aria-label', target ? `${direction} · ${label}` : direction);
     }
-    byId('where').textContent = page.qs ? `${page.index + 1} / ${CHAPTERS.length}장` : '제출';
-    byId('pgBar').style.width = Math.min(100, (page.index + 1) / CHAPTERS.length * 100) + '%';
+    syncPager(page);
   }
 
   function jump() {
@@ -1439,6 +1641,8 @@
     if (sheet) {
       if (classOn && !sheetOn) setSheet(true);
       sheet.scrollIntoView({ block: 'start', behavior: 'instant' });
+      sheetVisible = true;
+      if (renderedPage) syncPager(renderedPage);
     } else {
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
@@ -1446,16 +1650,19 @@
 
   function route() {
     const { page } = pageLocation();
-    if (renderedPage === page) {
+    closePagerPrompt();
+    if (renderedPage === page && page.qs) {
       jump();
       return;
     }
     if (pendingRadio) storeQuestion(pendingRadio);
+    if (renderedPage !== page || !page.qs) submitConfirm = 0;
     stopVideos();
     renderedPage = page;
     view.innerHTML = page.qs ? chapterHTML(page) : submitHTML();
     renderNav(page);
     renderRuler(page);
+    observeSheet(page);
     renderPager(page);
     loadArt(page);
     jump();
@@ -1511,6 +1718,12 @@
       showAns = !showAns;
       refreshMarks();
     } else if (button.id === 'btnSubmit') submit();
+    else if (button.id === 'btnSubmitForce') submit(true);
+    else if (button.id === 'btnSubmitCancel') {
+      submitConfirm = 0;
+      view.innerHTML = submitHTML();
+      byId('btnSubmit')?.focus({ preventScroll: true });
+    }
   }
 
   function onKey(event) {
@@ -1629,17 +1842,24 @@
     body.classList.toggle('class-sheet', on);
     const sheet = byId('sheet');
     if (!on && sheet) stopVideos(sheet);
+    if (renderedPage?.qs) observeSheet(renderedPage);
     const button = byId('btnSheet');
     if (button) {
       button.setAttribute('aria-pressed', String(on));
-      button.textContent = on ? '학습지 숨기기' : '학습지 함께 보기';
+      button.textContent = on ? '칠판에서 학습지 접기' : '칠판에 학습지 펼치기';
     }
+    if (renderedPage?.qs) syncPager(renderedPage);
   }
 
   function setClass(on) {
     classOn = on;
     showAns = false;
+    closePagerPrompt();
     body.classList.toggle('class-mode', on);
+    if (on && renderedPage?.qs) {
+      observeSheet(renderedPage);
+      syncPager(renderedPage);
+    }
     closeSide();
     classButton.textContent = on ? '수업 모드 끄기' : '수업 모드 켜기';
     classButton.setAttribute('aria-pressed', String(on));
@@ -1689,8 +1909,48 @@
       toast('이 기기에서는 전체 화면을 쓸 수 없어요.');
     }
   });
-  byId('prev').addEventListener('click', () => go(-1));
-  byId('next').addEventListener('click', () => go(1));
+  byId('prev').addEventListener('click', () => { closePagerPrompt(); go(-1); });
+  byId('next').addEventListener('click', () => {
+    if (renderedPage?.qs && !classOn && !TEACHER) {
+      const left = renderedPage.qs.filter(q => !answered(q)).length;
+      if (left > 0) {
+        showPagerPrompt(left);
+        return;
+      }
+    }
+    closePagerPrompt();
+    go(1);
+  });
+  byId('pgDo').addEventListener('click', () => {
+    closePagerPrompt();
+    const page = renderedPage;
+    if (!page?.qs) return;
+    const action = byId('pgDo').dataset.action;
+    if (action === 'submit') {
+      location.hash = `submit?s=${page.session}`;
+    } else if (action === 'first-unanswered') {
+      focusFirstUnanswered(page);
+    } else if (action === 'to-sheet') {
+      if (classOn && !sheetOn) setSheet(true);
+      const targetHash = '#' + page.id + '?sheet';
+      if (location.hash === targetHash) jump();
+      else location.hash = targetHash;
+    }
+  });
+  byId('pagerPrompt').addEventListener('click', event => {
+    const btn = event.target.closest('button');
+    if (!btn) return;
+    if (btn.classList.contains('prompt-sheet')) {
+      closePagerPrompt();
+      focusFirstUnanswered(renderedPage);
+    } else if (btn.classList.contains('prompt-skip')) {
+      closePagerPrompt();
+      go(1);
+    }
+  });
+  document.addEventListener('click', event => {
+    if (!event.target.closest('#pagerPrompt, #next')) closePagerPrompt();
+  });
   document.querySelector('.skip').addEventListener('click', event => {
     event.preventDefault();
     jump();
@@ -1700,6 +1960,11 @@
     if (event.key === 'Escape' && body.classList.contains('side-open')) {
       closeSide();
       burger.focus();
+      return;
+    }
+    if (event.key === 'Escape' && !byId('pagerPrompt').hidden) {
+      closePagerPrompt();
+      byId('next').focus();
       return;
     }
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey ||
